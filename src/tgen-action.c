@@ -5,7 +5,7 @@
 #include <arpa/inet.h>
 #include <math.h>
 
-#include "shd-tgen.h"
+#include "tgen.h"
 
 typedef struct _TGenActionStartData {
     /* TODO change all times to use the handleTime func, as store nanos

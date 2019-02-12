@@ -2,8 +2,10 @@
  * See LICENSE for licensing information
  */
 
-#ifndef SRC_PLUGIN_SHADOW_PLUGIN_TGEN_SHD_TGEN_MARKOVMODEL_H_
-#define SRC_PLUGIN_SHADOW_PLUGIN_TGEN_SHD_TGEN_MARKOVMODEL_H_
+#ifndef TGEN_MARKOVMODEL_H_
+#define TGEN_MARKOVMODEL_H_
+
+#include <glib.h>
 
 /* this is how many bytes we send for each packet type observation */
 #define TGEN_MMODEL_PACKET_DATA_SIZE 1434
@@ -28,4 +30,4 @@ void tgenmarkovmodel_unref(TGenMarkovModel* mmodel);
 Observation tgenmarkovmodel_getNextObservation(TGenMarkovModel* mmodel, guint64* delay);
 void tgenmarkovmodel_reset(TGenMarkovModel* mmodel);
 
-#endif /* SRC_PLUGIN_SHADOW_PLUGIN_TGEN_SHD_TGEN_MARKOVMODEL_H_ */
+#endif /* TGEN_MARKOVMODEL_H_ */

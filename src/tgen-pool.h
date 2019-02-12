@@ -2,8 +2,8 @@
  * See LICENSE for licensing information
  */
 
-#ifndef SHD_TGEN_POOL_H_
-#define SHD_TGEN_POOL_H_
+#ifndef TGEN_POOL_H_
+#define TGEN_POOL_H_
 
 #include <glib.h>
 
@@ -16,4 +16,4 @@ void tgenpool_unref(TGenPool* pool);
 void tgenpool_add(TGenPool* pool, gpointer item);
 gpointer tgenpool_getRandom(TGenPool* pool);
 
-#endif /* SHD_TGEN_POOL_H_ */
+#endif /* TGEN_POOL_H_ */

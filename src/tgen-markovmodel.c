@@ -5,7 +5,7 @@
 #include <math.h>
 #include <igraph.h>
 
-#include "shd-tgen.h"
+#include "tgen.h"
 
 typedef enum _VertexAttribute VertexAttribute;
 enum _VertexAttribute {

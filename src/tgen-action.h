@@ -2,10 +2,10 @@
  * See LICENSE for licensing information
  */
 
-#ifndef SHD_TGEN_ACTION_H_
-#define SHD_TGEN_ACTION_H_
+#ifndef TGEN_ACTION_H_
+#define TGEN_ACTION_H_
 
-#include "shd-tgen.h"
+#include "tgen.h"
 
 typedef enum _TGenActionType {
     TGEN_ACTION_START,
@@ -68,4 +68,4 @@ gboolean tgenaction_hasPauseTime(TGenAction* action);
 guint64 tgenaction_getPauseTimeMillis(TGenAction* action);
 gboolean tgenaction_incrementPauseVisited(TGenAction* action);
 
-#endif /* SHD_TGEN_ACTION_H_ */
+#endif /* TGEN_ACTION_H_ */

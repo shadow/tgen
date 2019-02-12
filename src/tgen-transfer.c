@@ -4,7 +4,7 @@
 
 #include <arpa/inet.h>
 
-#include "shd-tgen.h"
+#include "tgen.h"
 
 /* 60 seconds default timeout */
 #define DEFAULT_XFER_TIMEOUT_USEC 60000000

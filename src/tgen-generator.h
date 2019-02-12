@@ -2,8 +2,10 @@
  * See LICENSE for licensing information
  */
 
-#ifndef SRC_PLUGIN_SHADOW_PLUGIN_TGEN_SHD_TGEN_GENERATOR_H_
-#define SRC_PLUGIN_SHADOW_PLUGIN_TGEN_SHD_TGEN_GENERATOR_H_
+#ifndef TGEN_GENERATOR_H_
+#define TGEN_GENERATOR_H_
+
+#include <glib.h>
 
 typedef struct _TGenGenerator TGenGenerator;
 
@@ -24,4 +26,4 @@ guint tgengenerator_getNumOutstandingTransfers(TGenGenerator* gen);
 guint tgengenerator_getNumStreamsGenerated(TGenGenerator* gen);
 guint tgengenerator_getNumPacketsGenerated(TGenGenerator* gen);
 
-#endif /* SRC_PLUGIN_SHADOW_PLUGIN_TGEN_SHD_TGEN_GENERATOR_H_ */
+#endif /* TGEN_GENERATOR_H_ */

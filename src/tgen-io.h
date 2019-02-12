@@ -3,10 +3,10 @@
  * See LICENSE for licensing information
  */
 
-#ifndef SHD_TGEN_IO_H_
-#define SHD_TGEN_IO_H_
+#ifndef TGEN_IO_H_
+#define TGEN_IO_H_
 
-#include "shd-tgen.h"
+#include "tgen.h"
 
 typedef enum _TGenEvent {
     TGEN_EVENT_NONE = 0,
@@ -33,4 +33,4 @@ void tgenio_checkTimeouts(TGenIO* io);
 void tgenio_setEvents(TGenIO *io, gint descriptor, TGenEvent events);
 gint tgenio_getEpollDescriptor(TGenIO* io);
 
-#endif /* SHD_TGEN_IO_H_ */
+#endif /* TGEN_IO_H_ */

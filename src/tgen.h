@@ -38,18 +38,18 @@ extern TGenLogFunc tgenLogFunc;
 #define tgen_debug(...)
 #endif
 
-#include "shd-tgen-io.h"
-#include "shd-tgen-timer.h"
-#include "shd-tgen-pool.h"
-#include "shd-tgen-peer.h"
-#include "shd-tgen-server.h"
-#include "shd-tgen-transport.h"
-#include "shd-tgen-transfer.h"
-#include "shd-tgen-action.h"
-#include "shd-tgen-markovmodel.h"
-#include "shd-tgen-generator.h"
-#include "shd-tgen-graph.h"
-#include "shd-tgen-driver.h"
-#include "shd-tgen-config.h"
+#include "tgen-io.h"
+#include "tgen-timer.h"
+#include "tgen-pool.h"
+#include "tgen-peer.h"
+#include "tgen-server.h"
+#include "tgen-transport.h"
+#include "tgen-transfer.h"
+#include "tgen-action.h"
+#include "tgen-markovmodel.h"
+#include "tgen-generator.h"
+#include "tgen-graph.h"
+#include "tgen-driver.h"
+#include "tgen-config.h"
 
 #endif /* SHD_TGEN_H_ */

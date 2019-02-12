@@ -4,7 +4,7 @@
 
 #include <igraph.h>
 
-#include "shd-tgen.h"
+#include "tgen.h"
 
 typedef enum {
     TGEN_A_NONE = 0,

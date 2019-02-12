@@ -3,8 +3,10 @@
  * See LICENSE for licensing information
  */
 
-#ifndef SHD_TGEN_SERVER_H_
-#define SHD_TGEN_SERVER_H_
+#ifndef TGEN_SERVER_H_
+#define TGEN_SERVER_H_
+
+#include <glib.h>
 
 typedef struct _TGenServer TGenServer;
 
@@ -18,4 +20,4 @@ void tgenserver_unref(TGenServer* server);
 TGenEvent tgenserver_onEvent(TGenServer* server, gint descriptor, TGenEvent events);
 gint tgenserver_getDescriptor(TGenServer* server);
 
-#endif /* SHD_TGEN_SERVER_H_ */
+#endif /* TGEN_SERVER_H_ */

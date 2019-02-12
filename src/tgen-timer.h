@@ -3,8 +3,10 @@
  * See LICENSE for licensing information
  */
 
-#ifndef SHD_TGEN_TIMER_H_
-#define SHD_TGEN_TIMER_H_
+#ifndef TGEN_TIMER_H_
+#define TGEN_TIMER_H_
+
+#include <glib.h>
 
 typedef struct _TGenTimer TGenTimer;
 
@@ -22,4 +24,4 @@ gint tgentimer_getDescriptor(TGenTimer* timer);
 void tgentimer_settime_micros(TGenTimer *timer, guint64 micros);
 void tgentimer_cancel(TGenTimer *timer);
 
-#endif /* SHD_TGEN_TIMER_H_ */
+#endif /* TGEN_TIMER_H_ */

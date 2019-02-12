@@ -6,7 +6,7 @@
 #include <fcntl.h>
 #include <sys/timerfd.h>
 
-#include "shd-tgen.h"
+#include "tgen.h"
 
 struct _TGenTimer {
     TGenTimer_notifyExpiredFunc notify;

@@ -2,10 +2,10 @@
  * See LICENSE for licensing information
  */
 
-#ifndef SHD_TGEN_PEER_H_
-#define SHD_TGEN_PEER_H_
+#ifndef TGEN_PEER_H_
+#define TGEN_PEER_H_
 
-#include "shd-tgen.h"
+#include "tgen.h"
 
 typedef struct _TGenPeer TGenPeer;
 
@@ -23,4 +23,4 @@ in_port_t tgenpeer_getHostPort(TGenPeer* peer);
 const gchar* tgenpeer_getName(TGenPeer* peer);
 const gchar* tgenpeer_toString(TGenPeer* peer);
 
-#endif /* SHD_TGEN_PEER_H_ */
+#endif /* TGEN_PEER_H_ */

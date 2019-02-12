@@ -3,7 +3,7 @@
  * See LICENSE for licensing information
  */
 
-#include "shd-tgen.h"
+#include "tgen.h"
 
 struct _TGenIO {
     gint epollD;

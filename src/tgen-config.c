@@ -1,4 +1,4 @@
-#include "shd-tgen.h"
+#include "tgen.h"
 
 gint tgenconfig_gethostname(gchar* name, size_t len) {
     gchar* tgenip = getenv("TGENHOSTNAME");

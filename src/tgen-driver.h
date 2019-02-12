@@ -2,10 +2,10 @@
  * See LICENSE for licensing information
  */
 
-#ifndef SHD_TGEN_DRIVER_H_
-#define SHD_TGEN_DRIVER_H_
+#ifndef TGEN_DRIVER_H_
+#define TGEN_DRIVER_H_
 
-#include "shd-tgen.h"
+#include "tgen.h"
 
 /* opaque struct containing trafficgenerator data */
 typedef struct _TGenDriver TGenDriver;
@@ -19,4 +19,4 @@ void tgendriver_activate(TGenDriver* driver);
 gboolean tgendriver_hasEnded(TGenDriver* driver);
 gint tgendriver_getEpollDescriptor(TGenDriver* driver);
 
-#endif /* SHD_TGEN_DRIVER_H_ */
+#endif /* TGEN_DRIVER_H_ */

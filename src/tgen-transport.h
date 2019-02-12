@@ -2,10 +2,10 @@
  * See LICENSE for licensing information
  */
 
-#ifndef SHD_TGEN_TRANSPORT_H_
-#define SHD_TGEN_TRANSPORT_H_
+#ifndef TGEN_TRANSPORT_H_
+#define TGEN_TRANSPORT_H_
 
-#include "shd-tgen.h"
+#include "tgen.h"
 
 typedef enum _TGenTransportProtocol {
     TGEN_PROTOCOL_NONE, TGEN_PROTOCOL_TCP, TGEN_PROTOCOL_UDP,
@@ -34,4 +34,4 @@ gchar* tgentransport_getTimeStatusReport(TGenTransport* transport);
 gboolean tgentransport_wantsEvents(TGenTransport* transport);
 TGenEvent tgentransport_onEvent(TGenTransport* transport, TGenEvent events);
 
-#endif /* SHD_TGEN_TRANSPORT_H_ */
+#endif /* TGEN_TRANSPORT_H_ */

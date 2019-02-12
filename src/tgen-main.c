@@ -6,7 +6,7 @@
 #include <unistd.h>
 #include <signal.h>
 
-#include "shd-tgen.h"
+#include "tgen.h"
 
 /* store a global pointer to the log func, so we can log in any
  * of our tgen modules without a pointer to the tgen struct */

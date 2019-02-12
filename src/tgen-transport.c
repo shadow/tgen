@@ -4,7 +4,7 @@
 
 #include <arpa/inet.h>
 
-#include "shd-tgen.h"
+#include "tgen.h"
 
 typedef enum {
     TGEN_XPORT_CONNECT,

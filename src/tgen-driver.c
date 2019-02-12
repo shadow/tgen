@@ -6,7 +6,7 @@
 #include <arpa/inet.h>
 #include <glib/gstdio.h>
 
-#include "shd-tgen.h"
+#include "tgen.h"
 
 #define MAX_EVENTS_PER_IO_LOOP 100
 

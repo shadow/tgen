@@ -19,20 +19,20 @@ add_compile_options(-O2 -ggdb -fno-omit-frame-pointer -fPIC -std=gnu11)
 message(STATUS "CMAKE_C_FLAGS = ${CMAKE_C_FLAGS}")
 
 set(tgen_sources
-    src/shd-tgen-action.c
-    src/shd-tgen-config.c
-    src/shd-tgen-driver.c
-    src/shd-tgen-generator.c
-    src/shd-tgen-graph.c
-    src/shd-tgen-io.c
-    src/shd-tgen-main.c
-    src/shd-tgen-markovmodel.c
-    src/shd-tgen-peer.c
-    src/shd-tgen-pool.c
-    src/shd-tgen-server.c
-    src/shd-tgen-timer.c
-    src/shd-tgen-transfer.c
-    src/shd-tgen-transport.c
+    src/tgen-action.c
+    src/tgen-config.c
+    src/tgen-driver.c
+    src/tgen-generator.c
+    src/tgen-graph.c
+    src/tgen-io.c
+    src/tgen-main.c
+    src/tgen-markovmodel.c
+    src/tgen-peer.c
+    src/tgen-pool.c
+    src/tgen-server.c
+    src/tgen-timer.c
+    src/tgen-transfer.c
+    src/tgen-transport.c
 )
 
 ## build the tgen executable

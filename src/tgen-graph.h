@@ -2,8 +2,10 @@
  * See LICENSE for licensing information
  */
 
-#ifndef SHD_TGEN_GRAPH_H_
-#define SHD_TGEN_GRAPH_H_
+#ifndef TGEN_GRAPH_H_
+#define TGEN_GRAPH_H_
+
+#include <glib.h>
 
 typedef struct _TGenGraph TGenGraph;
 
@@ -17,4 +19,4 @@ gboolean tgengraph_hasEdges(TGenGraph* g);
 const gchar* tgengraph_getActionIDStr(TGenGraph* g, TGenAction* action);
 const gchar* tgengraph_getGraphPath(TGenGraph* g);
 
-#endif /* SHD_TGEN_GRAPH_H_ */
+#endif /* TGEN_GRAPH_H_ */

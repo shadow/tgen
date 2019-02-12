@@ -3,7 +3,7 @@
  * See LICENSE for licensing information
  */
 
-#include "shd-tgen.h"
+#include "tgen.h"
 
 struct _TGenServer {
     TGenServer_notifyNewPeerFunc notify;
