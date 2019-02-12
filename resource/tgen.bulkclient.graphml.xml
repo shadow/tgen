@@ -7,13 +7,13 @@
   <key attr.name="peers" attr.type="string" for="node" id="d0" />
   <graph edgedefault="directed">
     <node id="start">
-      <data key="d0">server1:30080,server2:30080,server3:30080,server4:30080,server5:30080</data>
+      <data key="d0">localhost:30080</data>
       <data key="d1">30089</data>
     </node>
     <node id="transfer">
       <data key="d2">tcp</data>
       <data key="d3">get</data>
-      <data key="d4">1 MiB</data>
+      <data key="d4">100 MiB</data>
     </node>
     <node id="end">
       <data key="d5">10</data>
