@@ -28,7 +28,7 @@ TGen is used to monitor Tor performance in [OnionPerf](https://gitweb.torproject
 
 - Optionally install to the install prefix:
 
-      make install # optional, installs to path set above
+      make install
 
 ## Usage
 
