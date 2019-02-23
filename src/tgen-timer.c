@@ -81,7 +81,14 @@ TGenEvent tgentimer_onEvent(TGenTimer* timer, gint descriptor, TGenEvent events)
 
     /* clear the event from the descriptor */
     guint64 numExpirations = 0;
-    read(timer->timerD, &numExpirations, sizeof(guint64));
+    gssize result = read(timer->timerD, &numExpirations, sizeof(guint64));
+
+    if(result < 0 && (errno == EAGAIN || errno == EWOULDBLOCK)) {
+    	/* the timer actually wasn't ready to read yet */
+    	tgen_info("We thought timer fd %i was ready, but it returned EAGAIN", timer->timerD);
+    	/* keep waiting for read */
+    	return TGEN_EVENT_READ;
+    }
 
     /* call the registered notification function */
     gboolean shouldCancel = TRUE;
