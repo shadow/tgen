@@ -16,6 +16,8 @@
 #include <errno.h>
 #include <string.h>
 
+#define TGEN_VERSION "0.1.0"
+
 #if 1 /* #ifdef DEBUG */
 #define TGEN_MAGIC 0xABBABAAB
 #define TGEN_ASSERT(obj) g_assert(obj && (obj->magic == TGEN_MAGIC))

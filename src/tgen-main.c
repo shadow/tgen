@@ -80,7 +80,8 @@ static gint _tgenmain_run(gint argc, gchar *argv[]) {
     tgenconfig_gethostname(hostname, 128);
 
     /* default to message level log until we read config */
-    tgen_message("Initializing traffic generator on host %s process id %i", hostname, (gint)getpid());
+    tgen_message("Initializing traffic generator v%s on host %s process id %i",
+        TGEN_VERSION, hostname, (gint)getpid());
 
     // TODO embedding a tgen graphml inside the shadow.config.xml file not yet supported
 //    if(argv[1] && g_str_has_prefix(argv[1], "<?xml")) {
