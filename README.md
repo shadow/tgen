@@ -26,7 +26,7 @@ Build with a custom install prefix:
     cmake .. -DCMAKE_INSTALL_PREFIX=/home/$USER/.local
     make
 
-Optionally install to the install prefix:
+Optionally install to the prefix:
 
     make install
 

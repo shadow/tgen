@@ -29,6 +29,7 @@ your other python projects.
 ## Build and Install TGenTools
 
     source venv/bin/activate
+    cd tgen/tools
     pip install -I .
 
 ## Run TGenTools
