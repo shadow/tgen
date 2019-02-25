@@ -32,10 +32,19 @@ Optionally install to the install prefix:
 
 ## Usage
 
-Run TGen with a single argument:
+Run TGen with a single argument (the path to a config file):
 
-    tgen path/to/tgen.config.graphml.xml
+    tgen path/to/tgen.config.graphml.xml > tgen.log
 
-See the `resource/` directory for example config files, and see the `doc/`
-directory to learn more about the graph file and how you can generate your own
-in order to model your intended behavior.
+See the `resource/` directory for example config files.
+
+## More documentation
+
+See `doc/TGen-Modeling.md` for examples of how to generate TGen config
+files with embedded traffic models.
+
+See `doc/TGen-Config.md` for the format of the configuration file and
+the possible options that can be used when generating traffic models.
+
+See `doc/Tools-Setup.md` for setup instructions for the TGenTools
+toolkit that can be used to parse and plot `tgen` log output.

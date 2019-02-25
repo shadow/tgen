@@ -1,0 +1,6 @@
+cycler
+matplotlib
+networkx
+numpy
+scipy
+zope.interface
