@@ -304,11 +304,11 @@ class TGenParser(Parser):
             return util.do_dates_match(self.date_filter, date_to_check)
 
     def __parse_line(self, line, do_simple):
-        if self.name is None and re.search("Initializing traffic generator", line) is not None:
-            self.name = line.strip().split()[12]
+        if self.name is None and re.search("Initializing\sTGen\sv", line) is not None:
+            self.name = line.strip().split()[17]
 
         if self.date_filter is not None:
-            parts = line.split(' ', 3)
+            parts = line.strip().split(' ', 3)
             if len(parts) < 4: # the 3rd is the timestamp, the 4th is the rest of the line
                 return True
             unix_ts = float(parts[2])

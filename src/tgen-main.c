@@ -2,9 +2,11 @@
  * See LICENSE for licensing information
  */
 
-#include <glib.h>
 #include <unistd.h>
 #include <signal.h>
+
+#include <glib.h>
+#include <igraph.h>
 
 #include "tgen.h"
 
@@ -80,8 +82,16 @@ static gint _tgenmain_run(gint argc, gchar *argv[]) {
     tgenconfig_gethostname(hostname, 128);
 
     /* default to message level log until we read config */
-    tgen_message("Initializing traffic generator v%s on host %s process id %i",
-        TGEN_VERSION, hostname, (gint)getpid());
+    tgen_message("Initializing TGen v%s running GLib v%u.%u.%u and IGraph v%s "
+        "on host %s with process id %i",
+        TGEN_VERSION,
+        (guint)GLIB_MAJOR_VERSION, (guint)GLIB_MINOR_VERSION, (guint)GLIB_MICRO_VERSION,
+#if defined(IGRAPH_VERSION)
+        IGRAPH_VERSION,
+#else
+        "(n/a)",
+#endif
+        hostname, (gint)getpid());
 
     // TODO embedding a tgen graphml inside the shadow.config.xml file not yet supported
 //    if(argv[1] && g_str_has_prefix(argv[1], "<?xml")) {
