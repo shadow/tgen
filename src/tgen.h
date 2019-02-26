@@ -16,7 +16,7 @@
 #include <errno.h>
 #include <string.h>
 
-#define TGEN_VERSION "0.0.1"
+#define TGEN_VERSION "0.0.0"
 
 #if 1 /* #ifdef DEBUG */
 #define TGEN_MAGIC 0xABBABAAB
