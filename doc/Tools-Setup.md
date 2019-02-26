@@ -52,7 +52,8 @@ called `tgen.client.log`, you can then parse the log file like this:
     tgentools parse tgen.client.log
 
 This produces the `tgen.analysis.json.xz` file, the format of which is
-outlined in `doc/Tools-JSON-Format.md`. The analysis file can be plotted:
+outlined in [doc/Tools-JSON-Format.md](Tools-JSON-Format.md).
+The analysis file can be plotted:
 
     tgentools plot --data tgen.analysis.json.xz "tgen-test"
 

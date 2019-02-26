@@ -1,14 +1,15 @@
 ## TGen
 
-Tgen is a C application that models traffic behaviors using an
-action-dependency graph represented using the standard `graphml.xml`
-format. Each tgen node takes a graphml-formatted file as input, and
-then begins transferring data to/from other nodes by following a path
-through the action graph.
+TGen is a C application that generates traffic flows between other
+Tgen instances. The characteristics of the traffic (e.g., size, timing,
+number of parallel flows, etc.) can be configured by the user.
 
-TGen is used to simulate traffic flows in [Shadow](https://github.com/shadow/shadow)
+TGen can generate complex traffic patterns. Users write relatively simple
+python scripts to generate `graphml` files that are then used as TGen
+configuration files that instruct TGen how to generate traffic.
 
-TGen is used to monitor Tor performance in [OnionPerf](https://gitweb.torproject.org/onionperf.git)
+TGen is used to simulate traffic flows in [Shadow](https://github.com/shadow/shadow),
+and to monitor Tor performance in [OnionPerf](https://gitweb.torproject.org/onionperf.git)
 
 ## Setup
 
@@ -45,12 +46,13 @@ See the `resource/` directory for example config files.
 
 ## More documentation
 
-See `doc/Tools-Setup.md` for setup instructions for the TGenTools
-toolkit that can be used to parse and plot `tgen` log output.
+See [doc/Tools-Setup.md](doc/Tools-Setup.md) for setup instructions for
+the TGenTools toolkit that can be used to parse and plot `tgen` log output.
 
-See `doc/TGen-Modeling.md` for examples of how to generate TGen config
-files with embedded traffic models.
+See [doc/TGen-Modeling.md](doc/TGen-Modeling.md) for examples of how to
+generate TGen config files with embedded traffic models.
 
-See `doc/TGen-Config.md` for the format of the configuration file and
-the possible options that can be used when generating traffic models.
+See [doc/TGen-Config.md](doc/TGen-Config.md) for the format of the
+configuration file and the possible options that can be used when
+generating traffic models.
 
