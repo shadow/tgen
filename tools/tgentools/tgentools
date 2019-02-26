@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 
 '''
-  tgentools
+  TGenTools
   Authored by Rob Jansen, 2015
   See LICENSE for licensing information
 '''
@@ -14,8 +14,8 @@ from tgentools._version import __version__
 import tgentools.util as util
 
 DESC_MAIN = """
-tgentools is a utility to analyze (parse) and visualize (plot) TGen output.
-tgentools must be run with a subcommand to specify a mode of operation.
+TGenTools is a utility to analyze (parse) and visualize (plot) TGen output.
+TGenTools must be run with a subcommand to specify a mode of operation.
 
 For more information, see https://github.com/shadow/tgen.
 """
@@ -48,9 +48,16 @@ HELP_VISUALIZE = """
 Visualize TGen analysis results
 """
 
-logging.basicConfig(format='%(asctime)s %(created)f [tgentools] [%(levelname)s] %(message)s', level=logging.INFO, datefmt='%Y-%m-%d %H:%M:%S')
-logging.getLogger("stem").setLevel(logging.WARN)
+DESC_EDIT = """
+Edit TGen configuration files in place to change or add options (i.e.,
+set the values of graphml attributes) on the specified graphml nodes
+or edges. Be careful not to set unsupported attribute names or values!
+"""
+HELP_EDIT = """
+Edit TGen configuration files in place
+"""
 
+logging.basicConfig(format='%(asctime)s %(created)f [tgentools] [%(levelname)s] %(message)s', level=logging.INFO, datefmt='%Y-%m-%d %H:%M:%S')
 
 class CustomHelpFormatter(argparse.ArgumentDefaultsHelpFormatter):
     # adds the 'RawDescriptionHelpFormatter' to the ArgsDefault one
@@ -82,7 +89,7 @@ def main():
 
     analyze_parser.add_argument(
         help="""The PATH to a TGen log file, or to a directory that will be
-recursively searched for tgen log files; may be '-' for STDIN; each log file
+recursively searched for TGen log files; may be '-' for STDIN; each log file
 may end in '.xz' to enable inline xz decompression""",
         metavar="PATH", type=type_str_path_in,
         action="store", dest="tgen_path")
@@ -158,10 +165,56 @@ will override the default pattern 'tgen.*\.log'.""",
         action="store", dest="lineformats",
         default=util.LINEFORMATS)
 
+    # edit
+    edit_parser = sub_parser.add_parser('edit', description=DESC_EDIT, help=HELP_EDIT,
+        formatter_class=my_formatter_class)
+    edit_parser.set_defaults(func=edit, formatter_class=my_formatter_class)
+
+    edit_parser.add_argument(
+        help="""The PATH to a TGen configuration file in graphml format""",
+        metavar="PATH", type=type_str_path_in,
+        action="store", dest="config_path")
+
+    edit_parser.add_argument('-a', '--action',
+        help="""Set the regex PATTERN that will be used to match actions (nodes)
+        for which the given attribute and value will be set. Examples include
+        ('start', 'transfer', 'pause', 'end')""",
+        metavar="PATTERN", type=str,
+        action="store", dest="action_pattern",
+        default=None)
+
+    edit_parser.add_argument('-s', '--source',
+        help="""Set the regex PATTERN that will be used to match the name of the edge
+        source for which the given attribute and value will be set. An edge matches
+        the pattern if the name of the action on the source of the edge matches.""",
+        metavar="PATTERN", type=str,
+        action="store", dest="edge_source_pattern",
+        default=None)
+
+    edit_parser.add_argument('-t', '--target',
+        help="""Set the regex PATTERN that will be used to match the name of the edge
+        target for which the given attribute and value will be set. An edge matches
+        the pattern if the name of the action on the target of the edge matches.""",
+        metavar="PATTERN", type=str,
+        action="store", dest="edge_target_pattern",
+        default=None)
+
+    edit_parser.add_argument('-n', '--name',
+        help="A STRING name for the attribute that we set on matched nodes/edges.",
+        metavar="STRING", type=str,
+        action="store", dest="name",
+        default=None)
+
+    edit_parser.add_argument('-v', '--value',
+        help="A STRING value for the attribute that we set on matched nodes/edges.",
+        metavar="STRING", type=str,
+        action="store", dest="value",
+        default=None)
+
     # get args and call the command handler for the chosen mode
     args = main_parser.parse_args()
     if args.do_version:
-        logging.info("tgentools version {}".format(__version__))
+        logging.info("TGenTools version {}".format(__version__))
         return
     args.func(args)
 
@@ -213,6 +266,21 @@ def visualize(args):
             tgen_viz.add_dataset(anal, label, nextformat)
 
     tgen_viz.plot_all(args.prefix)
+
+def edit(args):
+    if args.action_pattern is None and \
+            args.edge_source_pattern is None and args.edge_target_pattern is None:
+        logging.info("You did not set any regex patterns, so no elements were selected")
+        return
+
+    if args.name is None or args.value is None:
+        logging.info("You did not set a name and value, so no attributes were changed")
+        return
+
+    from tgentools.edit import edit_config
+
+    edit_config(args.config_path, args.action_pattern,
+        args.edge_source_pattern, args.edge_target_pattern, args.name, args.value)
 
 def type_nonnegative_integer(value):
     i = int(value)
