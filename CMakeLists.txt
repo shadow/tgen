@@ -25,6 +25,7 @@ set(tgen_sources
     src/tgen-generator.c
     src/tgen-graph.c
     src/tgen-io.c
+    src/tgen-log.c
     src/tgen-main.c
     src/tgen-markovmodel.c
     src/tgen-peer.c

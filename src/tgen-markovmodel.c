@@ -2,10 +2,22 @@
  * See LICENSE for licensing information
  */
 
+#include <stdint.h>
 #include <math.h>
+#include <errno.h>
+
 #include <igraph.h>
 
-#include "tgen.h"
+#include "tgen-log.h"
+#include "tgen-markovmodel.h"
+
+#if 1 /* #ifdef DEBUG */
+#define TGEN_MMODEL_MAGIC 0xDEEFCABA
+#define TGEN_MMODEL_ASSERT(obj) g_assert(obj && (obj->magic == TGEN_MMODEL_MAGIC))
+#else
+#define TGEN_MMODEL_MAGIC 0
+#define TGEN_MMODEL_ASSERT(obj)
+#endif
 
 typedef enum _VertexAttribute VertexAttribute;
 enum _VertexAttribute {
@@ -161,7 +173,7 @@ static gboolean _tgenmarkovmodel_vertexIDIsEmission(const gchar* idStr) {
  * returns true if valueOut has been set, false otherwise */
 static gboolean _tgenmarkovmodel_findVertexAttributeString(TGenMarkovModel* mmodel, igraph_integer_t vertexIndex,
         VertexAttribute attr, const gchar** valueOut) {
-    TGEN_ASSERT(mmodel);
+    TGEN_MMODEL_ASSERT(mmodel);
 
     const gchar* name = _tgenmarkovmodel_vertexAttributeToString(attr);
 
@@ -182,7 +194,7 @@ static gboolean _tgenmarkovmodel_findVertexAttributeString(TGenMarkovModel* mmod
  * returns true if valueOut has been set, false otherwise */
 static gboolean _tgenmarkovmodel_findEdgeAttributeDouble(TGenMarkovModel* mmodel, igraph_integer_t edgeIndex,
         EdgeAttribute attr, gdouble* valueOut) {
-    TGEN_ASSERT(mmodel);
+    TGEN_MMODEL_ASSERT(mmodel);
 
     const gchar* name = _tgenmarkovmodel_edgeAttributeToString(attr);
 
@@ -203,7 +215,7 @@ static gboolean _tgenmarkovmodel_findEdgeAttributeDouble(TGenMarkovModel* mmodel
  * returns true if valueOut has been set, false otherwise */
 static gboolean _tgenmarkovmodel_findEdgeAttributeString(TGenMarkovModel* mmodel, igraph_integer_t edgeIndex,
         EdgeAttribute attr, const gchar** valueOut) {
-    TGEN_ASSERT(mmodel);
+    TGEN_MMODEL_ASSERT(mmodel);
 
     const gchar* name = _tgenmarkovmodel_edgeAttributeToString(attr);
 
@@ -221,7 +233,7 @@ static gboolean _tgenmarkovmodel_findEdgeAttributeString(TGenMarkovModel* mmodel
 }
 
 static gboolean _tgenmarkovmodel_checkVertexAttributes(TGenMarkovModel* mmodel, igraph_integer_t vertexIndex) {
-    TGEN_ASSERT(mmodel);
+    TGEN_MMODEL_ASSERT(mmodel);
     g_assert(mmodel->graph);
 
     gboolean isSuccess = TRUE;
@@ -299,7 +311,7 @@ static gboolean _tgenmarkovmodel_checkVertexAttributes(TGenMarkovModel* mmodel, 
 }
 
 static gboolean _tgenmarkovmodel_validateVertices(TGenMarkovModel* mmodel, igraph_integer_t* startVertexID) {
-    TGEN_ASSERT(mmodel);
+    TGEN_MMODEL_ASSERT(mmodel);
     g_assert(mmodel->graph);
 
     gboolean isSuccess = TRUE;
@@ -345,7 +357,7 @@ static gboolean _tgenmarkovmodel_validateVertices(TGenMarkovModel* mmodel, igrap
 }
 
 static gboolean _tgenmarkovmodel_checkEdgeAttributes(TGenMarkovModel* mmodel, igraph_integer_t edgeIndex) {
-    TGEN_ASSERT(mmodel);
+    TGEN_MMODEL_ASSERT(mmodel);
     g_assert(mmodel->graph);
 
     igraph_integer_t fromVertexIndex, toVertexIndex;
@@ -522,7 +534,7 @@ static gboolean _tgenmarkovmodel_checkEdgeAttributes(TGenMarkovModel* mmodel, ig
 }
 
 static gboolean _tgenmarkovmodel_validateEdges(TGenMarkovModel* mmodel) {
-    TGEN_ASSERT(mmodel);
+    TGEN_MMODEL_ASSERT(mmodel);
     g_assert(mmodel->graph);
 
     gboolean isSuccess = TRUE;
@@ -611,7 +623,7 @@ static igraph_t* _tgenmarkovmodel_loadGraph(const gchar* graphFileName) {
 }
 
 static void _tgenmarkovmodel_free(TGenMarkovModel* mmodel) {
-    TGEN_ASSERT(mmodel);
+    TGEN_MMODEL_ASSERT(mmodel);
     g_assert(mmodel->refcount == 0);
 
     if(mmodel->graph) {
@@ -625,12 +637,12 @@ static void _tgenmarkovmodel_free(TGenMarkovModel* mmodel) {
 }
 
 void tgenmarkovmodel_ref(TGenMarkovModel* mmodel) {
-    TGEN_ASSERT(mmodel);
+    TGEN_MMODEL_ASSERT(mmodel);
     mmodel->refcount++;
 }
 
 void tgenmarkovmodel_unref(TGenMarkovModel* mmodel) {
-    TGEN_ASSERT(mmodel);
+    TGEN_MMODEL_ASSERT(mmodel);
     if (--(mmodel->refcount) == 0) {
         _tgenmarkovmodel_free(mmodel);
     }
@@ -638,7 +650,7 @@ void tgenmarkovmodel_unref(TGenMarkovModel* mmodel) {
 
 TGenMarkovModel* tgenmarkovmodel_new(const gchar* modelPath) {
     TGenMarkovModel* mmodel = g_new0(TGenMarkovModel, 1);
-    mmodel->magic = TGEN_MAGIC;
+    mmodel->magic = TGEN_MMODEL_MAGIC;
     mmodel->refcount = 1;
 
     mmodel->graph = _tgenmarkovmodel_loadGraph(modelPath);
@@ -682,7 +694,7 @@ TGenMarkovModel* tgenmarkovmodel_new(const gchar* modelPath) {
 static gboolean _tgenmarkovmodel_chooseEdge(TGenMarkovModel* mmodel, EdgeType type,
         igraph_integer_t fromVertexIndex,
         igraph_integer_t* edgeIndexOut, igraph_integer_t* toVertexIndexOut) {
-    TGEN_ASSERT(mmodel);
+    TGEN_MMODEL_ASSERT(mmodel);
 
     int result = 0;
     gboolean isSuccess = FALSE;
@@ -817,7 +829,7 @@ static gboolean _tgenmarkovmodel_chooseEdge(TGenMarkovModel* mmodel, EdgeType ty
 static gboolean _tgenmarkovmodel_chooseTransition(TGenMarkovModel* mmodel,
         igraph_integer_t fromVertexIndex,
         igraph_integer_t* transitionEdgeIndex, igraph_integer_t* transitionStateVertexIndex) {
-    TGEN_ASSERT(mmodel);
+    TGEN_MMODEL_ASSERT(mmodel);
     return _tgenmarkovmodel_chooseEdge(mmodel, EDGE_TYPE_TRANSITION, fromVertexIndex,
             transitionEdgeIndex, transitionStateVertexIndex);
 }
@@ -825,7 +837,7 @@ static gboolean _tgenmarkovmodel_chooseTransition(TGenMarkovModel* mmodel,
 static gboolean _tgenmarkovmodel_chooseEmission(TGenMarkovModel* mmodel,
         igraph_integer_t fromVertexIndex,
         igraph_integer_t* emissionEdgeIndex, igraph_integer_t* emissionObservationVertexIndex) {
-    TGEN_ASSERT(mmodel);
+    TGEN_MMODEL_ASSERT(mmodel);
     return _tgenmarkovmodel_chooseEdge(mmodel, EDGE_TYPE_EMISSION, fromVertexIndex,
             emissionEdgeIndex, emissionObservationVertexIndex);
 }
@@ -852,7 +864,7 @@ static gdouble _tgenmarkovmodel_generateExponentialValue(gdouble lambda) {
 
 static guint64 _tgenmarkovmodel_generateDelay(TGenMarkovModel* mmodel,
         igraph_integer_t edgeIndex) {
-    TGEN_ASSERT(mmodel);
+    TGEN_MMODEL_ASSERT(mmodel);
 
     /* we already validated the attributes, so assert that they exist here */
     gboolean isSuccess = FALSE;
@@ -890,7 +902,7 @@ static guint64 _tgenmarkovmodel_generateDelay(TGenMarkovModel* mmodel,
 
 static Observation _tgenmarkovmodel_vertexToObservation(TGenMarkovModel* mmodel,
         igraph_integer_t vertexIndex) {
-    TGEN_ASSERT(mmodel);
+    TGEN_MMODEL_ASSERT(mmodel);
 
     /* we already validated the attributes, so assert that they exist here */
     gboolean isSuccess = FALSE;
@@ -916,7 +928,7 @@ static Observation _tgenmarkovmodel_vertexToObservation(TGenMarkovModel* mmodel,
 }
 
 Observation tgenmarkovmodel_getNextObservation(TGenMarkovModel* mmodel, guint64* delay) {
-    TGEN_ASSERT(mmodel);
+    TGEN_MMODEL_ASSERT(mmodel);
 
     if(mmodel->foundEndState) {
         return OBSERVATION_END;
@@ -980,7 +992,7 @@ Observation tgenmarkovmodel_getNextObservation(TGenMarkovModel* mmodel, guint64*
 }
 
 void tgenmarkovmodel_reset(TGenMarkovModel* mmodel) {
-    TGEN_ASSERT(mmodel);
+    TGEN_MMODEL_ASSERT(mmodel);
 
     mmodel->foundEndState = FALSE;
     mmodel->currentStateVertexIndex = mmodel->startVertexIndex;

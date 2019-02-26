@@ -26,20 +26,7 @@
 #define TGEN_ASSERT(obj)
 #endif
 
-typedef void (*TGenLogFunc)(GLogLevelFlags level, const char* fileName, const int lineNum, const char* functionName, const char* format, ...);
-extern TGenLogFunc tgenLogFunc;
-
-#define tgen_error(...)     if(tgenLogFunc){tgenLogFunc(G_LOG_LEVEL_ERROR, __FILE__, __LINE__, __FUNCTION__, __VA_ARGS__);}
-#define tgen_critical(...)  if(tgenLogFunc){tgenLogFunc(G_LOG_LEVEL_CRITICAL, __FILE__, __LINE__, __FUNCTION__, __VA_ARGS__);}
-#define tgen_warning(...)   if(tgenLogFunc){tgenLogFunc(G_LOG_LEVEL_WARNING, __FILE__, __LINE__, __FUNCTION__, __VA_ARGS__);}
-#define tgen_message(...)   if(tgenLogFunc){tgenLogFunc(G_LOG_LEVEL_MESSAGE, __FILE__, __LINE__, __FUNCTION__, __VA_ARGS__);}
-#define tgen_info(...)      if(tgenLogFunc){tgenLogFunc(G_LOG_LEVEL_INFO, __FILE__, __LINE__, __FUNCTION__, __VA_ARGS__);}
-#ifdef DEBUG
-#define tgen_debug(...)     if(tgenLogFunc){tgenLogFunc(G_LOG_LEVEL_DEBUG, __FILE__, __LINE__, __FUNCTION__, __VA_ARGS__);}
-#else
-#define tgen_debug(...)
-#endif
-
+#include "tgen-log.h"
 #include "tgen-io.h"
 #include "tgen-timer.h"
 #include "tgen-pool.h"

@@ -10,61 +10,6 @@
 
 #include "tgen.h"
 
-/* store a global pointer to the log func, so we can log in any
- * of our tgen modules without a pointer to the tgen struct */
-TGenLogFunc tgenLogFunc = NULL;
-GLogLevelFlags tgenLogFilterLevel = G_LOG_LEVEL_MESSAGE;
-
-static const gchar* _tgenmain_logLevelToString(GLogLevelFlags logLevel) {
-    switch (logLevel) {
-        case G_LOG_LEVEL_ERROR:
-            return "error";
-        case G_LOG_LEVEL_CRITICAL:
-            return "critical";
-        case G_LOG_LEVEL_WARNING:
-            return "warning";
-        case G_LOG_LEVEL_MESSAGE:
-            return "message";
-        case G_LOG_LEVEL_INFO:
-            return "info";
-        case G_LOG_LEVEL_DEBUG:
-            return "debug";
-        default:
-            return "default";
-    }
-}
-
-static void _tgenmain_log(GLogLevelFlags level, const gchar* fileName, const gint lineNum, const gchar* functionName, const gchar* format, ...) {
-    if(level > tgenLogFilterLevel) {
-        return;
-    }
-
-    va_list vargs;
-    va_start(vargs, format);
-
-    gchar* fileStr = fileName ? g_path_get_basename(fileName) : g_strdup("n/a");
-    const gchar* functionStr = functionName ? functionName : "n/a";
-
-    GDateTime* dt = g_date_time_new_now_local();
-    GString* newformat = g_string_new(NULL);
-
-    g_string_append_printf(newformat, "%04i-%02i-%02i %02i:%02i:%02i %"G_GINT64_FORMAT".%06i [%s] [%s:%i] [%s] %s",
-            g_date_time_get_year(dt), g_date_time_get_month(dt), g_date_time_get_day_of_month(dt),
-            g_date_time_get_hour(dt), g_date_time_get_minute(dt), g_date_time_get_second(dt),
-            g_date_time_to_unix(dt), g_date_time_get_microsecond(dt),
-            _tgenmain_logLevelToString(level), fileStr, lineNum, functionName, format);
-
-    gchar* message = g_strdup_vprintf(newformat->str, vargs);
-    g_print("%s\n", message);
-    g_free(message);
-
-    g_string_free(newformat, TRUE);
-    g_date_time_unref(dt);
-    g_free(fileStr);
-
-    va_end(vargs);
-}
-
 static void _tgenmain_cleanup(gint status, gpointer arg) {
     if(arg) {
         TGenDriver* tgen = (TGenDriver*) arg;
@@ -73,8 +18,8 @@ static void _tgenmain_cleanup(gint status, gpointer arg) {
 }
 
 static gint _tgenmain_run(gint argc, gchar *argv[]) {
-    tgenLogFunc = _tgenmain_log;
-    tgenLogFilterLevel = G_LOG_LEVEL_MESSAGE;
+    /* start the logger at the message level until we read the config file */
+    tgenlog_setLogFilterLevel(G_LOG_LEVEL_MESSAGE);
 
     /* get our hostname for logging */
     gchar hostname[128];
@@ -133,7 +78,8 @@ static gint _tgenmain_run(gint argc, gchar *argv[]) {
     }
 
     /* set log level, which again defaults to message if no level was configured */
-    tgenLogFilterLevel = tgenaction_getLogLevel(tgengraph_getStartAction(graph));
+    GLogLevelFlags level = tgenaction_getLogLevel(tgengraph_getStartAction(graph));
+    tgenlog_setLogFilterLevel(level);
 
     /* create the new state according to user inputs */
     TGenDriver* tgen = tgendriver_new(graph);
