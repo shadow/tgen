@@ -4,47 +4,13 @@
   See LICENSE for licensing information
 '''
 
-import matplotlib; matplotlib.use('Agg')  # for systems without X11
+import matplotlib
+matplotlib.use('Agg') # for systems without X11
+import matplotlib.pyplot as pyplot
 from matplotlib.backends.backend_pdf import PdfPages
-import pylab, numpy, time, logging
-from abc import abstractmethod, ABCMeta
 
-'''
-pylab.rcParams.update({
-    'backend': 'PDF',
-    'font.size': 16,
-    'figure.max_num_figures' : 50,
-    'figure.figsize': (6, 4.5),
-    'figure.dpi': 100.0,
-    'figure.subplot.left': 0.10,
-    'figure.subplot.right': 0.95,
-    'figure.subplot.bottom': 0.13,
-    'figure.subplot.top': 0.92,
-    'grid.color': '0.1',
-    'axes.grid' : True,
-    'axes.titlesize' : 'small',
-    'axes.labelsize' : 'small',
-    'axes.formatter.limits': (-4, 4),
-    'xtick.labelsize' : 'small',
-    'ytick.labelsize' : 'small',
-    'lines.linewidth' : 2.0,
-    'lines.markeredgewidth' : 0.5,
-    'lines.markersize' : 10,
-    'legend.fontsize' : 'x-small',
-    'legend.fancybox' : False,
-    'legend.shadow' : False,
-    'legend.ncol' : 1.0,
-    'legend.borderaxespad' : 0.5,
-    'legend.numpoints' : 1,
-    'legend.handletextpad' : 0.5,
-    'legend.handlelength' : 1.6,
-    'legend.labelspacing' : .75,
-    'legend.markerscale' : 1.0,
-    'ps.useafm' : True,
-    'pdf.use14corefonts' : True,
-    'text.usetex' : True,
-})
-'''
+import numpy, time, logging
+from abc import abstractmethod, ABCMeta
 
 class Visualization(object):
 
@@ -112,19 +78,20 @@ class TGenVisualization(Visualization):
                 if d is None: continue
                 if "time_to_first_byte" in d:
                     for b in d["time_to_first_byte"]:
-                        if f is None: f = pylab.figure()
+                        if f is None: f = pyplot.figure()
                         for sec in d["time_to_first_byte"][b]: fb.extend(d["time_to_first_byte"][b][sec])
             if f is not None and len(fb) > 0:
                 x, y = getcdf(fb)
-                pylab.plot(x, y, lineformat, label=label)
+                pyplot.plot(x, y, lineformat, label=label)
 
         if f is not None:
-            pylab.xlabel("Download Time (s)")
-            pylab.ylabel("Cumulative Fraction")
-            pylab.title("time to download first byte, all clients")
-            pylab.legend(loc="lower right")
+            pyplot.xlabel("Download Time (s)")
+            pyplot.ylabel("Cumulative Fraction")
+            pyplot.title("time to download first byte, all clients")
+            pyplot.legend(loc="best")
+            pyplot.tight_layout(pad=0.3)
             self.page.savefig()
-            pylab.close()
+            pyplot.close()
 
     def __plot_lastbyte_all(self):
         figs = {}
@@ -137,22 +104,23 @@ class TGenVisualization(Visualization):
                 if "time_to_last_byte" in d:
                     for b in d["time_to_last_byte"]:
                         bytes = int(b)
-                        if bytes not in figs: figs[bytes] = pylab.figure()
+                        if bytes not in figs: figs[bytes] = pyplot.figure()
                         if bytes not in lb: lb[bytes] = []
                         for sec in d["time_to_last_byte"][b]: lb[bytes].extend(d["time_to_last_byte"][b][sec])
             for bytes in lb:
                 x, y = getcdf(lb[bytes])
-                pylab.figure(figs[bytes].number)
-                pylab.plot(x, y, lineformat, label=label)
+                pyplot.figure(figs[bytes].number)
+                pyplot.plot(x, y, lineformat, label=label)
 
         for bytes in sorted(figs.keys()):
-            pylab.figure(figs[bytes].number)
-            pylab.xlabel("Download Time (s)")
-            pylab.ylabel("Cumulative Fraction")
-            pylab.title("time to download {0} bytes, all downloads".format(bytes))
-            pylab.legend(loc="lower right")
+            pyplot.figure(figs[bytes].number)
+            pyplot.xlabel("Download Time (s)")
+            pyplot.ylabel("Cumulative Fraction")
+            pyplot.title("time to download {0} bytes, all downloads".format(bytes))
+            pyplot.legend(loc="best")
+            pyplot.tight_layout(pad=0.3)
             self.page.savefig()
-            pylab.close()
+            pyplot.close()
 
     def __plot_lastbyte_median(self):
         figs = {}
@@ -165,24 +133,25 @@ class TGenVisualization(Visualization):
                 if "time_to_last_byte" in d:
                     for b in d["time_to_last_byte"]:
                         bytes = int(b)
-                        if bytes not in figs: figs[bytes] = pylab.figure()
+                        if bytes not in figs: figs[bytes] = pyplot.figure()
                         if bytes not in lb: lb[bytes] = []
                         client_lb_list = []
                         for sec in d["time_to_last_byte"][b]: client_lb_list.extend(d["time_to_last_byte"][b][sec])
                         lb[bytes].append(numpy.median(client_lb_list))
             for bytes in lb:
                 x, y = getcdf(lb[bytes])
-                pylab.figure(figs[bytes].number)
-                pylab.plot(x, y, lineformat, label=label)
+                pyplot.figure(figs[bytes].number)
+                pyplot.plot(x, y, lineformat, label=label)
 
         for bytes in sorted(figs.keys()):
-            pylab.figure(figs[bytes].number)
-            pylab.xlabel("Download Time (s)")
-            pylab.ylabel("Cumulative Fraction")
-            pylab.title("median time to download {0} bytes, each client".format(bytes))
-            pylab.legend(loc="lower right")
+            pyplot.figure(figs[bytes].number)
+            pyplot.xlabel("Download Time (s)")
+            pyplot.ylabel("Cumulative Fraction")
+            pyplot.title("median time to download {0} bytes, each client".format(bytes))
+            pyplot.legend(loc="best")
+            pyplot.tight_layout(pad=0.3)
             self.page.savefig()
-            pylab.close()
+            pyplot.close()
 
     def __plot_lastbyte_mean(self):
         figs = {}
@@ -195,24 +164,25 @@ class TGenVisualization(Visualization):
                 if "time_to_last_byte" in d:
                     for b in d["time_to_last_byte"]:
                         bytes = int(b)
-                        if bytes not in figs: figs[bytes] = pylab.figure()
+                        if bytes not in figs: figs[bytes] = pyplot.figure()
                         if bytes not in lb: lb[bytes] = []
                         client_lb_list = []
                         for sec in d["time_to_last_byte"][b]: client_lb_list.extend(d["time_to_last_byte"][b][sec])
                         lb[bytes].append(numpy.mean(client_lb_list))
             for bytes in lb:
                 x, y = getcdf(lb[bytes])
-                pylab.figure(figs[bytes].number)
-                pylab.plot(x, y, lineformat, label=label)
+                pyplot.figure(figs[bytes].number)
+                pyplot.plot(x, y, lineformat, label=label)
 
         for bytes in sorted(figs.keys()):
-            pylab.figure(figs[bytes].number)
-            pylab.xlabel("Download Time (s)")
-            pylab.ylabel("Cumulative Fraction")
-            pylab.title("mean time to download {0} bytes, each client".format(bytes))
-            pylab.legend(loc="lower right")
+            pyplot.figure(figs[bytes].number)
+            pyplot.xlabel("Download Time (s)")
+            pyplot.ylabel("Cumulative Fraction")
+            pyplot.title("mean time to download {0} bytes, each client".format(bytes))
+            pyplot.legend(loc="best")
+            pyplot.tight_layout(pad=0.3)
             self.page.savefig()
-            pylab.close()
+            pyplot.close()
 
     def __plot_lastbyte_max(self):
         figs = {}
@@ -225,24 +195,25 @@ class TGenVisualization(Visualization):
                 if "time_to_last_byte" in d:
                     for b in d["time_to_last_byte"]:
                         bytes = int(b)
-                        if bytes not in figs: figs[bytes] = pylab.figure()
+                        if bytes not in figs: figs[bytes] = pyplot.figure()
                         if bytes not in lb: lb[bytes] = []
                         client_lb_list = []
                         for sec in d["time_to_last_byte"][b]: client_lb_list.extend(d["time_to_last_byte"][b][sec])
                         lb[bytes].append(numpy.max(client_lb_list))
             for bytes in lb:
                 x, y = getcdf(lb[bytes])
-                pylab.figure(figs[bytes].number)
-                pylab.plot(x, y, lineformat, label=label)
+                pyplot.figure(figs[bytes].number)
+                pyplot.plot(x, y, lineformat, label=label)
 
         for bytes in sorted(figs.keys()):
-            pylab.figure(figs[bytes].number)
-            pylab.xlabel("Download Time (s)")
-            pylab.ylabel("Cumulative Fraction")
-            pylab.title("max time to download {0} bytes, each client".format(bytes))
-            pylab.legend(loc="lower right")
+            pyplot.figure(figs[bytes].number)
+            pyplot.xlabel("Download Time (s)")
+            pyplot.ylabel("Cumulative Fraction")
+            pyplot.title("max time to download {0} bytes, each client".format(bytes))
+            pyplot.legend(loc="best")
+            pyplot.tight_layout(pad=0.3)
             self.page.savefig()
-            pylab.close()
+            pyplot.close()
 
     def __plot_byte_timeseries(self, bytekey="time_to_last_byte"):
         figs = {}
@@ -255,26 +226,30 @@ class TGenVisualization(Visualization):
                 if bytekey in d:
                     for b in d[bytekey]:
                         bytes = int(b)
-                        if bytes not in figs: figs[bytes] = pylab.figure()
+                        if bytes not in figs: figs[bytes] = pyplot.figure()
                         if bytes not in lb: lb[bytes] = {}
-                        for sec in d[bytekey][b]:
+                        for secstr in d[bytekey][b]:
+                            sec = int(secstr)
                             if sec not in lb[bytes]: lb[bytes][sec] = []
-                            lb[bytes][sec].extend(d[bytekey][b][sec])
+                            lb[bytes][sec].extend(d[bytekey][b][secstr])
             for bytes in lb:
-                pylab.figure(figs[bytes].number)
+                pyplot.figure(figs[bytes].number)
                 x = [sec for sec in lb[bytes]]
                 x.sort()
                 y = [numpy.mean(lb[bytes][sec]) for sec in x]
-                pylab.plot(x, y, lineformat, label=label)
+                start_sec = min(x)
+                x[:] = [sec - start_sec for sec in x]
+                pyplot.plot(x, y, lineformat, label=label)
 
         for bytes in sorted(figs.keys()):
-            pylab.figure(figs[bytes].number)
-            pylab.xlabel("Tick (s)")
-            pylab.ylabel("Download Time (s)")
-            pylab.title("mean time to download {0} of {1} bytes, all clients over time".format('first' if 'first' in bytekey else 'last', bytes))
-            pylab.legend(loc="lower right")
+            pyplot.figure(figs[bytes].number)
+            pyplot.xlabel("Tick (s)")
+            pyplot.ylabel("Download Time (s)")
+            pyplot.title("mean time to download {0} of {1} bytes, all clients over time".format('first' if 'first' in bytekey else 'last', bytes))
+            pyplot.legend(loc="best")
+            pyplot.tight_layout(pad=0.3)
             self.page.savefig()
-            pylab.close()
+            pyplot.close()
 
     def __plot_downloads(self):
         figs = {}
@@ -287,23 +262,24 @@ class TGenVisualization(Visualization):
                 if "time_to_last_byte" in d:
                     for b in d["time_to_last_byte"]:
                         bytes = int(b)
-                        if bytes not in figs: figs[bytes] = pylab.figure()
+                        if bytes not in figs: figs[bytes] = pyplot.figure()
                         if bytes not in dls: dls[bytes] = {}
                         if client not in dls[bytes]: dls[bytes][client] = 0
                         for sec in d["time_to_last_byte"][b]: dls[bytes][client] += len(d["time_to_last_byte"][b][sec])
             for bytes in dls:
                 x, y = getcdf(dls[bytes].values(), shownpercentile=1.0)
-                pylab.figure(figs[bytes].number)
-                pylab.plot(x, y, lineformat, label=label)
+                pyplot.figure(figs[bytes].number)
+                pyplot.plot(x, y, lineformat, label=label)
 
         for bytes in sorted(figs.keys()):
-            pylab.figure(figs[bytes].number)
-            pylab.xlabel("Downloads Completed (num)")
-            pylab.ylabel("Cumulative Fraction")
-            pylab.title("number of {0} byte downloads completed, each client".format(bytes))
-            pylab.legend(loc="lower right")
+            pyplot.figure(figs[bytes].number)
+            pyplot.xlabel("Downloads Completed (num)")
+            pyplot.ylabel("Cumulative Fraction")
+            pyplot.title("number of {0} byte downloads completed, each client".format(bytes))
+            pyplot.legend(loc="best")
+            pyplot.tight_layout(pad=0.3)
             self.page.savefig()
-            pylab.close()
+            pyplot.close()
 
     def __plot_downloads_timeseries(self):
         figs = {}
@@ -316,26 +292,30 @@ class TGenVisualization(Visualization):
                 if "time_to_last_byte" in d:
                     for b in d["time_to_last_byte"]:
                         bytes = int(b)
-                        if bytes not in figs: figs[bytes] = pylab.figure()
+                        if bytes not in figs: figs[bytes] = pyplot.figure()
                         if bytes not in dls: dls[bytes] = {}
-                        for sec in d["time_to_last_byte"][b]:
+                        for secstr in d["time_to_last_byte"][b]:
+                            sec = int(secstr)
                             if sec not in dls[bytes]: dls[bytes][sec] = 0
-                            dls[bytes][sec] += len(d["time_to_last_byte"][b][sec])
+                            dls[bytes][sec] += len(d["time_to_last_byte"][b][secstr])
             for bytes in dls:
-                pylab.figure(figs[bytes].number)
+                pyplot.figure(figs[bytes].number)
                 x = [sec for sec in dls[bytes]]
                 x.sort()
                 y = [dls[bytes][sec] for sec in x]
-                pylab.plot(x, y, lineformat, label=label)
+                start_sec = min(x)
+                x[:] = [sec - start_sec for sec in x]
+                pyplot.plot(x, y, lineformat, label=label)
 
         for bytes in sorted(figs.keys()):
-            pylab.figure(figs[bytes].number)
-            pylab.xlabel("Tick (s)")
-            pylab.ylabel("Downloads Completed (num)")
-            pylab.title("number of {0} byte downloads completed, all clients over time".format(bytes))
-            pylab.legend(loc="lower right")
+            pyplot.figure(figs[bytes].number)
+            pyplot.xlabel("Tick (s)")
+            pyplot.ylabel("Downloads Completed (num)")
+            pyplot.title("number of {0} byte downloads completed, all clients over time".format(bytes))
+            pyplot.legend(loc="best")
+            pyplot.tight_layout(pad=0.3)
             self.page.savefig()
-            pylab.close()
+            pyplot.close()
 
     def __plot_errors(self):
         figs = {}
@@ -347,23 +327,24 @@ class TGenVisualization(Visualization):
                 if d is None: continue
                 if "errors" in d:
                     for code in d["errors"]:
-                        if code not in figs: figs[code] = pylab.figure()
+                        if code not in figs: figs[code] = pyplot.figure()
                         if code not in dls: dls[code] = {}
                         if client not in dls[code]: dls[code][client] = 0
                         for sec in d["errors"][code]: dls[code][client] += len(d["errors"][code][sec])
             for code in dls:
                 x, y = getcdf([dls[code][client] for client in dls[code]], shownpercentile=1.0)
-                pylab.figure(figs[code].number)
-                pylab.plot(x, y, lineformat, label=label)
+                pyplot.figure(figs[code].number)
+                pyplot.plot(x, y, lineformat, label=label)
 
         for code in sorted(figs.keys()):
-            pylab.figure(figs[code].number)
-            pylab.xlabel("Download Errors (num)")
-            pylab.ylabel("Cumulative Fraction")
-            pylab.title("number of transfer {0} errors, each client".format(code))
-            pylab.legend(loc="lower right")
+            pyplot.figure(figs[code].number)
+            pyplot.xlabel("Download Errors (num)")
+            pyplot.ylabel("Cumulative Fraction")
+            pyplot.title("number of transfer {0} errors, each client".format(code))
+            pyplot.legend(loc="best")
+            pyplot.tight_layout(pad=0.3)
             self.page.savefig()
-            pylab.close()
+            pyplot.close()
 
     def __plot_errors_timeseries(self):
         figs = {}
@@ -375,26 +356,30 @@ class TGenVisualization(Visualization):
                 if d is None: continue
                 if "errors" in d:
                     for code in d["errors"]:
-                        if code not in figs: figs[code] = pylab.figure()
+                        if code not in figs: figs[code] = pyplot.figure()
                         if code not in dls: dls[code] = {}
-                        for sec in d["errors"][code]:
+                        for secstr in d["errors"][code]:
+                            sec = int(secstr)
                             if sec not in dls[code]: dls[code][sec] = 0
-                            dls[code][sec] += len(d["errors"][code][sec])
+                            dls[code][sec] += len(d["errors"][code][secstr])
             for code in dls:
-                pylab.figure(figs[code].number)
+                pyplot.figure(figs[code].number)
                 x = [sec for sec in dls[code]]
                 x.sort()
                 y = [dls[code][sec] for sec in x]
-                pylab.plot(x, y, lineformat, label=label)
+                start_sec = min(x)
+                x[:] = [sec - start_sec for sec in x]
+                pyplot.plot(x, y, lineformat, label=label)
 
         for code in sorted(figs.keys()):
-            pylab.figure(figs[code].number)
-            pylab.xlabel("Tick (s)")
-            pylab.ylabel("Download Errors (num)")
-            pylab.title("number of transfer {0} errors, all clients over time".format(code))
-            pylab.legend(loc="lower right")
+            pyplot.figure(figs[code].number)
+            pyplot.xlabel("Tick (s)")
+            pyplot.ylabel("Download Errors (num)")
+            pyplot.title("number of transfer {0} errors, all clients over time".format(code))
+            pyplot.legend(loc="best")
+            pyplot.tight_layout(pad=0.3)
             self.page.savefig()
-            pylab.close()
+            pyplot.close()
 
     def __plot_errsizes_all(self):
         figs = {}
@@ -406,24 +391,25 @@ class TGenVisualization(Visualization):
                 if d is None: continue
                 if "errors" in d:
                     for code in d["errors"]:
-                        if code not in figs: figs[code] = pylab.figure()
+                        if code not in figs: figs[code] = pyplot.figure()
                         if code not in err: err[code] = []
                         client_err_list = []
                         for sec in d["errors"][code]: client_err_list.extend(d["errors"][code][sec])
                         for b in client_err_list: err[code].append(int(b) / 1024.0)
             for code in err:
                 x, y = getcdf(err[code])
-                pylab.figure(figs[code].number)
-                pylab.plot(x, y, lineformat, label=label)
+                pyplot.figure(figs[code].number)
+                pyplot.plot(x, y, lineformat, label=label)
 
         for code in sorted(figs.keys()):
-            pylab.figure(figs[code].number)
-            pylab.xlabel("Data Transferred (KiB)")
-            pylab.ylabel("Cumulative Fraction")
-            pylab.title("bytes transferred before {0} error, all downloads".format(code))
-            pylab.legend(loc="lower right")
+            pyplot.figure(figs[code].number)
+            pyplot.xlabel("Data Transferred (KiB)")
+            pyplot.ylabel("Cumulative Fraction")
+            pyplot.title("bytes transferred before {0} error, all downloads".format(code))
+            pyplot.legend(loc="best")
+            pyplot.tight_layout(pad=0.3)
             self.page.savefig()
-            pylab.close()
+            pyplot.close()
 
     def __plot_errsizes_median(self):
         figs = {}
@@ -435,24 +421,25 @@ class TGenVisualization(Visualization):
                 if d is None: continue
                 if "errors" in d:
                     for code in d["errors"]:
-                        if code not in figs: figs[code] = pylab.figure()
+                        if code not in figs: figs[code] = pyplot.figure()
                         if code not in err: err[code] = []
                         client_err_list = []
                         for sec in d["errors"][code]: client_err_list.extend(d["errors"][code][sec])
                         err[code].append(numpy.median(client_err_list) / 1024.0)
             for code in err:
                 x, y = getcdf(err[code])
-                pylab.figure(figs[code].number)
-                pylab.plot(x, y, lineformat, label=label)
+                pyplot.figure(figs[code].number)
+                pyplot.plot(x, y, lineformat, label=label)
 
         for code in sorted(figs.keys()):
-            pylab.figure(figs[code].number)
-            pylab.xlabel("Data Transferred (KiB)")
-            pylab.ylabel("Cumulative Fraction")
-            pylab.title("median bytes transferred before {0} error, each client".format(code))
-            pylab.legend(loc="lower right")
+            pyplot.figure(figs[code].number)
+            pyplot.xlabel("Data Transferred (KiB)")
+            pyplot.ylabel("Cumulative Fraction")
+            pyplot.title("median bytes transferred before {0} error, each client".format(code))
+            pyplot.legend(loc="best")
+            pyplot.tight_layout(pad=0.3)
             self.page.savefig()
-            pylab.close()
+            pyplot.close()
 
     def __plot_errsizes_mean(self):
         figs = {}
@@ -464,24 +451,25 @@ class TGenVisualization(Visualization):
                 if d is None: continue
                 if "errors" in d:
                     for code in d["errors"]:
-                        if code not in figs: figs[code] = pylab.figure()
+                        if code not in figs: figs[code] = pyplot.figure()
                         if code not in err: err[code] = []
                         client_err_list = []
                         for sec in d["errors"][code]: client_err_list.extend(d["errors"][code][sec])
                         err[code].append(numpy.mean(client_err_list) / 1024.0)
             for code in err:
                 x, y = getcdf(err[code])
-                pylab.figure(figs[code].number)
-                pylab.plot(x, y, lineformat, label=label)
+                pyplot.figure(figs[code].number)
+                pyplot.plot(x, y, lineformat, label=label)
 
         for code in sorted(figs.keys()):
-            pylab.figure(figs[code].number)
-            pylab.xlabel("Data Transferred (KiB)")
-            pylab.ylabel("Cumulative Fraction")
-            pylab.title("mean bytes transferred before {0} error, each client".format(code))
-            pylab.legend(loc="lower right")
+            pyplot.figure(figs[code].number)
+            pyplot.xlabel("Data Transferred (KiB)")
+            pyplot.ylabel("Cumulative Fraction")
+            pyplot.title("mean bytes transferred before {0} error, each client".format(code))
+            pyplot.legend(loc="best")
+            pyplot.tight_layout(pad=0.3)
             self.page.savefig()
-            pylab.close()
+            pyplot.close()
 
 # helper - compute the window_size moving average over the data in interval
 def movingaverage(interval, window_size):
@@ -489,7 +477,7 @@ def movingaverage(interval, window_size):
     return numpy.convolve(interval, window, 'same')
 
 # # helper - cumulative fraction for y axis
-def cf(d): return pylab.arange(1.0, float(len(d)) + 1.0) / float(len(d))
+def cf(d): return numpy.arange(1.0, float(len(d)) + 1.0) / float(len(d))
 
 # # helper - return step-based CDF x and y values
 # # only show to the 99th percentile by default
