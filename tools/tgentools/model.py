@@ -5,8 +5,11 @@
 '''
 
 from abc import ABCMeta, abstractmethod
-from cStringIO import StringIO
 from networkx import read_graphml, write_graphml, DiGraph
+try:
+    from StringIO import StringIO
+except ImportError:
+    from io import StringIO
 
 class TGenModel(object):
     '''
