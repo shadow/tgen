@@ -21,14 +21,14 @@ keep all of the dependencies self-contained and to avoid conflicts with
 your other python projects.
 
     pip install virtualenv
-    virtualenv --no-site-packages venv
-    source venv/bin/activate
+    virtualenv --no-site-packages tgenenv
+    source tgenenv/bin/activate
     pip install -r requirements.txt
     deactivate
 
 ## Build and Install TGenTools
 
-    source venv/bin/activate
+    source tgenenv/bin/activate
     cd tgen/tools
     pip install -I .
 
@@ -43,6 +43,7 @@ tgentools -h
 
   + **parse**: Analyze TGen output
   + **plot**: Visualize TGen analysis results
+  + **edit**: Edit TGen configuration files in place
 
 ## Example parsing and plotting TGen output
 
@@ -60,13 +61,13 @@ The analysis file can be plotted:
 This will save new PDFs containing several graphs in the current directory.
 Depending on the data that was analyzed, the graphs may include:
 
-- Number of transfer AUTH errors, each client
-- Number of transfer PROXY errors, each client
-- Number of transfer AUTH errors, all clients over time
-- Number of transfer PROXY errors, all clients over time
-- Bytes transferred before AUTH error, all downloads
-- Bytes transferred before PROXY error, all downloads
-- Median bytes transferred before AUTH error, each client
-- Median bytes transferred before PROXY error, each client
-- Mean bytes transferred before AUTH error, each client
-- Mean bytes transferred before PROXY error, each client
+- Time to download first byte of transfer, across all transfers
+- Time to download last byte of transfer, across all transfers
+- Median time to download last byte of transfer, per client
+- Mean time to download last byte of transfer, per client
+- Max time to download last byte of transfer, per client
+- Number of transfer successes, per client
+- Number of transfer errors, per client
+- Bytes transferred before error, across all transfers with error
+- Median bytes transferred before error, per client
+- Mean bytes transferred before error, per client
