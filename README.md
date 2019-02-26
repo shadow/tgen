@@ -42,7 +42,7 @@ and then run a client that connects to the server:
 
     tgen resource/tgen.webclient.graphml.xml > tgen.client.log
 
-See the `resource/` directory for example config files.
+See the [resource/](resource) directory for example config files.
 
 ## More documentation
 
