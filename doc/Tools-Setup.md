@@ -13,7 +13,7 @@ Dependencies in Ubuntu/Debian:
 
     sudo apt-get install python python-dev python-pip libxml2 libxml2-dev libxslt1.1 libxslt1-dev libpng12-0 libpng12-dev libfreetype6 libfreetype6-dev
 
-## Install required Python modules
+## Install TGenTools Python modules
 
 We show how to install python modules using `pip` (although you can also
 use your OS package manager). We recommend using virtual environments to
@@ -23,19 +23,14 @@ your other python projects.
     pip install virtualenv
     virtualenv --no-site-packages tgenenv
     source tgenenv/bin/activate
-    pip install -r requirements.txt
-    deactivate
-
-## Build and Install TGenTools
-
-    source tgenenv/bin/activate
-    cd tgen/tools
-    pip install -I .
+    pip install -r path/to/tgen/tools/requirements.txt
+    pip install -I path/to/tgen/tools
 
 ## Run TGenTools
 
 TGenTools has several modes of operation and a help menu for each. For a
-description of each mode, use:
+description of each mode, use the following (make sure you have activated
+the tgen virtual environment with `source tgenenv/bin/activate` first):
 
 ```
 tgentools -h
