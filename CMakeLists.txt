@@ -9,7 +9,7 @@ find_package(M REQUIRED)
 find_package(IGRAPH REQUIRED)
 find_package(GLIB REQUIRED)
 
-include_directories(AFTER ../ ${RT_INCLUDES} ${M_INCLUDES} ${GLIB_INCLUDES} ${IGRAPH_INCLUDES})
+include_directories(AFTER src/ ${RT_INCLUDES} ${M_INCLUDES} ${GLIB_INCLUDES} ${IGRAPH_INCLUDES})
 
 ## build as position-independent so it can run in Shadow
 add_definitions(-D_GNU_SOURCE)

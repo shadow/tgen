@@ -15,11 +15,11 @@ and to monitor Tor performance in [OnionPerf](https://gitweb.torproject.org/onio
 
 Dependencies in Fedora/RedHat:
 
-    sudo yum install gcc cmake make glib2 glib2-devel igraph igraph-devel
+    sudo yum install cmake glib2 glib2-devel igraph igraph-devel
 
 Dependencies in Ubuntu/Debian:
 
-    sudo apt-get install gcc cmake make libglib2.0 libglib2.0-dev libigraph0v5 libigraph0-dev
+    sudo apt-get install cmake libglib2.0 libglib2.0-dev libigraph0v5 libigraph0-dev
 
 Build with a custom install prefix:
 

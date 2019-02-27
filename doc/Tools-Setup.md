@@ -7,11 +7,11 @@ not required to run `tgen`, but may be helpful to understand its output.
 
 Dependencies in Fedora/RedHat:
 
-    sudo yum install python python-devel libxml2 libxml2-devel libxslt libxslt-devel libpng libpng-devel freetype freetype-devel
+    sudo yum install python python-devel python-pip libxml2 libxml2-devel libxslt libxslt-devel libpng libpng-devel freetype freetype-devel
 
 Dependencies in Ubuntu/Debian:
 
-    sudo apt-get install python python-dev libxml2 libxml2-dev libxslt1.1 libxslt1-dev libpng12-0 libpng12-dev libfreetype6 libfreetype6-dev
+    sudo apt-get install python python-dev python-pip libxml2 libxml2-dev libxslt1.1 libxslt1-dev libpng12-0 libpng12-dev libfreetype6 libfreetype6-dev
 
 ## Install required Python modules
 
