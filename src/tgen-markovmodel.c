@@ -58,6 +58,7 @@ enum _VertexID {
 struct _TGenMarkovModel {
     gint refcount;
 
+    GRand* randomSource;
     igraph_t* graph;
     igraph_integer_t startVertexIndex;
     igraph_integer_t currentStateVertexIndex;
@@ -632,6 +633,10 @@ static void _tgenmarkovmodel_free(TGenMarkovModel* mmodel) {
         mmodel->graph = NULL;
     }
 
+    if(mmodel->randomSource) {
+        g_rand_free(mmodel->randomSource);
+    }
+
     mmodel->magic = 0;
     g_free(mmodel);
 }
@@ -648,10 +653,13 @@ void tgenmarkovmodel_unref(TGenMarkovModel* mmodel) {
     }
 }
 
-TGenMarkovModel* tgenmarkovmodel_new(const gchar* modelPath) {
+TGenMarkovModel* tgenmarkovmodel_newWithSeed(const gchar* modelPath, guint32 seed) {
     TGenMarkovModel* mmodel = g_new0(TGenMarkovModel, 1);
     mmodel->magic = TGEN_MMODEL_MAGIC;
     mmodel->refcount = 1;
+
+    /* create our local prng for this model */
+    mmodel->randomSource = g_rand_new_with_seed(seed);
 
     mmodel->graph = _tgenmarkovmodel_loadGraph(modelPath);
 
@@ -689,6 +697,13 @@ TGenMarkovModel* tgenmarkovmodel_new(const gchar* modelPath) {
             "path '%s', found start vertex at index %i", modelPath, (int)mmodel->startVertexIndex);
 
     return mmodel;
+}
+
+TGenMarkovModel* tgenmarkovmodel_new(const gchar* modelPath) {
+    /* They did not provide a seed. So get a random seed for our local prng
+     * using the global prng to generate it (g_random_* uses the global prng). */
+    guint32 seed = g_random_int();
+    return tgenmarkovmodel_newWithSeed(modelPath, seed);
 }
 
 static gboolean _tgenmarkovmodel_chooseEdge(TGenMarkovModel* mmodel, EdgeType type,
@@ -757,7 +772,7 @@ static gboolean _tgenmarkovmodel_chooseEdge(TGenMarkovModel* mmodel, EdgeType ty
             totalWeight, numEdgesType, numEdgesTotal, _tgenmarkovmodel_edgeTypeToString(type));
 
     /* select a random weight value */
-    gdouble randomValue = g_random_double_range((gdouble)0.0, totalWeight);
+    gdouble randomValue = g_rand_double_range(mmodel->randomSource, (gdouble)0.0, totalWeight);
 
     tgen_debug("Using random value %f from total weight %f", randomValue, totalWeight);
 
@@ -842,10 +857,10 @@ static gboolean _tgenmarkovmodel_chooseEmission(TGenMarkovModel* mmodel,
             emissionEdgeIndex, emissionObservationVertexIndex);
 }
 
-static gdouble _tgenmarkovmodel_generateLogNormalValue(gdouble mu, gdouble sigma) {
+static gdouble _tgenmarkovmodel_generateLogNormalValue(TGenMarkovModel* mmodel, gdouble mu, gdouble sigma) {
     /* first get a normal value from mu and sigma, using the Box-Muller method */
-    gdouble u = g_random_double_range((gdouble)0.0001, (gdouble)0.9999);
-    gdouble v = g_random_double_range((gdouble)0.0001, (gdouble)0.9999);
+    gdouble u = g_rand_double_range(mmodel->randomSource, (gdouble)0.0001, (gdouble)0.9999);
+    gdouble v = g_rand_double_range(mmodel->randomSource, (gdouble)0.0001, (gdouble)0.9999);
 
     /* this gives us 2 normally-distributed values */
     gdouble two = (gdouble)2;
@@ -856,9 +871,9 @@ static gdouble _tgenmarkovmodel_generateLogNormalValue(gdouble mu, gdouble sigma
     return exp(mu + (sigma * x));
 }
 
-static gdouble _tgenmarkovmodel_generateExponentialValue(gdouble lambda) {
+static gdouble _tgenmarkovmodel_generateExponentialValue(TGenMarkovModel* mmodel, gdouble lambda) {
     /* inverse transform sampling */
-    gdouble clampedUniform = g_random_double_range((gdouble)0.0001, (gdouble)0.9999);
+    gdouble clampedUniform = g_rand_double_range(mmodel->randomSource, (gdouble)0.0001, (gdouble)0.9999);
     return -log(clampedUniform)/lambda;
 }
 
@@ -884,13 +899,13 @@ static guint64 _tgenmarkovmodel_generateDelay(TGenMarkovModel* mmodel,
 
     gdouble generatedValue = 0;
     if(sigmaValue > 0 || muValue > 0) {
-        generatedValue = _tgenmarkovmodel_generateLogNormalValue(muValue, sigmaValue);
+        generatedValue = _tgenmarkovmodel_generateLogNormalValue(mmodel, muValue, sigmaValue);
     } else {
         gdouble lambdaValue = 0;
         isSuccess = _tgenmarkovmodel_findEdgeAttributeDouble(mmodel, edgeIndex, EDGE_ATTR_EXPLAMBDA, &lambdaValue);
         g_assert(isSuccess);
 
-        generatedValue = _tgenmarkovmodel_generateExponentialValue(lambdaValue);
+        generatedValue = _tgenmarkovmodel_generateExponentialValue(mmodel, lambdaValue);
     }
 
     if(generatedValue > UINT64_MAX) {

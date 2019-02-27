@@ -24,6 +24,7 @@ enum _Observation {
 typedef struct _TGenMarkovModel TGenMarkovModel;
 
 TGenMarkovModel* tgenmarkovmodel_new(const gchar* modelPath);
+TGenMarkovModel* tgenmarkovmodel_newWithSeed(const gchar* modelPath, guint32 seed);
 void tgenmarkovmodel_ref(TGenMarkovModel* mmodel);
 void tgenmarkovmodel_unref(TGenMarkovModel* mmodel);
 
