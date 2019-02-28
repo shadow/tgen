@@ -23,8 +23,11 @@ enum _Observation {
 
 typedef struct _TGenMarkovModel TGenMarkovModel;
 
-TGenMarkovModel* tgenmarkovmodel_new(const gchar* modelPath);
-TGenMarkovModel* tgenmarkovmodel_newWithSeed(const gchar* modelPath, guint32 seed);
+/* Note: a random seed can be generated from the global prng with `guint32 seed = g_random_int();` */
+TGenMarkovModel* tgenmarkovmodel_newFromString(const gchar* name, guint32 seed, const GString* graphmlString);
+/* Note: a name can be computed from a path using `gchar* name = g_path_get_basename(path);` */
+TGenMarkovModel* tgenmarkovmodel_newFromPath(const gchar* name, guint32 seed, const gchar* graphmlFilePath);
+
 void tgenmarkovmodel_ref(TGenMarkovModel* mmodel);
 void tgenmarkovmodel_unref(TGenMarkovModel* mmodel);
 
@@ -32,7 +35,8 @@ Observation tgenmarkovmodel_getNextObservation(TGenMarkovModel* mmodel, guint64*
 void tgenmarkovmodel_reset(TGenMarkovModel* mmodel);
 
 guint32 tgenmarkovmodel_getSeed(TGenMarkovModel* mmodel);
-const gchar* tgenmarkovmodel_getGraphmlFilePath(TGenMarkovModel* mmodel);
-gsize tgenmarkovmodel_getGraphmlFileSize(TGenMarkovModel* mmodel);
+const gchar* tgenmarkovmodel_getName(TGenMarkovModel* mmodel);
+
+GString* tgenmarkovmodel_toGraphmlString(TGenMarkovModel* mmodel);
 
 #endif /* TGEN_MARKOVMODEL_H_ */

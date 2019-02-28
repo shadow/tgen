@@ -63,13 +63,22 @@ void tgengenerator_unref(TGenGenerator* gen) {
 
 TGenGenerator* tgengenerator_new(const gchar* streamModelPath, const gchar* packetModelPath,
         TGenAction* modelAction) {
-    TGenMarkovModel* streamModel = tgenmarkovmodel_new(streamModelPath);
+
+    guint32 seed = g_random_int();
+
+    gchar* name = g_path_get_basename(streamModelPath);
+    TGenMarkovModel* streamModel = tgenmarkovmodel_newFromPath(name, seed, streamModelPath);
+    g_free(name);
+
     if(!streamModel) {
         tgen_warning("failed to parse stream markov model");
         return NULL;
     }
 
-    TGenMarkovModel* packetModel = tgenmarkovmodel_new(packetModelPath);
+    name = g_path_get_basename(packetModelPath);
+    TGenMarkovModel* packetModel = tgenmarkovmodel_newFromPath(name, seed, packetModelPath);
+    g_free(name);
+
     if(!packetModel) {
         tgen_warning("failed to parse packet markov model");
         tgenmarkovmodel_unref(streamModel);

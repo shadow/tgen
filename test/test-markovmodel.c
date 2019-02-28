@@ -89,15 +89,42 @@ gint main(gint argc, gchar *argv[]) {
         return EXIT_FAILURE;
     }
 
-    TGenMarkovModel* markovModel = tgenmarkovmodel_newWithSeed(argv[2], (guint32)atoi(argv[1]));
+    guint32 seed = (guint32)atoi(argv[1]);
+    gchar* path = g_strdup(argv[2]);
+    gchar* name = g_path_get_basename(path);
+
+    TGenMarkovModel* markovModel = tgenmarkovmodel_newFromPath(name, seed, path);
     if(!markovModel) {
-        tgen_warning("failed to parse markov model");
+        tgen_warning("failed to parse markov model name %s from file path %s", name, path);
+        return EXIT_FAILURE;
+    }
+
+    GString* graphString = tgenmarkovmodel_toGraphmlString(markovModel);
+
+    if(!graphString) {
+        tgen_warning("Error writing graphml to memory buffer");
+        return EXIT_FAILURE;
+    }
+
+    tgen_info("Successfully wrote graphml to memory buffer "
+            "of length %"G_GSIZE_FORMAT, graphString->len);
+    tgen_info("Here is the graphml contents:");
+    g_print("%s", graphString->str);
+
+    tgenmarkovmodel_unref(markovModel);
+
+    markovModel = tgenmarkovmodel_newFromString(name, seed, graphString);
+
+    if(!markovModel) {
+        tgen_warning("failed to parse markov model name %s "
+                "from string buffer of length %"G_GSIZE_FORMAT, name, graphString->len);
         return EXIT_FAILURE;
     }
 
     generate(markovModel);
 
     tgenmarkovmodel_unref(markovModel);
+    g_string_free(graphString, TRUE);
 
     return EXIT_SUCCESS;
 }

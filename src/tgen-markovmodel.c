@@ -22,7 +22,7 @@
 
 typedef enum _VertexAttribute VertexAttribute;
 enum _VertexAttribute {
-    VERTEX_ATTR_ID=1,
+    VERTEX_ATTR_NAME=1,
     VERTEX_ATTR_TYPE=2,
 };
 
@@ -49,24 +49,22 @@ enum _EdgeType {
 
 typedef enum _VertexID VertexID;
 enum _VertexID {
-    VERTEX_ID_START=12,
-    VERTEX_ID_PACKET_TO_SERVER=13,
-    VERTEX_ID_PACKET_TO_ORIGIN=14,
-    VERTEX_ID_STREAM=15,
-    VERTEX_ID_END=16,
+    VERTEX_NAME_START=12,
+    VERTEX_NAME_PACKET_TO_SERVER=13,
+    VERTEX_NAME_PACKET_TO_ORIGIN=14,
+    VERTEX_NAME_STREAM=15,
+    VERTEX_NAME_END=16,
 };
 
 struct _TGenMarkovModel {
     gint refcount;
 
+    /* For generating deterministic pseudo-random sequences. */
     GRand* prng;
     guint32 prngSeed;
 
-    /* The path of the graphml file that we loaded. */
-    gchar* graphmlFilePath;
-    /* The size of the graphml file that we loaded. Note that this may be slightly
-     * different than the size of the file that igraph would write. */
-    gsize graphmlFileSize;
+    /* The name of the graphml file that we loaded. */
+    gchar* name;
 
     igraph_t* graph;
     igraph_integer_t startVertexIndex;
@@ -77,8 +75,8 @@ struct _TGenMarkovModel {
 };
 
 static const gchar* _tgenmarkovmodel_vertexAttributeToString(VertexAttribute attr) {
-    if(attr == VERTEX_ATTR_ID) {
-        return "id";
+    if(attr == VERTEX_ATTR_NAME) {
+        return "name";
     } else if(attr == VERTEX_ATTR_TYPE) {
         return "type";
     } else {
@@ -143,15 +141,15 @@ static gboolean _tgenmarkovmodel_edgeTypeIsEqual(const gchar* typeStr, EdgeType 
 }
 
 static const gchar* _tgenmarkovmodel_vertexIDToString(VertexID id) {
-    if(id == VERTEX_ID_START) {
+    if(id == VERTEX_NAME_START) {
         return "start";
-    } else if(id == VERTEX_ID_PACKET_TO_SERVER) {
+    } else if(id == VERTEX_NAME_PACKET_TO_SERVER) {
         return "+";
-    } else if(id == VERTEX_ID_PACKET_TO_ORIGIN) {
+    } else if(id == VERTEX_NAME_PACKET_TO_ORIGIN) {
         return "-";
-    } else if(id == VERTEX_ID_STREAM) {
+    } else if(id == VERTEX_NAME_STREAM) {
         return "$";
-    } else if(id == VERTEX_ID_END) {
+    } else if(id == VERTEX_NAME_END) {
         return "F";
     } else {
         return "?";
@@ -169,10 +167,10 @@ static gboolean _tgenmarkovmodel_vertexIDIsEqual(const gchar* idStr, VertexID id
 }
 
 static gboolean _tgenmarkovmodel_vertexIDIsEmission(const gchar* idStr) {
-    if(_tgenmarkovmodel_vertexIDIsEqual(idStr, VERTEX_ID_PACKET_TO_SERVER) ||
-            _tgenmarkovmodel_vertexIDIsEqual(idStr, VERTEX_ID_PACKET_TO_ORIGIN) ||
-            _tgenmarkovmodel_vertexIDIsEqual(idStr, VERTEX_ID_STREAM) ||
-            _tgenmarkovmodel_vertexIDIsEqual(idStr, VERTEX_ID_END)) {
+    if(_tgenmarkovmodel_vertexIDIsEqual(idStr, VERTEX_NAME_PACKET_TO_SERVER) ||
+            _tgenmarkovmodel_vertexIDIsEqual(idStr, VERTEX_NAME_PACKET_TO_ORIGIN) ||
+            _tgenmarkovmodel_vertexIDIsEqual(idStr, VERTEX_NAME_STREAM) ||
+            _tgenmarkovmodel_vertexIDIsEqual(idStr, VERTEX_NAME_END)) {
         return TRUE;
     } else {
         return FALSE;
@@ -254,10 +252,10 @@ static gboolean _tgenmarkovmodel_checkVertexAttributes(TGenMarkovModel* mmodel, 
     gchar* idStr = NULL;
 
     /* this attribute is required, so it is an error if it doesn't exist */
-    const gchar* idKey = _tgenmarkovmodel_vertexAttributeToString(VERTEX_ATTR_ID);
+    const gchar* idKey = _tgenmarkovmodel_vertexAttributeToString(VERTEX_ATTR_NAME);
     if(igraph_cattribute_has_attr(mmodel->graph, IGRAPH_ATTRIBUTE_VERTEX, idKey)) {
         const gchar* vidStr;
-        if(_tgenmarkovmodel_findVertexAttributeString(mmodel, vertexIndex, VERTEX_ATTR_ID, &vidStr)) {
+        if(_tgenmarkovmodel_findVertexAttributeString(mmodel, vertexIndex, VERTEX_ATTR_NAME, &vidStr)) {
             g_string_append_printf(message, " %s='%s'", idKey, vidStr);
             idStr = g_strdup(vidStr);
         } else {
@@ -275,7 +273,7 @@ static gboolean _tgenmarkovmodel_checkVertexAttributes(TGenMarkovModel* mmodel, 
     const gchar* typeKey = _tgenmarkovmodel_vertexAttributeToString(VERTEX_ATTR_TYPE);
     if(igraph_cattribute_has_attr(mmodel->graph, IGRAPH_ATTRIBUTE_VERTEX, typeKey)) {
         const gchar* typeStr;
-        if(_tgenmarkovmodel_vertexIDIsEqual(idStr, VERTEX_ID_START)) {
+        if(_tgenmarkovmodel_vertexIDIsEqual(idStr, VERTEX_NAME_START)) {
             /* start vertex doesnt need any attributes */
         } else if(_tgenmarkovmodel_findVertexAttributeString(mmodel, vertexIndex, VERTEX_ATTR_TYPE, &typeStr)) {
             g_string_append_printf(message, " %s='%s'", typeKey, typeStr);
@@ -288,10 +286,10 @@ static gboolean _tgenmarkovmodel_checkVertexAttributes(TGenMarkovModel* mmodel, 
                             "but you gave %s='%s'",
                             _tgenmarkovmodel_vertexTypeToString(VERTEX_TYPE_OBSERVATION),
                             (glong)vertexIndex,
-                            _tgenmarkovmodel_vertexTypeToString(VERTEX_ID_PACKET_TO_SERVER),
-                            _tgenmarkovmodel_vertexTypeToString(VERTEX_ID_PACKET_TO_ORIGIN),
-                            _tgenmarkovmodel_vertexTypeToString(VERTEX_ID_STREAM),
-                            _tgenmarkovmodel_vertexTypeToString(VERTEX_ID_END),
+                            _tgenmarkovmodel_vertexTypeToString(VERTEX_NAME_PACKET_TO_SERVER),
+                            _tgenmarkovmodel_vertexTypeToString(VERTEX_NAME_PACKET_TO_ORIGIN),
+                            _tgenmarkovmodel_vertexTypeToString(VERTEX_NAME_STREAM),
+                            _tgenmarkovmodel_vertexTypeToString(VERTEX_NAME_END),
                             idKey, idStr);
                     isSuccess = FALSE;
                 }
@@ -345,8 +343,8 @@ static gboolean _tgenmarkovmodel_validateVertices(TGenMarkovModel* mmodel, igrap
         }
 
         const gchar* idStr = VAS(mmodel->graph,
-                _tgenmarkovmodel_vertexAttributeToString(VERTEX_ATTR_ID), vertexIndex);
-        if (_tgenmarkovmodel_vertexIDIsEqual(idStr, VERTEX_ID_START)) {
+                _tgenmarkovmodel_vertexAttributeToString(VERTEX_ATTR_NAME), vertexIndex);
+        if (_tgenmarkovmodel_vertexIDIsEqual(idStr, VERTEX_NAME_START)) {
             /* found the start vertex */
             foundStart = TRUE;
 
@@ -382,13 +380,13 @@ static gboolean _tgenmarkovmodel_checkEdgeAttributes(TGenMarkovModel* mmodel, ig
     const gchar* fromIDStr = NULL;
     const gchar* toIDStr = NULL;
 
-    found = _tgenmarkovmodel_findVertexAttributeString(mmodel, fromVertexIndex, VERTEX_ATTR_ID, &fromIDStr);
+    found = _tgenmarkovmodel_findVertexAttributeString(mmodel, fromVertexIndex, VERTEX_ATTR_NAME, &fromIDStr);
     if(!found) {
         tgen_warning("unable to find source vertex for edge %li", (glong)edgeIndex);
         return FALSE;
     }
 
-    found = _tgenmarkovmodel_findVertexAttributeString(mmodel, toVertexIndex, VERTEX_ATTR_ID, &toIDStr);
+    found = _tgenmarkovmodel_findVertexAttributeString(mmodel, toVertexIndex, VERTEX_ATTR_NAME, &toIDStr);
     if(!found) {
         tgen_warning("unable to find destination vertex for edge %li", (glong)edgeIndex);
         return FALSE;
@@ -576,86 +574,53 @@ static gboolean _tgenmarkovmodel_validateEdges(TGenMarkovModel* mmodel) {
     return isSuccess;
 }
 
-static igraph_t* _tgenmarkovmodel_loadGraph(const gchar* graphFileName, gsize* fileSizeOut) {
-    if(!graphFileName) {
-        tgen_warning("We failed to load the markov model graph because the filename was NULL");
-        return NULL;
-    }
-
-    if(!g_file_test(graphFileName, G_FILE_TEST_EXISTS)) {
-        tgen_warning("We failed to load the markov model graph because the "
-                "given path '%s' does not exist", graphFileName);
-        return NULL;
-    }
-
-    if(!g_file_test(graphFileName, G_FILE_TEST_IS_REGULAR)) {
-        tgen_warning("We failed to load the markov model graph because the file at the "
-                "given path '%s' is not a regular file", graphFileName);
-        return NULL;
-    }
-
-    tgen_debug("Opening markov model graph file '%s'", graphFileName);
-
-    FILE* graphFile = fopen(graphFileName, "r");
-    if (!graphFile) {
-        tgen_warning("Unable to open markov model graph file at "
-                "path '%s', fopen returned NULL with errno %i: %s",
-                graphFileName, errno, strerror(errno));
-        return NULL;
-    }
-
-    tgen_debug("Computing size of markov model graph file '%s'", graphFileName);
+static igraph_t* _tgenmarkovmodel_loadGraph(FILE* graphFileStream, const gchar* graphName) {
+    tgen_debug("Computing size of markov model graph file '%s'", graphmlFilePath);
 
     /* try to get the file size by first seeking to the end */
-    gint result = fseek(graphFile, 0, SEEK_END);
+    gint result = fseek(graphFileStream, 0, SEEK_END);
     if(result < 0) {
-        tgen_warning("Could not retrieve file size for graph file at path '%s', "
-                "fseek() error %i: %s", graphFileName, errno, g_strerror(errno));
+        tgen_warning("Could not retrieve file size for graph name '%s', "
+                "fseek() error %i: %s", graphName, errno, g_strerror(errno));
         return NULL;
     }
 
     /* now check the position */
-    glong graphFileSize = (gsize)ftell(graphFile);
+    glong graphFileSize = (gsize)ftell(graphFileStream);
     if(graphFileSize < 0) {
-        tgen_warning("Could not retrieve file size for graph file at path '%s', "
-                "ftell() error %i: %s", graphFileName, errno, g_strerror(errno));
+        tgen_warning("Could not retrieve file size for graph name '%s', "
+                "ftell() error %i: %s", graphName, errno, g_strerror(errno));
         return NULL;
     }
 
     /* rewind the file the the start so we can read the contents */
-    rewind(graphFile);
+    rewind(graphFileStream);
 
     igraph_t* graph = g_new0(igraph_t, 1);
 
     /* make sure we use the correct attribute handler */
     igraph_i_set_attribute_table(&igraph_cattribute_table);
 
-    result = igraph_read_graph_graphml(graph, graphFile, 0);
-    fclose(graphFile);
+    result = igraph_read_graph_graphml(graph, graphFileStream, 0);
 
     if (result != IGRAPH_SUCCESS) {
         if(result == IGRAPH_PARSEERROR) {
             tgen_warning("IGraph reported that there was either a problem reading "
-                    "the markov model graph file at path '%s', or that the file "
-                    "was syntactically incorrect.", graphFileName);
+                    "the markov model graph name '%s', or that the file "
+                    "was syntactically incorrect.", graphName);
         } else if(result == IGRAPH_UNIMPLEMENTED) {
-            tgen_warning("We are unable to read the markov model graph at path '%s'"
+            tgen_warning("We are unable to read the markov model graph name '%s'"
                     "because IGraph was not compiled with support for graphml.",
-                    graphFileName);
+                    graphName);
         }
 
-        tgen_warning("Loading the markov model at path '%s' failed.", graphFileName);
+        tgen_warning("Loading the markov model name '%s' failed.", graphName);
         g_free(graph);
         return NULL;
     }
 
-    tgen_info("Successfully read and parsed markov model graph file "
-            "of size %li at path '%s'", graphFileSize, graphFileName);
-
-    if(fileSizeOut) {
-        g_assert(graphFileSize >= 0);
-        *fileSizeOut = (gsize) graphFileSize;
-    }
+    tgen_info("Successfully read and parsed markov model graph name '%s' "
+            "of size %li", graphName, graphFileSize);
 
     return graph;
 }
@@ -674,8 +639,8 @@ static void _tgenmarkovmodel_free(TGenMarkovModel* mmodel) {
         g_rand_free(mmodel->prng);
     }
 
-    if(mmodel->graphmlFilePath) {
-        g_free(mmodel->graphmlFilePath);
+    if(mmodel->name) {
+        g_free(mmodel->name);
     }
 
     mmodel->magic = 0;
@@ -694,7 +659,10 @@ void tgenmarkovmodel_unref(TGenMarkovModel* mmodel) {
     }
 }
 
-TGenMarkovModel* tgenmarkovmodel_newWithSeed(const gchar* modelPath, guint32 seed) {
+static TGenMarkovModel* _tgenmarkovmodel_new(igraph_t* graph, const gchar* name, guint32 seed) {
+    g_assert(graph);
+    g_assert(name);
+
     TGenMarkovModel* mmodel = g_new0(TGenMarkovModel, 1);
     mmodel->magic = TGEN_MMODEL_MAGIC;
     mmodel->refcount = 1;
@@ -703,32 +671,23 @@ TGenMarkovModel* tgenmarkovmodel_newWithSeed(const gchar* modelPath, guint32 see
     mmodel->prng = g_rand_new_with_seed(seed);
     mmodel->prngSeed = seed;
 
-    gsize graphmlFileSize = 0;
-    mmodel->graph = _tgenmarkovmodel_loadGraph(modelPath, &graphmlFileSize);
+    mmodel->graph = graph;
+    mmodel->name = g_strdup(name);
 
-    if(!mmodel->graph) {
-        tgenmarkovmodel_unref(mmodel);
-        tgen_info("Failed to create markov model object");
-        return NULL;
-    }
-
-    mmodel->graphmlFileSize = graphmlFileSize;
-    mmodel->graphmlFilePath = g_strdup(modelPath);
-
-    tgen_info("Starting graph validation on markov model at path '%s'", modelPath);
+    tgen_info("Starting graph validation on markov model name '%s'", name);
 
     gboolean verticesPassed = _tgenmarkovmodel_validateVertices(mmodel, &(mmodel->startVertexIndex));
     if(verticesPassed) {
-        tgen_info("Markov model at path '%s' passed vertex validation", modelPath);
+        tgen_info("Markov model name '%s' passed vertex validation", name);
     } else {
-        tgen_warning("Markov model at path '%s' failed vertex validation", modelPath);
+        tgen_warning("Markov model name '%s' failed vertex validation", name);
     }
 
     gboolean edgesPassed = _tgenmarkovmodel_validateEdges(mmodel);
     if(edgesPassed) {
-        tgen_info("Markov model at path '%s' passed edge validation", modelPath);
+        tgen_info("Markov model name '%s' passed edge validation", name);
     } else {
-        tgen_warning("Markov model at path '%s' failed edge validation", modelPath);
+        tgen_warning("Markov model name '%s' failed edge validation", name);
     }
 
     if(!verticesPassed || !edgesPassed) {
@@ -739,17 +698,67 @@ TGenMarkovModel* tgenmarkovmodel_newWithSeed(const gchar* modelPath, guint32 see
 
     mmodel->currentStateVertexIndex = mmodel->startVertexIndex;
 
-    tgen_info("Successfully validated markov model graph at path '%s', "
-            "found start vertex at index %i", modelPath, (int)mmodel->startVertexIndex);
+    tgen_info("Successfully validated markov model name '%s', "
+            "found start vertex at index %i", name, (int)mmodel->startVertexIndex);
 
     return mmodel;
 }
 
-TGenMarkovModel* tgenmarkovmodel_new(const gchar* modelPath) {
-    /* They did not provide a seed. So get a random seed for our local prng
-     * using the global prng to generate it (g_random_* uses the global prng). */
-    guint32 seed = g_random_int();
-    return tgenmarkovmodel_newWithSeed(modelPath, seed);
+TGenMarkovModel* tgenmarkovmodel_newFromPath(const gchar* name, guint32 seed, const gchar* graphmlFilePath) {
+    if(!graphmlFilePath) {
+        tgen_warning("We failed to load the markov model graph because the filename was NULL");
+        return NULL;
+    }
+
+    if(!g_file_test(graphmlFilePath, G_FILE_TEST_EXISTS)) {
+        tgen_warning("We failed to load the markov model graph because the "
+                "given path '%s' does not exist", graphmlFilePath);
+        return NULL;
+    }
+
+    if(!g_file_test(graphmlFilePath, G_FILE_TEST_IS_REGULAR)) {
+        tgen_warning("We failed to load the markov model graph because the file at the "
+                "given path '%s' is not a regular file", graphmlFilePath);
+        return NULL;
+    }
+
+    tgen_debug("Opening markov model graph file '%s'", graphmlFilePath);
+
+    FILE* graphFileStream = fopen(graphmlFilePath, "r");
+    if (!graphFileStream) {
+        tgen_warning("Unable to open markov model graph file at "
+                "path '%s', fopen returned NULL with errno %i: %s",
+                graphmlFilePath, errno, strerror(errno));
+        return NULL;
+    }
+
+    igraph_t* graph = _tgenmarkovmodel_loadGraph(graphFileStream, name);
+
+    fclose(graphFileStream);
+
+    TGenMarkovModel* mmodel = graph ? _tgenmarkovmodel_new(graph, name, seed) : NULL;
+    return mmodel;
+}
+
+TGenMarkovModel* tgenmarkovmodel_newFromString(const gchar* name, guint32 seed, const GString* graphmlString) {
+    if(!graphmlString) {
+        return NULL;
+    }
+
+    FILE* memoryStream = fmemopen(graphmlString->str, graphmlString->len, "r");
+
+    if(!memoryStream) {
+        tgen_warning("Unable to open new memory stream for reading: error %i: %s",
+                errno, g_strerror(errno));
+        return NULL;
+    }
+
+    igraph_t* graph = _tgenmarkovmodel_loadGraph(memoryStream, name);
+
+    fclose(memoryStream);
+
+    TGenMarkovModel* mmodel = graph ? _tgenmarkovmodel_new(graph, name, seed) : NULL;
+    return mmodel;
 }
 
 static gboolean _tgenmarkovmodel_chooseEdge(TGenMarkovModel* mmodel, EdgeType type,
@@ -974,14 +983,14 @@ static Observation _tgenmarkovmodel_vertexToObservation(TGenMarkovModel* mmodel,
     g_assert(_tgenmarkovmodel_vertexTypeIsEqual(typeStr, VERTEX_TYPE_OBSERVATION));
 
     const gchar* vidStr;
-    isSuccess = _tgenmarkovmodel_findVertexAttributeString(mmodel, vertexIndex, VERTEX_ATTR_ID, &vidStr);
+    isSuccess = _tgenmarkovmodel_findVertexAttributeString(mmodel, vertexIndex, VERTEX_ATTR_NAME, &vidStr);
     g_assert(isSuccess);
 
-    if(_tgenmarkovmodel_vertexIDIsEqual(vidStr, VERTEX_ID_PACKET_TO_ORIGIN)) {
+    if(_tgenmarkovmodel_vertexIDIsEqual(vidStr, VERTEX_NAME_PACKET_TO_ORIGIN)) {
         return OBSERVATION_PACKET_TO_ORIGIN;
-    } else if(_tgenmarkovmodel_vertexIDIsEqual(vidStr, VERTEX_ID_PACKET_TO_SERVER)) {
+    } else if(_tgenmarkovmodel_vertexIDIsEqual(vidStr, VERTEX_NAME_PACKET_TO_SERVER)) {
         return OBSERVATION_PACKET_TO_SERVER;
-    } else if(_tgenmarkovmodel_vertexIDIsEqual(vidStr, VERTEX_ID_STREAM)) {
+    } else if(_tgenmarkovmodel_vertexIDIsEqual(vidStr, VERTEX_NAME_STREAM)) {
         return OBSERVATION_STREAM;
     } else {
         return OBSERVATION_END;
@@ -1005,7 +1014,7 @@ Observation tgenmarkovmodel_getNextObservation(TGenMarkovModel* mmodel, guint64*
     if(!isSuccess) {
         const gchar* fromIDStr;
         _tgenmarkovmodel_findVertexAttributeString(mmodel,
-                mmodel->currentStateVertexIndex, VERTEX_ATTR_ID, &fromIDStr);
+                mmodel->currentStateVertexIndex, VERTEX_ATTR_NAME, &fromIDStr);
 
         tgen_warning("Failed to choose a transition edge from state %li (%s)",
                 (glong)mmodel->currentStateVertexIndex, fromIDStr);
@@ -1030,7 +1039,7 @@ Observation tgenmarkovmodel_getNextObservation(TGenMarkovModel* mmodel, guint64*
     if(!isSuccess) {
         const gchar* fromIDStr;
         _tgenmarkovmodel_findVertexAttributeString(mmodel,
-                mmodel->currentStateVertexIndex, VERTEX_ATTR_ID, &fromIDStr);
+                mmodel->currentStateVertexIndex, VERTEX_ATTR_NAME, &fromIDStr);
 
         tgen_warning("Failed to choose an emission edge from state %li (%s)",
                 (glong)mmodel->currentStateVertexIndex, fromIDStr);
@@ -1065,12 +1074,60 @@ guint32 tgenmarkovmodel_getSeed(TGenMarkovModel* mmodel) {
 }
 
 /* from the returned path, you could get the filename with g_path_get_basename() */
-const gchar* tgenmarkovmodel_getGraphmlFilePath(TGenMarkovModel* mmodel) {
+const gchar* tgenmarkovmodel_getName(TGenMarkovModel* mmodel) {
     TGEN_MMODEL_ASSERT(mmodel);
-    return mmodel->graphmlFilePath;
+    return mmodel->name;
 }
 
-gsize tgenmarkovmodel_getGraphmlFileSize(TGenMarkovModel* mmodel) {
-    TGEN_MMODEL_ASSERT(mmodel);
-    return mmodel->graphmlFileSize;
+/* returns a new buffer containing the graph in graphml format. the size of the buffer
+ * is returned in outBufferSize. The buffer must be freed by the caller. */
+GString* tgenmarkovmodel_toGraphmlString(TGenMarkovModel* mmodel) {
+    char* bufferLocation = NULL;
+    size_t bufferSize = 0;
+    FILE* graphStream = open_memstream(&bufferLocation, &bufferSize);
+
+    if(!graphStream) {
+        tgen_warning("Unable to open new memory stream for writing: error %i: %s",
+                errno, g_strerror(errno));
+        return NULL;
+    }
+
+    /* This is a workaround because igraph tries to store vertex ids as attributes.
+     * Normally igraph would print the following warning to stderr:
+     *   Warning: Could not add vertex ids, there is already an 'id' vertex attribute
+     *   in file foreign-graphml.c, line 443
+     * The fix is to remove the id attributes since we don't use it anyway, which
+     * prevents igraph from trying to write it in the vertex id field AND as an attribute. */
+    igraph_cattribute_remove_v(mmodel->graph, "id");
+
+    int result = igraph_write_graph_graphml(mmodel->graph, graphStream, FALSE);
+
+    if(result != IGRAPH_SUCCESS) {
+        tgen_warning("IGraph error when writing graph name '%s'", mmodel->name);
+        fclose(graphStream);
+        if(bufferLocation) {
+            g_free(bufferLocation);
+        }
+        return NULL;
+    }
+
+    result = fclose(graphStream);
+
+    if(result != 0) {
+        tgen_warning("Error closing the graph stream with fclose(): error %i: %s",
+                errno, g_strerror(errno));
+        if(bufferLocation) {
+            g_free(bufferLocation);
+        }
+        return NULL;
+    }
+
+    tgen_info("Successfully wrote graph to buffer of size %"G_GSIZE_FORMAT, (gsize)bufferSize);
+
+    GString* graphString = g_string_new(bufferLocation);
+
+    g_assert(graphString);
+    g_assert(graphString->len == (gsize)bufferSize);
+
+    return graphString;
 }
