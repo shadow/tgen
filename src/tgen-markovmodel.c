@@ -3,6 +3,7 @@
  */
 
 #include <stdint.h>
+#include <stdio.h>
 #include <math.h>
 #include <errno.h>
 
@@ -60,6 +61,12 @@ struct _TGenMarkovModel {
 
     GRand* prng;
     guint32 prngSeed;
+
+    /* The path of the graphml file that we loaded. */
+    gchar* graphmlFilePath;
+    /* The size of the graphml file that we loaded. Note that this may be slightly
+     * different than the size of the file that igraph would write. */
+    gsize graphmlFileSize;
 
     igraph_t* graph;
     igraph_integer_t startVertexIndex;
@@ -569,7 +576,7 @@ static gboolean _tgenmarkovmodel_validateEdges(TGenMarkovModel* mmodel) {
     return isSuccess;
 }
 
-static igraph_t* _tgenmarkovmodel_loadGraph(const gchar* graphFileName) {
+static igraph_t* _tgenmarkovmodel_loadGraph(const gchar* graphFileName, gsize* fileSizeOut) {
     if(!graphFileName) {
         tgen_warning("We failed to load the markov model graph because the filename was NULL");
         return NULL;
@@ -597,12 +604,33 @@ static igraph_t* _tgenmarkovmodel_loadGraph(const gchar* graphFileName) {
         return NULL;
     }
 
+    tgen_debug("Computing size of markov model graph file '%s'", graphFileName);
+
+    /* try to get the file size by first seeking to the end */
+    gint result = fseek(graphFile, 0, SEEK_END);
+    if(result < 0) {
+        tgen_warning("Could not retrieve file size for graph file at path '%s', "
+                "fseek() error %i: %s", graphFileName, errno, g_strerror(errno));
+        return NULL;
+    }
+
+    /* now check the position */
+    glong graphFileSize = (gsize)ftell(graphFile);
+    if(graphFileSize < 0) {
+        tgen_warning("Could not retrieve file size for graph file at path '%s', "
+                "ftell() error %i: %s", graphFileName, errno, g_strerror(errno));
+        return NULL;
+    }
+
+    /* rewind the file the the start so we can read the contents */
+    rewind(graphFile);
+
     igraph_t* graph = g_new0(igraph_t, 1);
 
     /* make sure we use the correct attribute handler */
     igraph_i_set_attribute_table(&igraph_cattribute_table);
 
-    gint result = igraph_read_graph_graphml(graph, graphFile, 0);
+    result = igraph_read_graph_graphml(graph, graphFile, 0);
     fclose(graphFile);
 
     if (result != IGRAPH_SUCCESS) {
@@ -621,7 +649,14 @@ static igraph_t* _tgenmarkovmodel_loadGraph(const gchar* graphFileName) {
         return NULL;
     }
 
-    tgen_info("Successfully read and parsed markov model graph file at path '%s'", graphFileName);
+    tgen_info("Successfully read and parsed markov model graph file "
+            "of size %li at path '%s'", graphFileSize, graphFileName);
+
+    if(fileSizeOut) {
+        g_assert(graphFileSize >= 0);
+        *fileSizeOut = (gsize) graphFileSize;
+    }
+
     return graph;
 }
 
@@ -637,6 +672,10 @@ static void _tgenmarkovmodel_free(TGenMarkovModel* mmodel) {
 
     if(mmodel->prng) {
         g_rand_free(mmodel->prng);
+    }
+
+    if(mmodel->graphmlFilePath) {
+        g_free(mmodel->graphmlFilePath);
     }
 
     mmodel->magic = 0;
@@ -664,13 +703,17 @@ TGenMarkovModel* tgenmarkovmodel_newWithSeed(const gchar* modelPath, guint32 see
     mmodel->prng = g_rand_new_with_seed(seed);
     mmodel->prngSeed = seed;
 
-    mmodel->graph = _tgenmarkovmodel_loadGraph(modelPath);
+    gsize graphmlFileSize = 0;
+    mmodel->graph = _tgenmarkovmodel_loadGraph(modelPath, &graphmlFileSize);
 
     if(!mmodel->graph) {
         tgenmarkovmodel_unref(mmodel);
         tgen_info("Failed to create markov model object");
         return NULL;
     }
+
+    mmodel->graphmlFileSize = graphmlFileSize;
+    mmodel->graphmlFilePath = g_strdup(modelPath);
 
     tgen_info("Starting graph validation on markov model at path '%s'", modelPath);
 
@@ -696,8 +739,8 @@ TGenMarkovModel* tgenmarkovmodel_newWithSeed(const gchar* modelPath, guint32 see
 
     mmodel->currentStateVertexIndex = mmodel->startVertexIndex;
 
-    tgen_info("Successfully validated markov model graph at "
-            "path '%s', found start vertex at index %i", modelPath, (int)mmodel->startVertexIndex);
+    tgen_info("Successfully validated markov model graph at path '%s', "
+            "found start vertex at index %i", modelPath, (int)mmodel->startVertexIndex);
 
     return mmodel;
 }
@@ -1019,4 +1062,15 @@ void tgenmarkovmodel_reset(TGenMarkovModel* mmodel) {
 guint32 tgenmarkovmodel_getSeed(TGenMarkovModel* mmodel) {
     TGEN_MMODEL_ASSERT(mmodel);
     return mmodel->prngSeed;
+}
+
+/* from the returned path, you could get the filename with g_path_get_basename() */
+const gchar* tgenmarkovmodel_getGraphmlFilePath(TGenMarkovModel* mmodel) {
+    TGEN_MMODEL_ASSERT(mmodel);
+    return mmodel->graphmlFilePath;
+}
+
+gsize tgenmarkovmodel_getGraphmlFileSize(TGenMarkovModel* mmodel) {
+    TGEN_MMODEL_ASSERT(mmodel);
+    return mmodel->graphmlFileSize;
 }
