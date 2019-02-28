@@ -7,11 +7,6 @@
 
 #include "tgen.h"
 
-typedef enum _TGenTransportProtocol {
-    TGEN_PROTOCOL_NONE, TGEN_PROTOCOL_TCP, TGEN_PROTOCOL_UDP,
-    TGEN_PROTOCOL_PIPE, TGEN_PROTOCOL_SOCKETPAIR,
-} TGenTransportProtocol;
-
 typedef struct _TGenTransport TGenTransport;
 
 typedef void (*TGenTransport_notifyBytesFunc)(gpointer data, gsize bytesRead, gsize bytesWritten);
