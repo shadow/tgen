@@ -33,8 +33,6 @@ typedef struct _TGenActionPauseData {
 } TGenActionPauseData;
 
 typedef struct _TGenActionTransferData {
-    TGenTransferType type;
-    TGenTransportProtocol protocol;
     guint64 size;
     guint64 ourSize;
     guint64 theirSize;
@@ -43,14 +41,11 @@ typedef struct _TGenActionTransferData {
     guint64 stalloutNanos;
     gboolean stalloutIsSet;
     TGenPool* peers;
-    gchar* localSchedule;
-    gchar* remoteSchedule;
     gchar* socksUsernameStr;
     gchar* socksPasswordStr;
 } TGenActionTransferData;
 
 typedef struct _TGenActionModelData {
-    TGenTransferType type;
     gchar* streamModelPath;
     gchar* packetModelPath;
     gchar* socksUsernameStr;
@@ -484,6 +479,7 @@ TGenAction* tgenaction_newStartAction(const gchar* timeStr, const gchar* timeout
         const gchar* peersStr, const gchar* socksProxyStr, GError** error) {
     g_assert(error);
 
+    adsfasdf make the server port optional
     /* a serverport is required */
     if (!serverPortStr || !g_ascii_strncasecmp(serverPortStr, "\0", (gsize) 1)) {
         *error = g_error_new(G_MARKUP_ERROR, G_MARKUP_ERROR_MISSING_ATTRIBUTE,
@@ -677,27 +673,6 @@ TGenAction* tgenaction_newTransferAction(const gchar* typeStr, const gchar* prot
         *error = g_error_new(G_MARKUP_ERROR, G_MARKUP_ERROR_UNKNOWN_ATTRIBUTE,
                 "transfer action has unknown value '%s' for 'type' attribute",
                 typeStr);
-        return NULL;
-    }
-
-    /* protocol is required */
-    TGenTransportProtocol protocol = TGEN_PROTOCOL_NONE;
-    if (!protocolStr || !g_ascii_strncasecmp(protocolStr, "\0", (gsize) 1)) {
-        *error = g_error_new(G_MARKUP_ERROR, G_MARKUP_ERROR_MISSING_ATTRIBUTE,
-                "transfer action missing required attribute 'protocol'");
-        return NULL;
-    } else if (!g_ascii_strcasecmp(protocolStr, "tcp")) {
-        protocol = TGEN_PROTOCOL_TCP;
-    } else if (!g_ascii_strcasecmp(protocolStr, "udp")) {
-        protocol = TGEN_PROTOCOL_UDP;
-    } else if (!g_ascii_strcasecmp(protocolStr, "pipe")) {
-        protocol = TGEN_PROTOCOL_PIPE;
-    } else if (!g_ascii_strcasecmp(protocolStr, "socketpair")) {
-        protocol = TGEN_PROTOCOL_SOCKETPAIR;
-    } else {
-        *error = g_error_new(G_MARKUP_ERROR, G_MARKUP_ERROR_UNKNOWN_ATTRIBUTE,
-                "transfer action has unknown value '%s' for 'protocol' attribute",
-                protocolStr);
         return NULL;
     }
 

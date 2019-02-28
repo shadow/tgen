@@ -29,7 +29,6 @@ struct _TGenTransport {
     TGenTransportError error;
     gchar* string;
 
-    TGenTransportProtocol protocol;
     gint socketD;
 
     TGenTransport_notifyBytesFunc notify;
@@ -62,27 +61,6 @@ struct _TGenTransport {
     gint refcount;
     guint magic;
 };
-
-static const gchar* _tgentransport_protocolToString(TGenTransport* transport) {
-    switch(transport->protocol) {
-        case TGEN_PROTOCOL_TCP: {
-            return "TCP";
-        }
-        case TGEN_PROTOCOL_UDP: {
-            return "UDP";
-        }
-        case TGEN_PROTOCOL_PIPE: {
-            return "PIPE";
-        }
-        case TGEN_PROTOCOL_SOCKETPAIR: {
-            return "SOCKETPAIR";
-        }
-        case TGEN_PROTOCOL_NONE:
-        default: {
-            return "NONE";
-        }
-    }
-}
 
 static const gchar* _tgentransport_stateToString(TGenTransportState state) {
     switch(state) {
@@ -169,7 +147,6 @@ const gchar* tgentransport_toString(TGenTransport* transport) {
     TGEN_ASSERT(transport);
 
     if(!transport->string) {
-        const gchar* protocolStr = _tgentransport_protocolToString(transport);
         const gchar* stateStr = _tgentransport_stateToString(transport->state);
         const gchar* errorStr = _tgentransport_errorToString(transport->error);
 
@@ -180,7 +157,7 @@ const gchar* tgentransport_toString(TGenTransport* transport) {
 
         GString* buffer = g_string_new(NULL);
 
-        g_string_printf(buffer, "%s,%i,%s,%s,%s,state=%s,error=%s", protocolStr, transport->socketD,
+        g_string_printf(buffer, "TCP,%i,%s,%s,%s,state=%s,error=%s", transport->socketD,
                 localStr, proxyStr, remoteStr, stateStr, errorStr);
 
         transport->string = g_string_free(buffer, FALSE);
@@ -221,7 +198,6 @@ static TGenTransport* _tgentransport_newHelper(gint socketD, gint64 startedTime,
     transport->refcount = 1;
 
     transport->socketD = socketD;
-    transport->protocol = TGEN_PROTOCOL_TCP;
 
     if(peer) {
         transport->remote = peer;
