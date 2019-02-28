@@ -30,5 +30,6 @@ void tgenmarkovmodel_unref(TGenMarkovModel* mmodel);
 
 Observation tgenmarkovmodel_getNextObservation(TGenMarkovModel* mmodel, guint64* delay);
 void tgenmarkovmodel_reset(TGenMarkovModel* mmodel);
+guint32 tgenmarkovmodel_getSeed(TGenMarkovModel* mmodel);
 
 #endif /* TGEN_MARKOVMODEL_H_ */

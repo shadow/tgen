@@ -58,7 +58,9 @@ enum _VertexID {
 struct _TGenMarkovModel {
     gint refcount;
 
-    GRand* randomSource;
+    GRand* prng;
+    guint32 prngSeed;
+
     igraph_t* graph;
     igraph_integer_t startVertexIndex;
     igraph_integer_t currentStateVertexIndex;
@@ -633,8 +635,8 @@ static void _tgenmarkovmodel_free(TGenMarkovModel* mmodel) {
         mmodel->graph = NULL;
     }
 
-    if(mmodel->randomSource) {
-        g_rand_free(mmodel->randomSource);
+    if(mmodel->prng) {
+        g_rand_free(mmodel->prng);
     }
 
     mmodel->magic = 0;
@@ -659,7 +661,8 @@ TGenMarkovModel* tgenmarkovmodel_newWithSeed(const gchar* modelPath, guint32 see
     mmodel->refcount = 1;
 
     /* create our local prng for this model */
-    mmodel->randomSource = g_rand_new_with_seed(seed);
+    mmodel->prng = g_rand_new_with_seed(seed);
+    mmodel->prngSeed = seed;
 
     mmodel->graph = _tgenmarkovmodel_loadGraph(modelPath);
 
@@ -772,7 +775,7 @@ static gboolean _tgenmarkovmodel_chooseEdge(TGenMarkovModel* mmodel, EdgeType ty
             totalWeight, numEdgesType, numEdgesTotal, _tgenmarkovmodel_edgeTypeToString(type));
 
     /* select a random weight value */
-    gdouble randomValue = g_rand_double_range(mmodel->randomSource, (gdouble)0.0, totalWeight);
+    gdouble randomValue = g_rand_double_range(mmodel->prng, (gdouble)0.0, totalWeight);
 
     tgen_debug("Using random value %f from total weight %f", randomValue, totalWeight);
 
@@ -859,8 +862,8 @@ static gboolean _tgenmarkovmodel_chooseEmission(TGenMarkovModel* mmodel,
 
 static gdouble _tgenmarkovmodel_generateLogNormalValue(TGenMarkovModel* mmodel, gdouble mu, gdouble sigma) {
     /* first get a normal value from mu and sigma, using the Box-Muller method */
-    gdouble u = g_rand_double_range(mmodel->randomSource, (gdouble)0.0001, (gdouble)0.9999);
-    gdouble v = g_rand_double_range(mmodel->randomSource, (gdouble)0.0001, (gdouble)0.9999);
+    gdouble u = g_rand_double_range(mmodel->prng, (gdouble)0.0001, (gdouble)0.9999);
+    gdouble v = g_rand_double_range(mmodel->prng, (gdouble)0.0001, (gdouble)0.9999);
 
     /* this gives us 2 normally-distributed values */
     gdouble two = (gdouble)2;
@@ -873,7 +876,7 @@ static gdouble _tgenmarkovmodel_generateLogNormalValue(TGenMarkovModel* mmodel, 
 
 static gdouble _tgenmarkovmodel_generateExponentialValue(TGenMarkovModel* mmodel, gdouble lambda) {
     /* inverse transform sampling */
-    gdouble clampedUniform = g_rand_double_range(mmodel->randomSource, (gdouble)0.0001, (gdouble)0.9999);
+    gdouble clampedUniform = g_rand_double_range(mmodel->prng, (gdouble)0.0001, (gdouble)0.9999);
     return -log(clampedUniform)/lambda;
 }
 
@@ -1011,4 +1014,9 @@ void tgenmarkovmodel_reset(TGenMarkovModel* mmodel) {
 
     mmodel->foundEndState = FALSE;
     mmodel->currentStateVertexIndex = mmodel->startVertexIndex;
+}
+
+guint32 tgenmarkovmodel_getSeed(TGenMarkovModel* mmodel) {
+    TGEN_MMODEL_ASSERT(mmodel);
+    return mmodel->prngSeed;
 }
