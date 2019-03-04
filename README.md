@@ -49,10 +49,11 @@ See the [resource/](resource) directory for example config files.
 See [doc/Tools-Setup.md](doc/Tools-Setup.md) for setup instructions for
 the TGenTools toolkit that can be used to parse and plot `tgen` log output.
 
-See [doc/TGen-Modeling.md](doc/TGen-Modeling.md) for examples of how to
-generate TGen config files with embedded traffic models.
+See [doc/TGen-Overview.md](doc/TGen-Overview.md) for an overview of how to use
+a graph to instruct TGen how it should generate traffic, and then see
+[doc/TGen-Options.md](doc/TGen-Options.md) for a description of all options
+supported by TGen.
 
-See [doc/TGen-Config.md](doc/TGen-Config.md) for the format of the
-configuration file and the possible options that can be used when
-generating traffic models.
-
+See [doc/TGen-Markov-Models.md](doc/TGen-Markov-Models.md) for a description
+of how to create and use markov models to instruct TGen how to generate
+streams in a traffic flow and packets in a stream.
