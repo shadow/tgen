@@ -64,7 +64,7 @@ Acceptable attributes for the **pause** action:
 
 | Name   | Format | Example | Description |
 |--------|--------|---------|-------------|
-| _time_ | \<time\> | 5&nbsp;seconds | The time that the tgen node should pause before resuming the walk through the action graph.  |
+| _time_ | \<time\>,... | 5&nbsp;seconds,... | The time or comma-separated list of times that the tgen node should pause before resuming the walk through the action graph. If a list is given, a time from the list will be chosen uniformly at random every time the pause action is encountered while walking the graph.  |
 
 ## End options
 
