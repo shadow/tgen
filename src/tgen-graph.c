@@ -2,35 +2,43 @@
  * See LICENSE for licensing information
  */
 
+#include <arpa/inet.h>
+#include <math.h>
 #include <igraph.h>
 
 #include "tgen.h"
 
 typedef enum {
     TGEN_A_NONE = 0,
-    TGEN_VA_ID = 1 << 1,
-    TGEN_VA_TIME = 1 << 2,
+    TGEN_EA_WEIGHT = 1 << 1,
+    TGEN_VA_ID = 1 << 2,
     TGEN_VA_SERVERPORT = 1 << 3,
-    TGEN_VA_PEERS = 1 << 4,
-    TGEN_VA_SOCKSPROXY = 1 << 5,
-    TGEN_VA_COUNT = 1 << 6,
-    TGEN_VA_SIZE = 1 << 7,
-    TGEN_VA_TYPE = 1 << 8,
-    TGEN_VA_PROTOCOL = 1 << 9,
-    TGEN_VA_TIMEOUT = 1 << 10,
-    TGEN_VA_STALLOUT = 1 << 11,
-    TGEN_VA_HEARTBEAT = 1 << 12,
-    TGEN_VA_LOGLEVEL = 1 << 13,
-    TGEN_EA_WEIGHT = 1 << 14,
-    TGEN_VA_OURSIZE = 1 << 15,
-    TGEN_VA_THEIRSIZE = 1 << 16,
-    TGEN_VA_LOCALSCHED = 1 << 17,
-    TGEN_VA_REMOTESCHED = 1 << 18,
-    TGEN_VA_STREAMMODELPATH = 1 << 19,
-    TGEN_VA_PACKETMODELPATH = 1 << 20,
-    TGEN_VA_SOCKSUSERNAME = 1 << 21,
-    TGEN_VA_SOCKSPASSWORD = 1 << 22,
+    TGEN_VA_TIME = 1 << 4,
+    TGEN_VA_HEARTBEAT = 1 << 5,
+    TGEN_VA_LOGLEVEL = 1 << 6,
+    TGEN_VA_PACKETMODELPATH = 1 << 7,
+    TGEN_VA_PACKETMODELSEED = 1 << 8,
+    TGEN_VA_PEERS = 1 << 9,
+    TGEN_VA_SOCKSPROXY = 1 << 10,
+    TGEN_VA_SOCKSUSERNAME = 1 << 11,
+    TGEN_VA_SOCKSPASSWORD = 1 << 12,
+    TGEN_VA_SENDSIZE = 1 << 13,
+    TGEN_VA_RECVSIZE = 1 << 14,
+    TGEN_VA_TIMEOUT = 1 << 15,
+    TGEN_VA_STALLOUT = 1 << 16,
+    TGEN_VA_STREAMMODELPATH = 1 << 17,
+    TGEN_VA_STREAMMODELSEED = 1 << 18,
+    TGEN_VA_COUNT = 1 << 19,
 } AttributeFlags;
+
+typedef struct _TGenAction {
+    TGenActionType type;
+    gpointer options;
+    /* used for pause action */
+    glong totalIncomingEdges;
+    glong completedIncomingEdges;
+    guint magic;
+} TGenAction;
 
 struct _TGenGraph {
     igraph_t* graph;
@@ -58,6 +66,203 @@ struct _TGenGraph {
     gint refcount;
     guint magic;
 };
+
+static TGenAction* _tgengraph_newAction(TGenActionType type, gpointer options) {
+    TGenAction* action = g_new0(TGenAction, 1);
+    action->type = type;
+    action->options = options;
+    action->magic = TGEN_MAGIC;
+    return action;
+}
+
+/* frees memory allocated to store internal options like strings */
+static void _tgengraph_freeActionHelper(TGenActionType type, gpointer optionsptr) {
+    if(type == TGEN_ACTION_START) {
+        TGenStartOptions* options = optionsptr;
+        if(options) {
+            _tgengraph_freeActionHelper(TGEN_ACTION_STREAM, &options->defaultStreamOpts);
+        }
+    } else if (type == TGEN_ACTION_PAUSE) {
+        TGenPauseOptions* options = optionsptr;
+        if(options && options->times.value) {
+            tgenpool_unref(options->times.value);
+        }
+    } else if (type == TGEN_ACTION_END) {
+        /* nothing internal to free */
+    } else if (type == TGEN_ACTION_STREAM) {
+        TGenStreamOptions* options = optionsptr;
+        if(options) {
+            if(options->packetModelPath.value) {
+                g_free(options->packetModelPath.value);
+            }
+            if(options->peers.value) {
+                tgenpool_unref(options->peers.value);
+            }
+            if(options->socksProxy.value) {
+                tgenpeer_unref(options->socksProxy.value);
+            }
+            if(options->socksUsername.value) {
+                g_free(options->socksUsername.value);
+            }
+            if(options->socksPassword.value) {
+                g_free(options->socksPassword.value);
+            }
+        }
+    } else if (type == TGEN_ACTION_FLOW) {
+        TGenFlowOptions* options = optionsptr;
+        if(options) {
+            if(options->streamModelPath.value) {
+                g_free(options->streamModelPath.value);
+            }
+            _tgengraph_freeActionHelper(TGEN_ACTION_STREAM, &options->streamOpts);
+        }
+    }
+}
+
+static void _tgengraph_freeAction(TGenAction* action) {
+    TGEN_ASSERT(action);
+    /* free all the internal options that we allocated */
+    _tgengraph_freeActionHelper(action->type, action->options);
+    action->magic = 0;
+    g_free(action);
+}
+
+static const gchar* _tgengraph_attributeToString(AttributeFlags attr) {
+    switch (attr) {
+        case TGEN_EA_WEIGHT: {
+            return "weight";
+        }
+        case TGEN_VA_ID: {
+            return "id";
+        }
+        case TGEN_VA_SERVERPORT: {
+            return "serverport";
+        }
+        case TGEN_VA_TIME: {
+            return "time";
+        }
+        case TGEN_VA_HEARTBEAT: {
+            return "heartbeat";
+        }
+        case TGEN_VA_LOGLEVEL: {
+            return "loglevel";
+        }
+        case TGEN_VA_PACKETMODELPATH: {
+            return "packetmodelpath";
+        }
+        case TGEN_VA_PACKETMODELSEED: {
+            return "packetmodelseed";
+        }
+        case TGEN_VA_PEERS: {
+            return "peers";
+        }
+        case TGEN_VA_SOCKSPROXY: {
+            return "socksproxy";
+        }
+        case TGEN_VA_SOCKSUSERNAME: {
+            return "socksusername";
+        }
+        case TGEN_VA_SOCKSPASSWORD: {
+            return "sockspassword";
+        }
+        case TGEN_VA_SENDSIZE: {
+            return "sendsize";
+        }
+        case TGEN_VA_RECVSIZE: {
+            return "recvsize";
+        }
+        case TGEN_VA_TIMEOUT: {
+            return "timeout";
+        }
+        case TGEN_VA_STALLOUT: {
+            return "stallout";
+        }
+        case TGEN_VA_STREAMMODELPATH: {
+            return "streammodelpath";
+        }
+        case TGEN_VA_STREAMMODELSEED: {
+            return "streammodelseed";
+        }
+        case TGEN_VA_COUNT: {
+            return "count";
+        }
+        default:
+        case TGEN_A_NONE: {
+            return "none";
+        }
+    }
+}
+
+static AttributeFlags _tgengraph_vertexAttributeToFlag(const gchar* stringAttribute) {
+    if(stringAttribute) {
+        if(!g_ascii_strcasecmp(stringAttribute,
+                _tgengraph_attributeToString(TGEN_VA_ID))) {
+            return TGEN_VA_ID;
+        } else if(!g_ascii_strcasecmp(stringAttribute,
+                _tgengraph_attributeToString(TGEN_VA_SERVERPORT))) {
+            return TGEN_VA_SERVERPORT;
+        } else if(!g_ascii_strcasecmp(stringAttribute,
+                _tgengraph_attributeToString(TGEN_VA_TIME))) {
+            return TGEN_VA_TIME;
+        } else if(!g_ascii_strcasecmp(stringAttribute,
+                _tgengraph_attributeToString(TGEN_VA_HEARTBEAT))) {
+            return TGEN_VA_HEARTBEAT;
+        } else if(!g_ascii_strcasecmp(stringAttribute,
+                _tgengraph_attributeToString(TGEN_VA_LOGLEVEL))) {
+            return TGEN_VA_LOGLEVEL;
+        } else if(!g_ascii_strcasecmp(stringAttribute,
+                _tgengraph_attributeToString(TGEN_VA_PACKETMODELPATH))) {
+            return TGEN_VA_PACKETMODELPATH;
+        } else if(!g_ascii_strcasecmp(stringAttribute,
+                _tgengraph_attributeToString(TGEN_VA_PACKETMODELSEED))) {
+            return TGEN_VA_PACKETMODELSEED;
+        } else if(!g_ascii_strcasecmp(stringAttribute,
+                _tgengraph_attributeToString(TGEN_VA_PEERS))) {
+            return TGEN_VA_PEERS;
+        } else if(!g_ascii_strcasecmp(stringAttribute,
+                _tgengraph_attributeToString(TGEN_VA_SOCKSPROXY))) {
+            return TGEN_VA_SOCKSPROXY;
+        } else if(!g_ascii_strcasecmp(stringAttribute,
+                _tgengraph_attributeToString(TGEN_VA_SOCKSUSERNAME))) {
+            return TGEN_VA_SOCKSUSERNAME;
+        } else if(!g_ascii_strcasecmp(stringAttribute,
+                _tgengraph_attributeToString(TGEN_VA_SOCKSPASSWORD))) {
+            return TGEN_VA_SOCKSPASSWORD;
+        } else if(!g_ascii_strcasecmp(stringAttribute,
+                _tgengraph_attributeToString(TGEN_VA_SENDSIZE))) {
+            return TGEN_VA_SENDSIZE;
+        } else if(!g_ascii_strcasecmp(stringAttribute,
+                _tgengraph_attributeToString(TGEN_VA_RECVSIZE))) {
+            return TGEN_VA_RECVSIZE;
+        } else if(!g_ascii_strcasecmp(stringAttribute,
+                _tgengraph_attributeToString(TGEN_VA_TIMEOUT))) {
+            return TGEN_VA_TIMEOUT;
+        } else if(!g_ascii_strcasecmp(stringAttribute,
+                _tgengraph_attributeToString(TGEN_VA_STALLOUT))) {
+            return TGEN_VA_STALLOUT;
+        } else if(!g_ascii_strcasecmp(stringAttribute,
+                _tgengraph_attributeToString(TGEN_VA_STREAMMODELPATH))) {
+            return TGEN_VA_STREAMMODELPATH;
+        } else if(!g_ascii_strcasecmp(stringAttribute,
+                _tgengraph_attributeToString(TGEN_VA_STREAMMODELSEED))) {
+            return TGEN_VA_STREAMMODELSEED;
+        } else if(!g_ascii_strcasecmp(stringAttribute,
+                _tgengraph_attributeToString(TGEN_VA_COUNT))) {
+            return TGEN_VA_COUNT;
+        }
+    }
+    return TGEN_A_NONE;
+}
+
+static AttributeFlags _tgengraph_edgeAttributeToFlag(const gchar* stringAttribute) {
+    if(stringAttribute) {
+        if(!g_ascii_strcasecmp(stringAttribute,
+                _tgengraph_attributeToString(TGEN_EA_WEIGHT))) {
+            return TGEN_EA_WEIGHT;
+        }
+    }
+    return TGEN_A_NONE;
+}
 
 static gchar* _tgengraph_getHomePath(const gchar* path) {
     g_assert(path);
@@ -115,18 +320,20 @@ static GError* _tgengraph_parseGraphEdges(TGenGraph* g) {
         }
 
         const gchar* fromIDStr = (g->knownAttributes&TGEN_VA_ID) ?
-                VAS(g->graph, "id", fromVertexIndex) : NULL;
+                VAS(g->graph, _tgengraph_attributeToString(TGEN_VA_ID), fromVertexIndex) : NULL;
         if(!fromIDStr) {
             error = g_error_new(G_MARKUP_ERROR, G_MARKUP_ERROR_MISSING_ATTRIBUTE,
-                    "found vertex %li with missing 'id' attribute", (glong)fromVertexIndex);
+                    "found vertex %li with missing '%s' attribute",
+                    _tgengraph_attributeToString(TGEN_VA_ID), (glong)fromVertexIndex);
             break;
         }
 
         const gchar* toIDStr = (g->knownAttributes&TGEN_VA_ID) ?
-                VAS(g->graph, "id", toVertexIndex) : NULL;
+                VAS(g->graph, _tgengraph_attributeToString(TGEN_VA_ID), toVertexIndex) : NULL;
         if(!toIDStr) {
             error = g_error_new(G_MARKUP_ERROR, G_MARKUP_ERROR_MISSING_ATTRIBUTE,
-                    "found vertex %li with missing 'id' attribute", (glong)toVertexIndex);
+                    "found vertex %li with missing '%s' attribute",
+                    _tgengraph_attributeToString(TGEN_VA_ID), (glong)toVertexIndex);
             break;
         }
 
@@ -134,7 +341,7 @@ static GError* _tgengraph_parseGraphEdges(TGenGraph* g) {
                 (glong)edgeIndex, (glong)fromVertexIndex, fromIDStr, (glong)toVertexIndex, toIDStr);
 
         const gchar* weightStr = (g->knownAttributes&TGEN_EA_WEIGHT) ?
-                EAS(g->graph, "weight", edgeIndex) : NULL;
+                EAS(g->graph, _tgengraph_attributeToString(TGEN_EA_WEIGHT), edgeIndex) : NULL;
         if(weightStr != NULL) {
             if(g_ascii_strncasecmp(weightStr, "\0", (gsize) 1)) {
                 gdouble weight = g_ascii_strtod(weightStr, NULL);
@@ -160,10 +367,9 @@ static GError* _tgengraph_parseGraphEdges(TGenGraph* g) {
     return error;
 }
 
-static void _tgengraph_storeAction(TGenGraph* g, TGenAction* a, igraph_integer_t vertexIndex) {
+static void _tgengraph_storeAction(TGenGraph* g, igraph_integer_t vertexIndex, TGenAction* a) {
     TGEN_ASSERT(g);
-    tgenaction_setKey(a, GINT_TO_POINTER(vertexIndex));
-    g_hash_table_insert(g->actions, tgenaction_getKey(a), a);
+    g_hash_table_replace(g->actions, GINT_TO_POINTER(vertexIndex), a);
 }
 
 static TGenAction* _tgengraph_getAction(TGenGraph* g, igraph_integer_t vertexIndex) {
@@ -231,36 +437,260 @@ static glong _tgengraph_countIncomingEdges(TGenGraph* g, igraph_integer_t vertex
     return totalIncoming;
 }
 
+static GError* _tgengraph_parseStreamAttributesHelper(TGenGraph* g, const gchar* idStr,
+        igraph_integer_t vertexIndex, TGenStreamOptions* options) {
+    TGEN_ASSERT(g);
+    g_assert(options);
+
+    GError* error;
+
+    if(g->knownAttributes & TGEN_VA_PACKETMODELPATH) {
+        const gchar* name = _tgengraph_attributeToString(TGEN_VA_PACKETMODELPATH);
+        const gchar* valueStr = VAS(g->graph, name, vertexIndex);
+        error = tgenoptionparser_parseString(name, valueStr, &options->packetModelPath);
+        if(error) {
+            return error;
+        }
+    }
+
+    if(g->knownAttributes & TGEN_VA_PACKETMODELSEED) {
+        const gchar* name = _tgengraph_attributeToString(TGEN_VA_PACKETMODELSEED);
+        const gchar* valueStr = VAS(g->graph, name, vertexIndex);
+        error = tgenoptionparser_parseUInt32(name, valueStr, &options->packetModelSeed);
+        if(error) {
+            return error;
+        }
+    }
+
+    if(g->knownAttributes & TGEN_VA_PEERS) {
+        const gchar* name = _tgengraph_attributeToString(TGEN_VA_PEERS);
+        const gchar* valueStr = VAS(g->graph, name, vertexIndex);
+        error = tgenoptionparser_parsePeerList(name, valueStr, &options->peers);
+        if(error) {
+            return error;
+        }
+    }
+
+    if(g->knownAttributes & TGEN_VA_SOCKSPROXY) {
+        const gchar* name = _tgengraph_attributeToString(TGEN_VA_SOCKSPROXY);
+        const gchar* valueStr = VAS(g->graph, name, vertexIndex);
+        error = tgenoptionparser_parsePeer(name, valueStr, &options->socksProxy);
+        if(error) {
+            return error;
+        }
+    }
+
+    if(g->knownAttributes & TGEN_VA_SOCKSUSERNAME) {
+        const gchar* name = _tgengraph_attributeToString(TGEN_VA_SOCKSUSERNAME);
+        const gchar* valueStr = VAS(g->graph, name, vertexIndex);
+        error = tgenoptionparser_parseString(name, valueStr, &options->socksUsername);
+        if(error) {
+            return error;
+        }
+    }
+
+    if(g->knownAttributes & TGEN_VA_SOCKSPASSWORD) {
+        const gchar* name = _tgengraph_attributeToString(TGEN_VA_SOCKSPASSWORD);
+        const gchar* valueStr = VAS(g->graph, name, vertexIndex);
+        error = tgenoptionparser_parseString(name, valueStr, &options->socksPassword);
+        if(error) {
+            return error;
+        }
+    }
+
+    if(g->knownAttributes & TGEN_VA_SENDSIZE) {
+        const gchar* name = _tgengraph_attributeToString(TGEN_VA_SENDSIZE);
+        const gchar* valueStr = VAS(g->graph, name, vertexIndex);
+        error = tgenoptionparser_parseBytes(name, valueStr, &options->sendSize);
+        if(error) {
+            return error;
+        }
+    }
+
+    if(g->knownAttributes & TGEN_VA_RECVSIZE) {
+        const gchar* name = _tgengraph_attributeToString(TGEN_VA_RECVSIZE);
+        const gchar* valueStr = VAS(g->graph, name, vertexIndex);
+        error = tgenoptionparser_parseBytes(name, valueStr, &options->recvSize);
+        if(error) {
+            return error;
+        }
+    }
+
+    if(g->knownAttributes & TGEN_VA_TIMEOUT) {
+        const gchar* name = _tgengraph_attributeToString(TGEN_VA_TIMEOUT);
+        const gchar* valueStr = VAS(g->graph, name, vertexIndex);
+        error = tgenoptionparser_parseTime(name, valueStr, &options->timeoutNanos);
+        if(error) {
+            return error;
+        }
+    }
+
+    if(g->knownAttributes & TGEN_VA_STALLOUT) {
+        const gchar* name = _tgengraph_attributeToString(TGEN_VA_STALLOUT);
+        const gchar* valueStr = VAS(g->graph, name, vertexIndex);
+        error = tgenoptionparser_parseTime(name, valueStr, &options->stalloutNanos);
+        if(error) {
+            return error;
+        }
+    }
+
+    return NULL;
+}
+
+static GError* _tgengraph_parseFlowAttributesHelper(TGenGraph* g, const gchar* idStr,
+        igraph_integer_t vertexIndex, TGenFlowOptions* options) {
+    TGEN_ASSERT(g);
+    g_assert(options);
+
+    GError* error = NULL;
+
+    if(g->knownAttributes & TGEN_VA_STREAMMODELPATH) {
+        const gchar* name = _tgengraph_attributeToString(TGEN_VA_STREAMMODELPATH);
+        const gchar* valueStr = VAS(g->graph, name, vertexIndex);
+        error = tgenoptionparser_parseString(name, valueStr, &options->streamModelPath);
+        if(error) {
+            return error;
+        }
+    }
+
+    if(g->knownAttributes & TGEN_VA_STREAMMODELSEED) {
+        const gchar* name = _tgengraph_attributeToString(TGEN_VA_STREAMMODELSEED);
+        const gchar* valueStr = VAS(g->graph, name, vertexIndex);
+        error = tgenoptionparser_parseUInt32(name, valueStr, &options->streamModelSeed);
+        if(error) {
+            return error;
+        }
+    }
+
+    error = _tgengraph_parseStreamAttributesHelper(g, idStr, vertexIndex, &options->streamOpts);
+    if(error) {
+        return error;
+    }
+
+    return NULL;
+}
+
+static GError* _tgengraph_parseStartAttributesHelper(TGenGraph* g, const gchar* idStr,
+        igraph_integer_t vertexIndex, TGenStartOptions* options) {
+    TGEN_ASSERT(g);
+    g_assert(options);
+
+    GError* error = NULL;
+
+    if(g->knownAttributes & TGEN_VA_SERVERPORT) {
+        const gchar* name = _tgengraph_attributeToString(TGEN_VA_SERVERPORT);
+        const gchar* valueStr = VAS(g->graph, name, vertexIndex);
+        error = tgenoptionparser_parseUInt16(name, valueStr, &options->serverport);
+        if(error) {
+            return error;
+        } else {
+            options->serverport.value = htons(options->serverport.value);
+        }
+    }
+
+    if(g->knownAttributes & TGEN_VA_TIME) {
+        const gchar* name = _tgengraph_attributeToString(TGEN_VA_TIME);
+        const gchar* valueStr = VAS(g->graph, name, vertexIndex);
+        error = tgenoptionparser_parseTime(name, valueStr, &options->timeNanos);
+        if(error) {
+            return error;
+        }
+    }
+
+    if(g->knownAttributes & TGEN_VA_HEARTBEAT) {
+        const gchar* name = _tgengraph_attributeToString(TGEN_VA_HEARTBEAT);
+        const gchar* valueStr = VAS(g->graph, name, vertexIndex);
+        error = tgenoptionparser_parseTime(name, valueStr, &options->heartbeatPeriodNanos);
+        if(error) {
+            return error;
+        }
+    }
+
+    if(g->knownAttributes & TGEN_VA_LOGLEVEL) {
+        const gchar* name = _tgengraph_attributeToString(TGEN_VA_LOGLEVEL);
+        const gchar* valueStr = VAS(g->graph, name, vertexIndex);
+        error = tgenoptionparser_parseLogLevel(name, valueStr, &options->loglevel);
+        if(error) {
+            return error;
+        }
+    }
+
+    error = _tgengraph_parseStreamAttributesHelper(g, idStr, vertexIndex, &options->defaultStreamOpts);
+    if(error) {
+        return error;
+    }
+
+    return NULL;
+}
+
+static GError* _tgengraph_parsePauseAttributesHelper(TGenGraph* g, const gchar* idStr,
+        igraph_integer_t vertexIndex, TGenPauseOptions* options) {
+    TGEN_ASSERT(g);
+    g_assert(options);
+
+    GError* error = NULL;
+
+    if(g->knownAttributes & TGEN_VA_TIME) {
+        const gchar* name = _tgengraph_attributeToString(TGEN_VA_TIME);
+        const gchar* valueStr = VAS(g->graph, name, vertexIndex);
+        error = tgenoptionparser_parseTimeList(name, valueStr, &options->times);
+        if(error) {
+            return error;
+        }
+    }
+
+    return NULL;
+}
+
+static GError* _tgengraph_parseEndAttributesHelper(TGenGraph* g, const gchar* idStr,
+        igraph_integer_t vertexIndex, TGenEndOptions* options) {
+    TGEN_ASSERT(g);
+    g_assert(options);
+
+    GError* error = NULL;
+
+    if(g->knownAttributes & TGEN_VA_TIME) {
+        const gchar* name = _tgengraph_attributeToString(TGEN_VA_TIME);
+        const gchar* valueStr = VAS(g->graph, name, vertexIndex);
+        error = tgenoptionparser_parseTime(name, valueStr, &options->timeNanos);
+        if(error) {
+            return error;
+        }
+    }
+
+    if(g->knownAttributes & TGEN_VA_COUNT) {
+        const gchar* name = _tgengraph_attributeToString(TGEN_VA_COUNT);
+        const gchar* valueStr = VAS(g->graph, name, vertexIndex);
+        error = tgenoptionparser_parseUInt64(name, valueStr, &options->count);
+        if(error) {
+            return error;
+        }
+    }
+
+    if(g->knownAttributes & TGEN_VA_SENDSIZE) {
+        const gchar* name = _tgengraph_attributeToString(TGEN_VA_SENDSIZE);
+        const gchar* valueStr = VAS(g->graph, name, vertexIndex);
+        error = tgenoptionparser_parseBytes(name, valueStr, &options->sendSize);
+        if(error) {
+            return error;
+        }
+    }
+
+    if(g->knownAttributes & TGEN_VA_RECVSIZE) {
+        const gchar* name = _tgengraph_attributeToString(TGEN_VA_RECVSIZE);
+        const gchar* valueStr = VAS(g->graph, name, vertexIndex);
+        error = tgenoptionparser_parseBytes(name, valueStr, &options->recvSize);
+        if(error) {
+            return error;
+        }
+    }
+
+    return NULL;
+}
+
 static GError* _tgengraph_parseStartVertex(TGenGraph* g, const gchar* idStr,
         igraph_integer_t vertexIndex) {
     TGEN_ASSERT(g);
-
-    const gchar* timeStr = (g->knownAttributes&TGEN_VA_TIME) ?
-            VAS(g->graph, "time", vertexIndex) : NULL;
-    const gchar* timeoutStr = (g->knownAttributes&TGEN_VA_TIMEOUT) ?
-            VAS(g->graph, "timeout", vertexIndex) : NULL;
-    const gchar* stalloutStr = (g->knownAttributes&TGEN_VA_STALLOUT) ?
-            VAS(g->graph, "stallout", vertexIndex) : NULL;
-    const gchar* heartbeatStr = (g->knownAttributes&TGEN_VA_HEARTBEAT) ?
-            VAS(g->graph, "heartbeat", vertexIndex) : NULL;
-    const gchar* serverPortStr = (g->knownAttributes&TGEN_VA_SERVERPORT) ?
-            VAS(g->graph, "serverport", vertexIndex) : NULL;
-    const gchar* peersStr = (g->knownAttributes&TGEN_VA_PEERS) ?
-            VAS(g->graph, "peers", vertexIndex) : NULL;
-    const gchar* loglevelStr = (g->knownAttributes&TGEN_VA_LOGLEVEL) ?
-            VAS(g->graph, "loglevel", vertexIndex) : NULL;
-    const gchar* socksProxyStr;
-    if (tgenconfig_getSOCKS()) {
-        socksProxyStr = tgenconfig_getSOCKS();
-    } else {
-        socksProxyStr = (g->knownAttributes&TGEN_VA_SOCKSPROXY) ?
-            VAS(g->graph, "socksproxy", vertexIndex) : NULL;
-    }
-    tgen_debug("validating action '%s' at vertex %li, time=%s timeout=%s "
-            "stallout=%s heartbeat=%s loglevel=%s serverport=%s socksproxy=%s "
-            "peers=%s",
-            idStr, (glong)vertexIndex, timeStr, timeoutStr, stalloutStr,
-            heartbeatStr, loglevelStr, serverPortStr, socksProxyStr, peersStr);
 
     if(g->hasStartAction) {
         return g_error_new(G_MARKUP_ERROR, G_MARKUP_ERROR_INVALID_CONTENT,
@@ -273,58 +703,59 @@ static GError* _tgengraph_parseStartVertex(TGenGraph* g, const gchar* idStr,
     }
 
     GError* error = NULL;
-    TGenAction* a = tgenaction_newStartAction(timeStr, timeoutStr, stalloutStr,
-            heartbeatStr, loglevelStr, serverPortStr, peersStr, socksProxyStr,
-            &error);
+    TGenStartOptions* options = g_new0(TGenStartOptions, 1);
 
-    if(a) {
-        _tgengraph_storeAction(g, a, vertexIndex);
-        g_assert(!g->hasStartAction);
-        g->startActionVertexIndex = vertexIndex;
-        g->hasStartAction = TRUE;
-        if(tgenaction_getPeers(a)) {
-            g->startHasPeers = TRUE;
-        }
+    error = _tgengraph_parseStartAttributesHelper(g, idStr, vertexIndex, options);
+    if(error) {
+        g_free(options);
+        return error;
     }
 
-    return error;
+    g_assert(!g->hasStartAction);
+    g->startActionVertexIndex = vertexIndex;
+    g->hasStartAction = TRUE;
+
+    if(options->defaultStreamOpts.peers) {
+        g->startHasPeers = TRUE;
+    }
+
+    TGenAction* action = _tgengraph_newAction(TGEN_ACTION_START, options);
+    _tgengraph_storeAction(g, vertexIndex, action);
+
+    return NULL;
 }
 
 static GError* _tgengraph_parseEndVertex(TGenGraph* g, const gchar* idStr,
         igraph_integer_t vertexIndex) {
     TGEN_ASSERT(g);
 
-    /* the following termination conditions are optional */
-    const gchar* timeStr = (g->knownAttributes&TGEN_VA_TIME) ?
-            VAS(g->graph, "time", vertexIndex) : NULL;
-    const gchar* countStr = (g->knownAttributes&TGEN_VA_COUNT) ?
-            VAS(g->graph, "count", vertexIndex) : NULL;
-    const gchar* sizeStr = (g->knownAttributes&TGEN_VA_SIZE) ?
-            VAS(g->graph, "size", vertexIndex) : NULL;
-
-    tgen_debug("found vertex %li (%s), time=%s count=%s size=%s",
-            (glong)vertexIndex, idStr, timeStr, countStr, sizeStr);
-
     GError* error = NULL;
-    TGenAction* a = tgenaction_newEndAction(timeStr, countStr, sizeStr, &error);
+    TGenEndOptions* options = g_new0(TGenEndOptions, 1);
 
-    if(a) {
-        _tgengraph_storeAction(g, a, vertexIndex);
+    error = _tgengraph_parseEndAttributesHelper(g, idStr, vertexIndex, options);
+    if(error) {
+        g_free(options);
+        return error;
     }
 
-    return error;
+    TGenAction* action = _tgengraph_newAction(TGEN_ACTION_END, options);
+    _tgengraph_storeAction(g, vertexIndex, action);
+
+    return NULL;
 }
 
 static GError* _tgengraph_parsePauseVertex(TGenGraph* g, const gchar* idStr,
         igraph_integer_t vertexIndex) {
     TGEN_ASSERT(g);
 
-    const gchar* timeStr = (g->knownAttributes&TGEN_VA_TIME) ?
-            VAS(g->graph, "time", vertexIndex) : NULL;
-
-    tgen_debug("found vertex %li (%s), time=%s", (glong)vertexIndex, idStr, timeStr);
-
     GError* error = NULL;
+    TGenPauseOptions* options = g_new0(TGenPauseOptions, 1);
+
+    error = _tgengraph_parsePauseAttributesHelper(g, idStr, vertexIndex, options);
+    if(error) {
+        g_free(options);
+        return error;
+    }
 
     glong totalIncoming = _tgengraph_countIncomingEdges(g, vertexIndex);
     if(totalIncoming <= 0) {
@@ -332,94 +763,54 @@ static GError* _tgengraph_parsePauseVertex(TGenGraph* g, const gchar* idStr,
         g_assert(totalIncoming > 0);
     }
 
-    TGenAction* a = tgenaction_newPauseAction(timeStr, totalIncoming, &error);
-    if(a) {
-        _tgengraph_storeAction(g, a, vertexIndex);
-    }
+    TGenAction* action = _tgengraph_newAction(TGEN_ACTION_PAUSE, options);
+    action->totalIncomingEdges = totalIncoming;
+    action->completedIncomingEdges = 0;
+    _tgengraph_storeAction(g, vertexIndex, action);
 
-    return error;
+    return NULL;
 }
 
-static GError* _tgengraph_parseTransferVertex(TGenGraph* g, const gchar* idStr,
+static GError* _tgengraph_parseStreamVertex(TGenGraph* g, const gchar* idStr,
         igraph_integer_t vertexIndex) {
     TGEN_ASSERT(g);
 
-    const gchar* typeStr = (g->knownAttributes&TGEN_VA_TYPE) ?
-            VAS(g->graph, "type", vertexIndex) : NULL;
-    const gchar* protocolStr = (g->knownAttributes&TGEN_VA_PROTOCOL) ?
-            VAS(g->graph, "protocol", vertexIndex) : NULL;
-    const gchar* sizeStr = (g->knownAttributes&TGEN_VA_SIZE) ?
-            VAS(g->graph, "size", vertexIndex) : NULL;
-    const gchar *ourSizeStr = (g->knownAttributes&TGEN_VA_OURSIZE) ?
-            VAS(g->graph, "oursize", vertexIndex) : NULL;
-    const gchar *theirSizeStr = (g->knownAttributes&TGEN_VA_THEIRSIZE) ?
-            VAS(g->graph, "theirsize", vertexIndex) : NULL;
-    const gchar* peersStr = (g->knownAttributes&TGEN_VA_PEERS) ?
-            VAS(g->graph, "peers", vertexIndex) : NULL;
-    const gchar* timeoutStr = (g->knownAttributes&TGEN_VA_TIMEOUT) ?
-            VAS(g->graph, "timeout", vertexIndex) : NULL;
-    const gchar* stalloutStr = (g->knownAttributes&TGEN_VA_STALLOUT) ?
-            VAS(g->graph, "stallout", vertexIndex) : NULL;
-    const gchar* localSchedStr = (g->knownAttributes&TGEN_VA_LOCALSCHED) ?
-            VAS(g->graph, "localschedule", vertexIndex) : NULL;
-    const gchar* remoteSchedStr = (g->knownAttributes&TGEN_VA_REMOTESCHED) ?
-            VAS(g->graph, "remoteschedule", vertexIndex) : NULL;
-    const gchar* socksUsernameStr = (g->knownAttributes&TGEN_VA_SOCKSUSERNAME) ?
-            VAS(g->graph, "socksusername", vertexIndex) : NULL;
-    const gchar* socksPasswordStr = (g->knownAttributes&TGEN_VA_SOCKSPASSWORD) ?
-            VAS(g->graph, "sockspassword", vertexIndex) : NULL;
-
-    tgen_debug("found vertex %li (%s), type=%s protocol=%s size=%s oursize=%s "
-            "theirsize=%s peers=%s timeout=%s stallout=%s localschedule=%s remoteschedule=%s "
-            "socksusername=%s sockspassword=%s",
-            (glong)vertexIndex, idStr, typeStr, protocolStr, sizeStr,
-            ourSizeStr, theirSizeStr, peersStr, timeoutStr, stalloutStr,
-            localSchedStr, remoteSchedStr, socksUsernameStr, socksPasswordStr);
-
     GError* error = NULL;
-    TGenAction* a = tgenaction_newTransferAction(typeStr, protocolStr, sizeStr,
-            ourSizeStr, theirSizeStr, peersStr, timeoutStr, stalloutStr,
-            localSchedStr, remoteSchedStr, socksUsernameStr, socksPasswordStr, &error);
+    TGenStreamOptions* options = g_new0(TGenStreamOptions, 1);
 
-    if(a) {
-        _tgengraph_storeAction(g, a, vertexIndex);
-        if(!tgenaction_getPeers(a)) {
-            g->transferMissingPeers = TRUE;
-        }
+    error = _tgengraph_parseStreamAttributesHelper(g, idStr, vertexIndex, options);
+    if(error) {
+        g_free(options);
+        return error;
     }
 
-    return error;
+    if(!options->peers.isSet) {
+        g->transferMissingPeers = TRUE;
+    }
+
+    TGenAction* action = _tgengraph_newAction(TGEN_ACTION_STREAM, options);
+    _tgengraph_storeAction(g, vertexIndex, action);
+
+    return NULL;
 }
 
-static GError* _tgengraph_parseModelVertex(TGenGraph* g, const gchar* idStr,
+static GError* _tgengraph_parseFlowVertex(TGenGraph* g, const gchar* idStr,
         igraph_integer_t vertexIndex) {
     TGEN_ASSERT(g);
 
-    const gchar* streamModelPath = (g->knownAttributes&TGEN_VA_STREAMMODELPATH) ?
-            VAS(g->graph, "streammodelpath", vertexIndex) : NULL;
-    const gchar* packetModelPath = (g->knownAttributes&TGEN_VA_PACKETMODELPATH) ?
-            VAS(g->graph, "packetmodelpath", vertexIndex) : NULL;
-    const gchar* peersStr = (g->knownAttributes&TGEN_VA_PEERS) ?
-            VAS(g->graph, "peers", vertexIndex) : NULL;
-    const gchar* socksUsernameStr = (g->knownAttributes&TGEN_VA_SOCKSUSERNAME) ?
-            VAS(g->graph, "socksusername", vertexIndex) : NULL;
-    const gchar* socksPasswordStr = (g->knownAttributes&TGEN_VA_SOCKSPASSWORD) ?
-            VAS(g->graph, "sockspassword", vertexIndex) : NULL;
-
-    tgen_debug("found vertex %li (%s), streammodelpath=%s packetmodelpath=%s peers=%s "
-            "socksusername=%s sockspassword=%s",
-            (glong)vertexIndex, idStr, streamModelPath, packetModelPath, peersStr,
-            socksUsernameStr, socksPasswordStr);
-
     GError* error = NULL;
+    TGenFlowOptions* options = g_new0(TGenFlowOptions, 1);
 
-    TGenAction* a = tgenaction_newModelAction(streamModelPath, packetModelPath, peersStr,
-            socksUsernameStr, socksPasswordStr, &error);
-    if(a) {
-        _tgengraph_storeAction(g, a, vertexIndex);
+    error = _tgengraph_parseFlowAttributesHelper(g, idStr, vertexIndex, options);
+    if(error) {
+        g_free(options);
+        return error;
     }
 
-    return error;
+    TGenAction* action = _tgengraph_newAction(TGEN_ACTION_FLOW, options);
+    _tgengraph_storeAction(g, vertexIndex, action);
+
+    return NULL;
 }
 
 static GError* _tgengraph_parseGraphVertices(TGenGraph* g) {
@@ -459,10 +850,10 @@ static GError* _tgengraph_parseGraphVertices(TGenGraph* g) {
             error = _tgengraph_parseEndVertex(g, idStr, vertexIndex);
         } else if(g_strstr_len(idStr, (gssize)-1, "pause")) {
             error = _tgengraph_parsePauseVertex(g, idStr, vertexIndex);
-        } else if(g_strstr_len(idStr, (gssize)-1, "transfer")) {
-            error = _tgengraph_parseTransferVertex(g, idStr, vertexIndex);
-        } else if(g_strstr_len(idStr, (gssize)-1, "model")) {
-            error = _tgengraph_parseModelVertex(g, idStr, vertexIndex);
+        } else if(g_strstr_len(idStr, (gssize)-1, "stream")) {
+            error = _tgengraph_parseStreamVertex(g, idStr, vertexIndex);
+        } else if(g_strstr_len(idStr, (gssize)-1, "flow")) {
+            error = _tgengraph_parseFlowVertex(g, idStr, vertexIndex);
         } else {
             error = g_error_new(G_MARKUP_ERROR, G_MARKUP_ERROR_UNKNOWN_ELEMENT,
                     "found vertex %li (%s) with an unknown action id '%s'",
@@ -495,64 +886,6 @@ static GError* _tgengraph_parseGraphVertices(TGenGraph* g) {
     }
 
     return error;
-}
-
-static AttributeFlags _tgengraph_vertexAttributeToFlag(const gchar* stringAttribute) {
-    if(stringAttribute) {
-        if(!g_ascii_strcasecmp(stringAttribute, "id")) {
-            return TGEN_VA_ID;
-        } else if(!g_ascii_strcasecmp(stringAttribute, "time")) {
-            return TGEN_VA_TIME;
-        } else if(!g_ascii_strcasecmp(stringAttribute, "serverport")) {
-            return TGEN_VA_SERVERPORT;
-        } else if(!g_ascii_strcasecmp(stringAttribute, "peers")) {
-            return TGEN_VA_PEERS;
-        } else if(!g_ascii_strcasecmp(stringAttribute, "socksproxy")) {
-            return TGEN_VA_SOCKSPROXY;
-        } else if(!g_ascii_strcasecmp(stringAttribute, "count")) {
-            return TGEN_VA_COUNT;
-        } else if(!g_ascii_strcasecmp(stringAttribute, "size")) {
-            return TGEN_VA_SIZE;
-        } else if (!g_ascii_strcasecmp(stringAttribute, "oursize")) {
-            return TGEN_VA_OURSIZE;
-        } else if (!g_ascii_strcasecmp(stringAttribute, "theirsize")) {
-            return TGEN_VA_THEIRSIZE;
-        } else if(!g_ascii_strcasecmp(stringAttribute, "type")) {
-            return TGEN_VA_TYPE;
-        } else if(!g_ascii_strcasecmp(stringAttribute, "protocol")) {
-            return TGEN_VA_PROTOCOL;
-        } else if(!g_ascii_strcasecmp(stringAttribute, "timeout")) {
-            return TGEN_VA_TIMEOUT;
-        } else if(!g_ascii_strcasecmp(stringAttribute, "stallout")) {
-            return TGEN_VA_STALLOUT;
-        } else if(!g_ascii_strcasecmp(stringAttribute, "heartbeat")) {
-            return TGEN_VA_HEARTBEAT;
-        } else if(!g_ascii_strcasecmp(stringAttribute, "loglevel")) {
-            return TGEN_VA_LOGLEVEL;
-        } else if(!g_ascii_strcasecmp(stringAttribute, "localschedule")) {
-            return TGEN_VA_LOCALSCHED;
-        } else if(!g_ascii_strcasecmp(stringAttribute, "remoteschedule")) {
-            return TGEN_VA_REMOTESCHED;
-        } else if(!g_ascii_strcasecmp(stringAttribute, "streammodelpath")) {
-            return TGEN_VA_STREAMMODELPATH;
-        } else if(!g_ascii_strcasecmp(stringAttribute, "packetmodelpath")) {
-            return TGEN_VA_PACKETMODELPATH;
-        } else if(!g_ascii_strcasecmp(stringAttribute, "socksusername")) {
-            return TGEN_VA_SOCKSUSERNAME;
-        } else if(!g_ascii_strcasecmp(stringAttribute, "sockspassword")) {
-            return TGEN_VA_SOCKSPASSWORD;
-        }
-    }
-    return TGEN_A_NONE;
-}
-
-static AttributeFlags _tgengraph_edgeAttributeToFlag(const gchar* stringAttribute) {
-    if(stringAttribute) {
-        if(!g_ascii_strcasecmp(stringAttribute, "weight")) {
-            return TGEN_EA_WEIGHT;
-        }
-    }
-    return TGEN_A_NONE;
 }
 
 static GError* _tgengraph_parseGraphProperties(TGenGraph* g) {
@@ -705,7 +1038,7 @@ TGenGraph* tgengraph_new(gchar* path) {
     g->magic = TGEN_MAGIC;
     g->refcount = 1;
 
-    g->actions = g_hash_table_new_full(g_direct_hash, g_direct_equal, NULL, (GDestroyNotify)tgenaction_unref);
+    g->actions = g_hash_table_new_full(g_direct_hash, g_direct_equal, NULL, (GDestroyNotify)_tgengraph_freeAction);
     g->weights = g_hash_table_new_full(g_direct_hash, g_direct_equal, NULL, g_free);
     g->graphPath = path ? _tgengraph_getHomePath(path) : NULL;
 
@@ -763,18 +1096,17 @@ TGenGraph* tgengraph_new(gchar* path) {
     return g;
 }
 
-TGenAction* tgengraph_getStartAction(TGenGraph* g) {
+TGenActionID tgengraph_getStartActionID(TGenGraph* g) {
     TGEN_ASSERT(g);
-    return _tgengraph_getAction(g, g->startActionVertexIndex);
+    return (TGenActionID)g->startActionVertexIndex;
 }
 
-GQueue* tgengraph_getNextActions(TGenGraph* g, TGenAction* action) {
+GQueue* tgengraph_getNextActionIDs(TGenGraph* g, TGenActionID actionID) {
     TGEN_ASSERT(g);
 
     /* given an action, get all of the next actions in the dependency graph */
 
-    gpointer key = tgenaction_getKey(action);
-    igraph_integer_t srcVertexIndex = (igraph_integer_t) GPOINTER_TO_INT(key);
+    igraph_integer_t srcVertexIndex = (igraph_integer_t) actionID;
 
     /* initialize a vector to hold the result neighbor vertices for this action */
     igraph_vector_t* resultNeighborVertices = g_new0(igraph_vector_t, 1);
@@ -837,10 +1169,10 @@ GQueue* tgengraph_getNextActions(TGenGraph* g, TGenAction* action) {
             /* we will only choose one of all with weights */
             totalWeight += (gdouble) *weightPtr;
             g_queue_push_tail(chooseWeights, weightPtr);
-            g_queue_push_tail(chooseActions, nextAction);
+            g_queue_push_tail(chooseActions, GINT_TO_POINTER(dstVertexIndex));
         } else {
             /* no weight, always add it */
-            g_queue_push_tail(nextActions, nextAction);
+            g_queue_push_tail(nextActions, GINT_TO_POINTER(dstVertexIndex));
         }
     }
 
@@ -863,8 +1195,7 @@ GQueue* tgengraph_getNextActions(TGenGraph* g, TGenAction* action) {
         } while(cumulativeWeight <= randomWeight);
 
         /* the weight position matches the action position */
-        TGenAction* choiceAction = g_queue_peek_nth(chooseActions, nextChoicePosition-1);
-        g_assert(choiceAction);
+        gpointer choiceAction = g_queue_peek_nth(chooseActions, nextChoicePosition-1);
         g_queue_push_tail(nextActions, choiceAction);
     }
 
@@ -884,11 +1215,10 @@ gboolean tgengraph_hasEdges(TGenGraph* g) {
     return (g->edgeCount > 0) ? TRUE : FALSE;
 }
 
-const gchar* tgengraph_getActionIDStr(TGenGraph* g, TGenAction* action) {
+const gchar* tgengraph_getActionIDStr(TGenGraph* g, TGenActionID actionID) {
     TGEN_ASSERT(g);
 
-    gpointer key = tgenaction_getKey(action);
-    igraph_integer_t vertexIndex = (igraph_integer_t) GPOINTER_TO_INT(key);
+    igraph_integer_t vertexIndex = (igraph_integer_t) actionID;
     const gchar* idStr = VAS(g->graph, "id", vertexIndex);
     return idStr;
 }
@@ -897,3 +1227,211 @@ const gchar* tgengraph_getGraphPath(TGenGraph* g) {
     TGEN_ASSERT(g);
     return g->graphPath;
 }
+
+GLogLevelFlags tgengraph_getLogLevel(TGenGraph* g) {
+    TGEN_ASSERT(g);
+    TGenAction* startAction = _tgengraph_getAction(g, g->startActionVertexIndex);
+    g_assert(startAction);
+    TGenStartOptions* options = startAction->options;
+    g_assert(options);
+    if(options->loglevel.isSet) {
+        return options->loglevel.value;
+    } else {
+        return G_LOG_LEVEL_MESSAGE;
+    }
+}
+
+guint64 tgengraph_getHeartbeatPeriodMillis(TGenGraph* g) {
+    TGEN_ASSERT(g);
+    TGenAction* startAction = _tgengraph_getAction(g, g->startActionVertexIndex);
+    g_assert(startAction);
+    TGenStartOptions* options = startAction->options;
+    g_assert(options);
+    if(options->heartbeatPeriodNanos.isSet) {
+        return (guint64)(options->heartbeatPeriodNanos.value / 1000000);
+    } else {
+        return 1000;
+    }
+}
+
+//guint16 tgenaction_getServerPort(TGenAction* action) {
+//    TGEN_ASSERT(action);
+//    g_assert(action->data && action->type == TGEN_ACTION_START);
+//    return ((TGenActionStartData*)action->data)->serverport;
+//}
+//
+//TGenPeer* tgenaction_getSocksProxy(TGenAction* action) {
+//    TGEN_ASSERT(action);
+//    g_assert(action->data && action->type == TGEN_ACTION_START);
+//    return ((TGenActionStartData*)action->data)->socksproxy;
+//}
+//
+//guint64 tgenaction_getStartTimeMillis(TGenAction* action) {
+//    TGEN_ASSERT(action);
+//    g_assert(action->data && action->type == TGEN_ACTION_START);
+//    return (guint64)(((TGenActionStartData*)action->data)->timeNanos / 1000000);
+//}
+//
+//guint64 tgenaction_getDefaultTimeoutMillis(TGenAction* action) {
+//    TGEN_ASSERT(action);
+//    g_assert(action->data && action->type == TGEN_ACTION_START);
+//    return (guint64)(((TGenActionStartData*)action->data)->timeoutNanos / 1000000);
+//}
+//
+//guint64 tgenaction_getDefaultStalloutMillis(TGenAction* action) {
+//    TGEN_ASSERT(action);
+//    g_assert(action->data && action->type == TGEN_ACTION_START);
+//    return (guint64)(((TGenActionStartData*)action->data)->stalloutNanos / 1000000);
+//}
+//
+//guint64 tgenaction_getHeartbeatPeriodMillis(TGenAction* action) {
+//    TGEN_ASSERT(action);
+//    g_assert(action->data && action->type == TGEN_ACTION_START);
+//    return (guint64)(((TGenActionStartData*)action->data)->heartbeatPeriodNanos / 1000000);
+//}
+//
+//void tgenaction_getTransferParameters(TGenAction* action, TGenTransferType* typeOut,
+//        TGenTransportProtocol* protocolOut, guint64* sizeOut, guint64 *ourSizeOut,
+//        guint64 *theirSizeOut, guint64* timeoutOut, guint64* stalloutOut,
+//        gchar** localSchedule, gchar** remoteSchedule) {
+//    TGEN_ASSERT(action);
+//    g_assert(action->data && action->type == TGEN_ACTION_TRANSFER);
+//
+//    TGenActionTransferData* data = (TGenActionTransferData*)action->data;
+//
+//    if(typeOut) {
+//        *typeOut = data->type;
+//    }
+//    if(protocolOut) {
+//        *protocolOut = data->protocol;
+//    }
+//    if(sizeOut) {
+//        *sizeOut = data->size;
+//    }
+//    if (ourSizeOut) {
+//        *ourSizeOut = data->ourSize;
+//    }
+//    if (theirSizeOut) {
+//        *theirSizeOut = data->theirSize;
+//    }
+//    if(timeoutOut) {
+//        if(data->timeoutIsSet) {
+//            /* nanoseconds to milliseconds */
+//            *timeoutOut = (guint64)(data->timeoutNanos / 1000000);
+//        }
+//    }
+//    if(stalloutOut) {
+//        if(data->stalloutIsSet) {
+//            /* nanoseconds to milliseconds */
+//            *stalloutOut = (guint64)(data->stalloutNanos / 1000000);
+//        }
+//    }
+//    if(localSchedule) {
+//        *localSchedule = data->localSchedule;
+//    }
+//    if(remoteSchedule) {
+//        *remoteSchedule = data->remoteSchedule;
+//    }
+//}
+//
+//void tgenaction_getModelPaths(TGenAction* action,
+//        gchar** streamModelPathStr, gchar** packetModelPathStr) {
+//    TGEN_ASSERT(action);
+//    g_assert(action->data && action->type == TGEN_ACTION_MODEL);
+//
+//    TGenActionModelData* data = (TGenActionModelData*)action->data;
+//
+//    if(streamModelPathStr) {
+//        *streamModelPathStr = data->streamModelPath;
+//    }
+//    if(packetModelPathStr) {
+//        *packetModelPathStr = data->packetModelPath;
+//    }
+//}
+//
+//void tgenaction_getSocksParams(TGenAction* action,
+//        gchar** socksUsernameStr, gchar** socksPasswordStr) {
+//    TGEN_ASSERT(action);
+//    g_assert(action->data);
+//    g_assert(action->type == TGEN_ACTION_MODEL || action->type == TGEN_ACTION_TRANSFER);
+//
+//    gchar* userStr = NULL;
+//    gchar* passStr = NULL;
+//
+//    if(action->type == TGEN_ACTION_TRANSFER) {
+//      TGenActionTransferData* data = (TGenActionTransferData*)action->data;
+//      userStr = data->socksUsernameStr;
+//      passStr = data->socksPasswordStr;
+//    } else if(action->type == TGEN_ACTION_MODEL) {
+//      TGenActionModelData* data = (TGenActionModelData*)action->data;
+//      userStr = data->socksUsernameStr;
+//      passStr = data->socksPasswordStr;
+//    }
+//
+//    if(socksUsernameStr) {
+//        *socksUsernameStr = userStr;
+//    }
+//    if(socksPasswordStr) {
+//        *socksPasswordStr = passStr;
+//    }
+//}
+//
+//TGenPool* tgenaction_getPeers(TGenAction* action) {
+//    TGEN_ASSERT(action);
+//    g_assert(action->data);
+//
+//    if(action->type == TGEN_ACTION_TRANSFER) {
+//        return ((TGenActionTransferData*)action->data)->peers;
+//    } else if(action->type == TGEN_ACTION_MODEL) {
+//        return ((TGenActionModelData*)action->data)->peers;
+//    } else if(action->type == TGEN_ACTION_START) {
+//        return ((TGenActionStartData*)action->data)->peers;
+//    } else {
+//        return NULL;
+//    }
+//}
+//
+//guint64 tgenaction_getEndTimeMillis(TGenAction* action) {
+//    TGEN_ASSERT(action);
+//    g_assert(action->data && action->type == TGEN_ACTION_END);
+//    return (guint64)(((TGenActionEndData*)action->data)->timeNanos / 1000000);
+//}
+//
+//guint64 tgenaction_getEndCount(TGenAction* action) {
+//    TGEN_ASSERT(action);
+//    g_assert(action->data && action->type == TGEN_ACTION_END);
+//    return ((TGenActionEndData*)action->data)->count;
+//}
+//
+//guint64 tgenaction_getEndSize(TGenAction* action) {
+//    TGEN_ASSERT(action);
+//    g_assert(action->data && action->type == TGEN_ACTION_END);
+//    return ((TGenActionEndData*)action->data)->size;
+//}
+//
+//gboolean tgenaction_hasPauseTime(TGenAction* action) {
+//    TGEN_ASSERT(action);
+//    g_assert(action->data && action->type == TGEN_ACTION_PAUSE);
+//    return (((TGenActionPauseData*)action->data)->pauseTimesNanos) != NULL ? TRUE : FALSE;
+//}
+//
+//guint64 tgenaction_getPauseTimeMillis(TGenAction* action) {
+//    TGEN_ASSERT(action);
+//    g_assert(action->data && action->type == TGEN_ACTION_PAUSE);
+//    guint64* time = tgenpool_getRandom(((TGenActionPauseData*)action->data)->pauseTimesNanos);
+//    return (guint64)(*time / 1000000);
+//}
+//
+//gboolean tgenaction_incrementPauseVisited(TGenAction* action) {
+//    TGEN_ASSERT(action);
+//    g_assert(action->data && action->type == TGEN_ACTION_PAUSE);
+//    TGenActionPauseData* pauseData = (TGenActionPauseData*)action->data;
+//
+//    pauseData->completedIncomingEdges++;
+//    if(pauseData->completedIncomingEdges >= pauseData->totalIncomingEdges) {
+//        pauseData->completedIncomingEdges = 0;
+//        return TRUE;
+//    } else {
+//        return FALSE;
+//    }
+//}

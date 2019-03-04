@@ -19,7 +19,6 @@ add_compile_options(-O2 -ggdb -fno-omit-frame-pointer -fPIC -std=gnu11)
 message(STATUS "CMAKE_C_FLAGS = ${CMAKE_C_FLAGS}")
 
 set(tgen_sources
-    src/tgen-action.c
     src/tgen-config.c
     src/tgen-driver.c
     src/tgen-generator.c
@@ -28,6 +27,7 @@ set(tgen_sources
     src/tgen-log.c
     src/tgen-main.c
     src/tgen-markovmodel.c
+    src/tgen-optionparser.h
     src/tgen-peer.c
     src/tgen-pool.c
     src/tgen-server.c

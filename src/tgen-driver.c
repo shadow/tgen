@@ -15,7 +15,7 @@ struct _TGenDriver {
     TGenGraph* actionGraph;
 
     /* the starting action parsed from the action graph */
-    TGenAction* startAction;
+    TGenActionID startActionID;
     gint64 startTimeMicros;
 
     /* TRUE iff a condition in any endAction event has been reached */
@@ -590,10 +590,6 @@ static void _tgendriver_continueNextActions(TGenDriver* driver, TGenAction* acti
 void tgendriver_activate(TGenDriver* driver) {
     TGEN_ASSERT(driver);
 
-    if (!driver->startAction) {
-        return;
-    }
-
     tgen_debug("activating tgenio loop");
 
     gint numEventsProcessed = MAX_EVENTS_PER_IO_LOOP;
@@ -714,7 +710,7 @@ static gboolean _tgendriver_setStartClientTimerHelper(TGenDriver* driver) {
 static gboolean _tgendriver_setHeartbeatTimerHelper(TGenDriver* driver) {
     TGEN_ASSERT(driver);
 
-    guint64 heartbeatPeriod = tgenaction_getHeartbeatPeriodMillis(driver->startAction);
+    guint64 heartbeatPeriod = tgengraph_getHeartbeatPeriodMillis(driver->actionGraph);
     if(heartbeatPeriod == 0) {
         heartbeatPeriod = 1000;
     }
@@ -751,7 +747,7 @@ TGenDriver* tgendriver_new(TGenGraph* graph) {
 
     tgengraph_ref(graph);
     driver->actionGraph = graph;
-    driver->startAction = tgengraph_getStartAction(graph);
+    driver->startActionID = tgengraph_getStartActionID(graph);
 
     /* start a heartbeat status message every second */
     if(!_tgendriver_setHeartbeatTimerHelper(driver)) {

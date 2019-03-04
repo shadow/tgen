@@ -78,7 +78,7 @@ static gint _tgenmain_run(gint argc, gchar *argv[]) {
     }
 
     /* set log level, which again defaults to message if no level was configured */
-    GLogLevelFlags level = tgenaction_getLogLevel(tgengraph_getStartAction(graph));
+    GLogLevelFlags level = tgengraph_getLogLevel(graph);
     tgenlog_setLogFilterLevel(level);
 
     /* create the new state according to user inputs */
