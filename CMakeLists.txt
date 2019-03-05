@@ -27,7 +27,7 @@ set(tgen_sources
     src/tgen-log.c
     src/tgen-main.c
     src/tgen-markovmodel.c
-    src/tgen-optionparser.h
+    src/tgen-optionparser.c
     src/tgen-peer.c
     src/tgen-pool.c
     src/tgen-server.c

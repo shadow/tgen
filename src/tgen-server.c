@@ -3,6 +3,9 @@
  * See LICENSE for licensing information
  */
 
+#include <fcntl.h>
+#include <unistd.h>
+
 #include "tgen.h"
 
 struct _TGenServer {
@@ -29,6 +32,9 @@ static gint _tgenserver_acceptPeer(TGenServer* server) {
     gint peerSocketD = accept(server->socketD, (struct sockaddr*)&peerAddress, &addressLength);
 
     if(peerSocketD >= 0) {
+        /* make sure the socket is in nonblocking mode */
+        int status = fcntl(peerSocketD, F_SETFL, fcntl(peerSocketD, F_GETFL, 0) | O_NONBLOCK);
+
         gint64 created = g_get_monotonic_time();
         if(server->notify) {
             TGenPeer* peer = tgenpeer_newFromIP(peerAddress.sin_addr.s_addr, peerAddress.sin_port);

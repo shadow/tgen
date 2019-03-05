@@ -63,7 +63,7 @@ static gint _tgenmain_run(gint argc, gchar *argv[]) {
         return -1;
     }
 
-    /* make sure broken pipes (if a tgen peer closes) doesn't crash our process */
+    /* make sure broken pipes (if a tgen peer closes) do not crash our process */
     if(signal(SIGPIPE, SIG_IGN) == SIG_ERR) {
         tgen_warning("Unable to set SIG_IGN for signal SIGPIPE");
     } else {
@@ -78,8 +78,12 @@ static gint _tgenmain_run(gint argc, gchar *argv[]) {
     }
 
     /* set log level, which again defaults to message if no level was configured */
-    GLogLevelFlags level = tgengraph_getLogLevel(graph);
-    tgenlog_setLogFilterLevel(level);
+    TGenStartOptions* options = tgengraph_getStartOptions(graph);
+    if(options && options->loglevel.isSet) {
+        tgenlog_setLogFilterLevel(options->loglevel.value);
+    } else {
+        tgenlog_setLogFilterLevel(G_LOG_LEVEL_MESSAGE);
+    }
 
     /* create the new state according to user inputs */
     TGenDriver* tgen = tgendriver_new(graph);

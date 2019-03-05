@@ -575,7 +575,7 @@ static gboolean _tgenmarkovmodel_validateEdges(TGenMarkovModel* mmodel) {
 }
 
 static igraph_t* _tgenmarkovmodel_loadGraph(FILE* graphFileStream, const gchar* graphName) {
-    tgen_debug("Computing size of markov model graph file '%s'", graphmlFilePath);
+    tgen_debug("Computing size of markov model graph '%s'", graphName);
 
     /* try to get the file size by first seeking to the end */
     gint result = fseek(graphFileStream, 0, SEEK_END);

@@ -9,7 +9,7 @@ struct _TGenGenerator {
 
     TGenMarkovModel* streamModel;
     TGenMarkovModel* packetModel;
-    TGenAction* modelAction;
+    TGenActionID modelActionID;
 
     guint numStreamsGenerated;
     guint numPacketsGenerated;
@@ -62,7 +62,7 @@ void tgengenerator_unref(TGenGenerator* gen) {
 }
 
 TGenGenerator* tgengenerator_new(const gchar* streamModelPath, const gchar* packetModelPath,
-        TGenAction* modelAction) {
+        TGenActionID actionID) {
 
     guint32 seed = g_random_int();
 
@@ -90,7 +90,7 @@ TGenGenerator* tgengenerator_new(const gchar* streamModelPath, const gchar* pack
 
     gen->streamModel = streamModel;
     gen->packetModel = packetModel;
-    gen->modelAction = modelAction;
+    gen->modelActionID = actionID;
 
     /* these timers store cumulative times */
     gen->cumulativeStreamTimer = g_timer_new();
@@ -107,9 +107,9 @@ TGenGenerator* tgengenerator_new(const gchar* streamModelPath, const gchar* pack
     return gen;
 }
 
-TGenAction* tgengenerator_getModelAction(TGenGenerator* gen) {
+TGenActionID tgengenerator_getModelActionID(TGenGenerator* gen) {
     TGEN_ASSERT(gen);
-    return gen->modelAction;
+    return gen->modelActionID;
 }
 
 void tgengenerator_onTransferCreated(TGenGenerator* gen) {

@@ -26,6 +26,7 @@
 #define TGEN_ASSERT(obj)
 #endif
 
+#include "tgen-config.h"
 #include "tgen-log.h"
 #include "tgen-io.h"
 #include "tgen-timer.h"
@@ -33,12 +34,11 @@
 #include "tgen-peer.h"
 #include "tgen-optionparser.h"
 #include "tgen-server.h"
+#include "tgen-markovmodel.h"
+#include "tgen-graph.h"
 #include "tgen-transport.h"
 #include "tgen-transfer.h"
-#include "tgen-markovmodel.h"
 #include "tgen-generator.h"
-#include "tgen-graph.h"
 #include "tgen-driver.h"
-#include "tgen-config.h"
 
 #endif /* SHD_TGEN_H_ */

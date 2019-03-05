@@ -191,7 +191,7 @@ static void _tgentransport_changeError(TGenTransport* transport, TGenTransportEr
 }
 
 static TGenTransport* _tgentransport_newHelper(gint socketD, gint64 startedTime, gint64 createdTime,
-        TGenPeer* proxy, gchar* username, gchar* password, TGenPeer* peer,
+        TGenPeer* proxy, const gchar* username, const gchar* password, TGenPeer* peer,
         TGenTransport_notifyBytesFunc notify, gpointer data, GDestroyNotify destructData) {
     TGenTransport* transport = g_new0(TGenTransport, 1);
     transport->magic = TGEN_MAGIC;
@@ -244,8 +244,15 @@ static TGenTransport* _tgentransport_newHelper(gint socketD, gint64 startedTime,
     return transport;
 }
 
-TGenTransport* tgentransport_newActive(TGenPeer* proxy, gchar* username, gchar* password, TGenPeer* peer,
+TGenTransport* tgentransport_newActive(TGenStreamOptions* options,
         TGenTransport_notifyBytesFunc notify, gpointer data, GDestroyNotify destructData) {
+    /* get the ultimate destination */
+    TGenPeer* peer = options->peers.isSet ? tgenpool_getRandom(options->peers.value) : NULL;
+    if(!peer) {
+        tgen_error("Transport was created with no viable peers");
+        return NULL;
+    }
+
     gint64 started = g_get_monotonic_time();
 
     /* create the socket and get a socket descriptor */
@@ -282,6 +289,7 @@ TGenTransport* tgentransport_newActive(TGenPeer* proxy, gchar* username, gchar* 
     master.sin_family = AF_INET;
 
     /* if there is a proxy, we connect there; otherwise connect to the peer */
+    TGenPeer* proxy = options->socksProxy.isSet ? options->socksProxy.value : NULL;
     TGenPeer* connectee = proxy ? proxy : peer;
 
     /* its safe to do lookups on whoever we are directly connecting to. */
@@ -299,6 +307,9 @@ TGenTransport* tgentransport_newActive(TGenPeer* proxy, gchar* username, gchar* 
         close(socketD);
         return NULL;
     }
+
+    gchar* username = (proxy && options->socksUsername.isSet) ? options->socksUsername.value : NULL;
+    gchar* password = (proxy && options->socksPassword.isSet) ? options->socksPassword.value : NULL;
 
     return _tgentransport_newHelper(socketD, started, created, proxy, username, password, peer, notify, data, destructData);
 }

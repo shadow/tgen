@@ -10,14 +10,14 @@
 typedef struct _TGenGenerator TGenGenerator;
 
 TGenGenerator* tgengenerator_new(const gchar* streamModelPath, const gchar* packetModelPath,
-        TGenAction* modelAction);
+        TGenActionID actionID);
 void tgengenerator_ref(TGenGenerator* gen);
 void tgengenerator_unref(TGenGenerator* gen);
 
 gboolean tgengenerator_generateStream(TGenGenerator* gen,
         gchar** localSchedule, gchar** remoteSchedule, guint64* pauseTimeUSec);
 
-TGenAction* tgengenerator_getModelAction(TGenGenerator* gen);
+TGenActionID tgengenerator_getModelActionID(TGenGenerator* gen);
 void tgengenerator_onTransferCreated(TGenGenerator* gen);
 void tgengenerator_onTransferCompleted(TGenGenerator* gen);
 gboolean tgengenerator_isDoneGenerating(TGenGenerator* gen);

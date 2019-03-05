@@ -1,4 +1,12 @@
-#include "tgen.h"
+/*
+ * See LICENSE for licensing information
+ */
+
+#include <stddef.h>
+#include <stdlib.h>
+#include <unistd.h>
+
+#include <glib.h>
 
 gint tgenconfig_gethostname(gchar* name, size_t len) {
     gchar* tgenip = getenv("TGENHOSTNAME");
@@ -15,4 +23,78 @@ gchar* tgenconfig_getIP() {
 
 gchar* tgenconfig_getSOCKS() {
     return getenv("TGENSOCKS");
+}
+
+const gchar* tgenconfig_getDefaultPacketMarkovModelString() {
+    return  "<?xml version=\"1.0\" encoding=\"utf-8\"?><graphml xmlns=\"http://graphml.graphdrawing.org/xmlns\" xmlns:xsi=\"http://www.w3.org/2001/XMLSchema-instance\" xsi:schemaLocation=\"http://graphml.graphdrawing.org/xmlns http://graphml.graphdrawing.org/xmlns/1.0/graphml.xsd\">"
+            "  <key attr.name=\"lognorm_mu\" attr.type=\"double\" for=\"edge\" id=\"d6\" />"
+            "  <key attr.name=\"lognorm_sigma\" attr.type=\"double\" for=\"edge\" id=\"d5\" />"
+            "  <key attr.name=\"exp_lambda\" attr.type=\"int\" for=\"edge\" id=\"d4\" />"
+            "  <key attr.name=\"weight\" attr.type=\"double\" for=\"edge\" id=\"d3\" />"
+            "  <key attr.name=\"type\" attr.type=\"string\" for=\"edge\" id=\"d2\" />"
+            "  <key attr.name=\"type\" attr.type=\"string\" for=\"node\" id=\"d1\" />"
+            "  <key attr.name=\"name\" attr.type=\"string\" for=\"node\" id=\"d0\" />"
+            "  <graph edgedefault=\"directed\">"
+            "    <node id=\"n0\">"
+            "      <data key=\"d0\">start</data>"
+            "    </node>"
+            "    <node id=\"n1\">"
+            "      <data key=\"d1\">state</data>"
+            "      <data key=\"d0\">constant</data>"
+            "    </node>"
+            "    <node id=\"n2\">"
+            "      <data key=\"d1\">state</data>"
+            "      <data key=\"d0\">end</data>"
+            "    </node>"
+            "    <node id=\"n3\">"
+            "      <data key=\"d1\">observation</data>"
+            "      <data key=\"d0\">+</data>"
+            "    </node>"
+            "    <node id=\"n4\">"
+            "      <data key=\"d1\">observation</data>"
+            "      <data key=\"d0\">-</data>"
+            "    </node>"
+            "    <node id=\"n5\">"
+            "      <data key=\"d1\">observation</data>"
+            "      <data key=\"d0\">F</data>"
+            "    </node>"
+            "    <edge source=\"n0\" target=\"n1\">"
+            "      <data key=\"d2\">transition</data>"
+            "      <data key=\"d3\">1.0</data>"
+            "    </edge>"
+            "    <edge source=\"n1\" target=\"n1\">"
+            "      <data key=\"d2\">transition</data>"
+            "      <data key=\"d3\">1.0</data>"
+            "    </edge>"
+            "    <edge source=\"n1\" target=\"n2\">"
+            "      <data key=\"d2\">transition</data>"
+            "      <data key=\"d3\">0.0</data>"
+            "    </edge>"
+            "    <edge source=\"n1\" target=\"n3\">"
+            "      <data key=\"d4\">4294967295</data>"
+            "      <data key=\"d2\">emission</data>"
+            "      <data key=\"d5\">0.0</data>"
+            "      <data key=\"d3\">0.01</data>"
+            "      <data key=\"d6\">0.0</data>"
+            "    </edge>"
+            "    <edge source=\"n1\" target=\"n4\">"
+            "      <data key=\"d4\">4294967295</data>"
+            "      <data key=\"d2\">emission</data>"
+            "      <data key=\"d5\">0.0</data>"
+            "      <data key=\"d3\">0.989</data>"
+            "      <data key=\"d6\">0.0</data>"
+            "    </edge>"
+            "    <edge source=\"n1\" target=\"n5\">"
+            "      <data key=\"d4\">4294967295</data>"
+            "      <data key=\"d2\">emission</data>"
+            "      <data key=\"d5\">0.0</data>"
+            "      <data key=\"d3\">0.001</data>"
+            "      <data key=\"d6\">0.0</data>"
+            "    </edge>"
+            "  </graph>"
+            "</graphml>";
+}
+
+const gchar* tgenconfig_getDefaultStreamMarkovModelString() {
+    return "";
 }
