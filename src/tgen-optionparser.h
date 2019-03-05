@@ -5,6 +5,8 @@
 #ifndef SRC_TGEN_OPTIONPARSER_H_
 #define SRC_TGEN_OPTIONPARSER_H_
 
+#include <glib.h>
+
 typedef struct _TGenOptionUInt16 {
     gboolean isSet;
     guint16 value;

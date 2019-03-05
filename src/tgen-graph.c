@@ -3,7 +3,6 @@
  */
 
 #include <arpa/inet.h>
-#include <math.h>
 #include <igraph.h>
 
 #include "tgen.h"
@@ -437,6 +436,27 @@ static glong _tgengraph_countIncomingEdges(TGenGraph* g, igraph_integer_t vertex
     return totalIncoming;
 }
 
+static GError* _tgengraph_validateMarkovModel(TGenGraph* g, const gchar* path, guint32 seed) {
+    GError* error = NULL;
+
+    gchar* name = g_path_get_basename(path);
+
+    TGenMarkovModel* mmodel = tgenmarkovmodel_newFromPath(name, seed, path);
+
+    g_free(name);
+
+    if(mmodel) {
+        tgen_message("Validation of Markov model at path '%s' was successful!", path);
+        tgenmarkovmodel_unref(mmodel);
+    } else {
+        error = g_error_new(G_MARKUP_ERROR, G_MARKUP_ERROR_INVALID_CONTENT,
+                "Validation failed for Markov model at path '%s',"
+                "please check the format of the file contents and try again.", path);
+    }
+
+    return error;
+}
+
 static GError* _tgengraph_parseStreamAttributesHelper(TGenGraph* g, const gchar* idStr,
         igraph_integer_t vertexIndex, TGenStreamOptions* options) {
     TGEN_ASSERT(g);
@@ -534,7 +554,14 @@ static GError* _tgengraph_parseStreamAttributesHelper(TGenGraph* g, const gchar*
         }
     }
 
-    return NULL;
+    /* validate the packet markov model */
+    if(options->packetModelPath.isSet) {
+        gchar* path = options->packetModelPath.value;
+        guint32 seed = options->packetModelSeed.isSet ? options->packetModelSeed.value : 1;
+        error = _tgengraph_validateMarkovModel(g, path, seed);
+    }
+
+    return error;
 }
 
 static GError* _tgengraph_parseFlowAttributesHelper(TGenGraph* g, const gchar* idStr,
@@ -567,6 +594,13 @@ static GError* _tgengraph_parseFlowAttributesHelper(TGenGraph* g, const gchar* i
         return error;
     }
 
+    /* validate the stream markov model */
+    if(options->streamModelPath.isSet) {
+        gchar* path = options->streamModelPath.value;
+        guint32 seed = options->streamModelSeed.isSet ? options->streamModelSeed.value : 1;
+        error = _tgengraph_validateMarkovModel(g, path, seed);
+    }
+
     return NULL;
 }
 
@@ -583,8 +617,6 @@ static GError* _tgengraph_parseStartAttributesHelper(TGenGraph* g, const gchar* 
         error = tgenoptionparser_parseUInt16(name, valueStr, &options->serverport);
         if(error) {
             return error;
-        } else {
-            options->serverport.value = htons(options->serverport.value);
         }
     }
 
@@ -715,7 +747,7 @@ static GError* _tgengraph_parseStartVertex(TGenGraph* g, const gchar* idStr,
     g->startActionVertexIndex = vertexIndex;
     g->hasStartAction = TRUE;
 
-    if(options->defaultStreamOpts.peers) {
+    if(options->defaultStreamOpts.peers.isSet) {
         g->startHasPeers = TRUE;
     }
 
@@ -760,7 +792,6 @@ static GError* _tgengraph_parsePauseVertex(TGenGraph* g, const gchar* idStr,
     glong totalIncoming = _tgengraph_countIncomingEdges(g, vertexIndex);
     if(totalIncoming <= 0) {
         tgen_error("the number of incoming edges on vertex %i must be positive", (gint)vertexIndex);
-        g_assert(totalIncoming > 0);
     }
 
     TGenAction* action = _tgengraph_newAction(TGEN_ACTION_PAUSE, options);
@@ -873,7 +904,7 @@ static GError* _tgengraph_parseGraphVertices(TGenGraph* g) {
 
     if(!g->startHasPeers && g->transferMissingPeers) {
         error = g_error_new(G_MARKUP_ERROR, G_MARKUP_ERROR_INVALID_CONTENT,
-                    "peers required in either the 'start' action, or *every* 'transfer' action");
+                    "peers required in either the 'start' action, or *every* 'stream' action");
     }
 
     if(!error) {
@@ -1145,7 +1176,8 @@ GQueue* tgengraph_getNextActionIDs(TGenGraph* g, TGenActionID actionID) {
 
         TGenAction* nextAction = _tgengraph_getAction(g, dstVertexIndex);
         if(!nextAction) {
-            tgen_debug("src vertex %i dst vertex %i, next action is null", (gint)srcVertexIndex, (gint)dstVertexIndex);
+            tgen_debug("src vertex %i dst vertex %i, next action is null",
+                    (gint)srcVertexIndex, (gint)dstVertexIndex);
             continue;
         }
 
@@ -1179,7 +1211,8 @@ GQueue* tgengraph_getNextActionIDs(TGenGraph* g, TGenActionID actionID) {
     /* choose only one from 'choices' and add it to the next queue */
     guint numChoices = g_queue_get_length(chooseActions);
     if(numChoices > 0) {
-        tgen_debug("src vertex %i, choosing among %u weighted outgoing edges", (gint)srcVertexIndex, numChoices);
+        tgen_debug("src vertex %i, choosing among %u weighted outgoing edges",
+                (gint)srcVertexIndex, numChoices);
 
         /* count up weights until the cumulative exceeds the random choice */
         gdouble cumulativeWeight = 0.0;
@@ -1205,7 +1238,8 @@ GQueue* tgengraph_getNextActionIDs(TGenGraph* g, TGenActionID actionID) {
     g_queue_free(chooseActions);
     g_queue_free(chooseWeights);
 
-    tgen_debug("src vertex %i, we have %u next actions", (gint)srcVertexIndex, g_queue_get_length(nextActions));
+    tgen_debug("src vertex %i, we have %u next actions",
+            (gint)srcVertexIndex, g_queue_get_length(nextActions));
 
     return nextActions;
 }
@@ -1215,7 +1249,22 @@ gboolean tgengraph_hasEdges(TGenGraph* g) {
     return (g->edgeCount > 0) ? TRUE : FALSE;
 }
 
-const gchar* tgengraph_getActionIDStr(TGenGraph* g, TGenActionID actionID) {
+const gchar* tgengraph_getGraphPath(TGenGraph* g) {
+    TGEN_ASSERT(g);
+    return g->graphPath;
+}
+
+TGenActionType tgengraph_getActionType(TGenGraph* g, TGenActionID actionID) {
+    TGEN_ASSERT(g);
+    TGenAction* action = _tgengraph_getAction(g, (igraph_integer_t) actionID);
+    if(action) {
+        return action->type;
+    } else {
+        return TGEN_ACTION_NONE;
+    }
+}
+
+const gchar* tgengraph_getActionName(TGenGraph* g, TGenActionID actionID) {
     TGEN_ASSERT(g);
 
     igraph_integer_t vertexIndex = (igraph_integer_t) actionID;
@@ -1223,215 +1272,141 @@ const gchar* tgengraph_getActionIDStr(TGenGraph* g, TGenActionID actionID) {
     return idStr;
 }
 
-const gchar* tgengraph_getGraphPath(TGenGraph* g) {
+static gpointer _tgengraph_getOptionsHelper(TGenGraph* g, TGenActionID actionID,
+        TGenActionType actionType, const gchar* name) {
     TGEN_ASSERT(g);
-    return g->graphPath;
+
+    /* get the action, which must be non-null in a valid graph */
+    TGenAction* action = _tgengraph_getAction(g, (igraph_integer_t) actionID);
+    if(!action) {
+        tgen_error("The action object is NULL for vertex %i", (gint) actionID);
+    }
+
+    if(action->type != actionType) {
+        tgen_error("Action type is not %s for vertex %i", name, (gint) actionID);
+    }
+
+    /* get the options, which must be non-null in a valid graph */
+    TGenPauseOptions* options = action->options;
+    if(!options) {
+        tgen_error("The %s options object is NULL for vertex %i", name, (gint) actionID);
+    }
+
+    return options;
 }
 
-GLogLevelFlags tgengraph_getLogLevel(TGenGraph* g) {
+TGenStartOptions* tgengraph_getStartOptions(TGenGraph* g) {
+    gpointer options = _tgengraph_getOptionsHelper(g, (TGenActionID)g->startActionVertexIndex,
+            TGEN_ACTION_START, "start");
+    return (TGenStartOptions*) options;
+}
+
+TGenPauseOptions* tgengraph_getPauseOptions(TGenGraph* g, TGenActionID actionID) {
+    gpointer options = _tgengraph_getOptionsHelper(g, actionID, TGEN_ACTION_PAUSE, "pause");
+    return (TGenPauseOptions*) options;
+}
+
+TGenEndOptions* tgengraph_getEndOptions(TGenGraph* g, TGenActionID actionID) {
+    gpointer options = _tgengraph_getOptionsHelper(g, actionID, TGEN_ACTION_END, "end");
+    return (TGenEndOptions*) options;
+}
+
+static void _tgengraph_copyDefaultStreamOptions(TGenGraph* g, TGenStreamOptions* options) {
     TGEN_ASSERT(g);
-    TGenAction* startAction = _tgengraph_getAction(g, g->startActionVertexIndex);
-    g_assert(startAction);
-    TGenStartOptions* options = startAction->options;
     g_assert(options);
-    if(options->loglevel.isSet) {
-        return options->loglevel.value;
-    } else {
-        return G_LOG_LEVEL_MESSAGE;
+
+    /* for all the given stream options that were not explicitly set, check if a
+     * default was set in start vertex and copy the default if it was. */
+
+    TGenStartOptions* startOptions = tgengraph_getStartOptions(g);
+    g_assert(startOptions);
+
+    TGenStreamOptions* defaults = &startOptions->defaultStreamOpts;
+
+    if(!options->packetModelPath.isSet && defaults->packetModelPath.isSet) {
+        options->packetModelPath.isSet = TRUE;
+        options->packetModelPath.value = g_strdup(defaults->packetModelPath.value);
+    }
+
+    if(!options->packetModelSeed.isSet && defaults->packetModelSeed.isSet) {
+        options->packetModelSeed.isSet = TRUE;
+        options->packetModelSeed.value = defaults->packetModelSeed.value;
+    }
+
+    if(!options->peers.isSet && defaults->peers.isSet) {
+        options->peers.isSet = TRUE;
+        options->peers.value = defaults->peers.value;
+        tgenpool_ref(defaults->peers.value);
+    }
+
+    if(!options->recvSize.isSet && defaults->recvSize.isSet) {
+        options->recvSize.isSet = TRUE;
+        options->recvSize.value = defaults->recvSize.value;
+    }
+
+    if(!options->sendSize.isSet && defaults->sendSize.isSet) {
+        options->sendSize.isSet = TRUE;
+        options->sendSize.value = defaults->sendSize.value;
+    }
+
+    if(!options->socksProxy.isSet && defaults->socksProxy.isSet) {
+        options->socksProxy.isSet = TRUE;
+        options->socksProxy.value = defaults->socksProxy.value;
+        tgenpeer_ref(defaults->socksProxy.value);
+    }
+
+    if(!options->socksUsername.isSet && defaults->socksUsername.isSet) {
+        options->socksUsername.isSet = TRUE;
+        options->socksUsername.value = g_strdup(defaults->socksUsername.value);
+    }
+
+    if(!options->socksPassword.isSet && defaults->socksPassword.isSet) {
+        options->socksPassword.isSet = TRUE;
+        options->socksPassword.value = g_strdup(defaults->socksPassword.value);
+    }
+
+    if(!options->stalloutNanos.isSet && defaults->stalloutNanos.isSet) {
+        options->stalloutNanos.isSet = TRUE;
+        options->stalloutNanos.value = defaults->stalloutNanos.value;
+    }
+
+    if(!options->timeoutNanos.isSet && defaults->timeoutNanos.isSet) {
+        options->timeoutNanos.isSet = TRUE;
+        options->timeoutNanos.value = defaults->timeoutNanos.value;
     }
 }
 
-guint64 tgengraph_getHeartbeatPeriodMillis(TGenGraph* g) {
-    TGEN_ASSERT(g);
-    TGenAction* startAction = _tgengraph_getAction(g, g->startActionVertexIndex);
-    g_assert(startAction);
-    TGenStartOptions* options = startAction->options;
-    g_assert(options);
-    if(options->heartbeatPeriodNanos.isSet) {
-        return (guint64)(options->heartbeatPeriodNanos.value / 1000000);
-    } else {
-        return 1000;
-    }
+TGenStreamOptions* tgengraph_getStreamOptions(TGenGraph* g, TGenActionID actionID) {
+    gpointer options = _tgengraph_getOptionsHelper(g, actionID, TGEN_ACTION_STREAM, "stream");
+    TGenStreamOptions* streamOptions = (TGenStreamOptions*) options;
+    _tgengraph_copyDefaultStreamOptions(g, streamOptions);
+    return streamOptions;
 }
 
-//guint16 tgenaction_getServerPort(TGenAction* action) {
-//    TGEN_ASSERT(action);
-//    g_assert(action->data && action->type == TGEN_ACTION_START);
-//    return ((TGenActionStartData*)action->data)->serverport;
-//}
-//
-//TGenPeer* tgenaction_getSocksProxy(TGenAction* action) {
-//    TGEN_ASSERT(action);
-//    g_assert(action->data && action->type == TGEN_ACTION_START);
-//    return ((TGenActionStartData*)action->data)->socksproxy;
-//}
-//
-//guint64 tgenaction_getStartTimeMillis(TGenAction* action) {
-//    TGEN_ASSERT(action);
-//    g_assert(action->data && action->type == TGEN_ACTION_START);
-//    return (guint64)(((TGenActionStartData*)action->data)->timeNanos / 1000000);
-//}
-//
-//guint64 tgenaction_getDefaultTimeoutMillis(TGenAction* action) {
-//    TGEN_ASSERT(action);
-//    g_assert(action->data && action->type == TGEN_ACTION_START);
-//    return (guint64)(((TGenActionStartData*)action->data)->timeoutNanos / 1000000);
-//}
-//
-//guint64 tgenaction_getDefaultStalloutMillis(TGenAction* action) {
-//    TGEN_ASSERT(action);
-//    g_assert(action->data && action->type == TGEN_ACTION_START);
-//    return (guint64)(((TGenActionStartData*)action->data)->stalloutNanos / 1000000);
-//}
-//
-//guint64 tgenaction_getHeartbeatPeriodMillis(TGenAction* action) {
-//    TGEN_ASSERT(action);
-//    g_assert(action->data && action->type == TGEN_ACTION_START);
-//    return (guint64)(((TGenActionStartData*)action->data)->heartbeatPeriodNanos / 1000000);
-//}
-//
-//void tgenaction_getTransferParameters(TGenAction* action, TGenTransferType* typeOut,
-//        TGenTransportProtocol* protocolOut, guint64* sizeOut, guint64 *ourSizeOut,
-//        guint64 *theirSizeOut, guint64* timeoutOut, guint64* stalloutOut,
-//        gchar** localSchedule, gchar** remoteSchedule) {
-//    TGEN_ASSERT(action);
-//    g_assert(action->data && action->type == TGEN_ACTION_TRANSFER);
-//
-//    TGenActionTransferData* data = (TGenActionTransferData*)action->data;
-//
-//    if(typeOut) {
-//        *typeOut = data->type;
-//    }
-//    if(protocolOut) {
-//        *protocolOut = data->protocol;
-//    }
-//    if(sizeOut) {
-//        *sizeOut = data->size;
-//    }
-//    if (ourSizeOut) {
-//        *ourSizeOut = data->ourSize;
-//    }
-//    if (theirSizeOut) {
-//        *theirSizeOut = data->theirSize;
-//    }
-//    if(timeoutOut) {
-//        if(data->timeoutIsSet) {
-//            /* nanoseconds to milliseconds */
-//            *timeoutOut = (guint64)(data->timeoutNanos / 1000000);
-//        }
-//    }
-//    if(stalloutOut) {
-//        if(data->stalloutIsSet) {
-//            /* nanoseconds to milliseconds */
-//            *stalloutOut = (guint64)(data->stalloutNanos / 1000000);
-//        }
-//    }
-//    if(localSchedule) {
-//        *localSchedule = data->localSchedule;
-//    }
-//    if(remoteSchedule) {
-//        *remoteSchedule = data->remoteSchedule;
-//    }
-//}
-//
-//void tgenaction_getModelPaths(TGenAction* action,
-//        gchar** streamModelPathStr, gchar** packetModelPathStr) {
-//    TGEN_ASSERT(action);
-//    g_assert(action->data && action->type == TGEN_ACTION_MODEL);
-//
-//    TGenActionModelData* data = (TGenActionModelData*)action->data;
-//
-//    if(streamModelPathStr) {
-//        *streamModelPathStr = data->streamModelPath;
-//    }
-//    if(packetModelPathStr) {
-//        *packetModelPathStr = data->packetModelPath;
-//    }
-//}
-//
-//void tgenaction_getSocksParams(TGenAction* action,
-//        gchar** socksUsernameStr, gchar** socksPasswordStr) {
-//    TGEN_ASSERT(action);
-//    g_assert(action->data);
-//    g_assert(action->type == TGEN_ACTION_MODEL || action->type == TGEN_ACTION_TRANSFER);
-//
-//    gchar* userStr = NULL;
-//    gchar* passStr = NULL;
-//
-//    if(action->type == TGEN_ACTION_TRANSFER) {
-//      TGenActionTransferData* data = (TGenActionTransferData*)action->data;
-//      userStr = data->socksUsernameStr;
-//      passStr = data->socksPasswordStr;
-//    } else if(action->type == TGEN_ACTION_MODEL) {
-//      TGenActionModelData* data = (TGenActionModelData*)action->data;
-//      userStr = data->socksUsernameStr;
-//      passStr = data->socksPasswordStr;
-//    }
-//
-//    if(socksUsernameStr) {
-//        *socksUsernameStr = userStr;
-//    }
-//    if(socksPasswordStr) {
-//        *socksPasswordStr = passStr;
-//    }
-//}
-//
-//TGenPool* tgenaction_getPeers(TGenAction* action) {
-//    TGEN_ASSERT(action);
-//    g_assert(action->data);
-//
-//    if(action->type == TGEN_ACTION_TRANSFER) {
-//        return ((TGenActionTransferData*)action->data)->peers;
-//    } else if(action->type == TGEN_ACTION_MODEL) {
-//        return ((TGenActionModelData*)action->data)->peers;
-//    } else if(action->type == TGEN_ACTION_START) {
-//        return ((TGenActionStartData*)action->data)->peers;
-//    } else {
-//        return NULL;
-//    }
-//}
-//
-//guint64 tgenaction_getEndTimeMillis(TGenAction* action) {
-//    TGEN_ASSERT(action);
-//    g_assert(action->data && action->type == TGEN_ACTION_END);
-//    return (guint64)(((TGenActionEndData*)action->data)->timeNanos / 1000000);
-//}
-//
-//guint64 tgenaction_getEndCount(TGenAction* action) {
-//    TGEN_ASSERT(action);
-//    g_assert(action->data && action->type == TGEN_ACTION_END);
-//    return ((TGenActionEndData*)action->data)->count;
-//}
-//
-//guint64 tgenaction_getEndSize(TGenAction* action) {
-//    TGEN_ASSERT(action);
-//    g_assert(action->data && action->type == TGEN_ACTION_END);
-//    return ((TGenActionEndData*)action->data)->size;
-//}
-//
-//gboolean tgenaction_hasPauseTime(TGenAction* action) {
-//    TGEN_ASSERT(action);
-//    g_assert(action->data && action->type == TGEN_ACTION_PAUSE);
-//    return (((TGenActionPauseData*)action->data)->pauseTimesNanos) != NULL ? TRUE : FALSE;
-//}
-//
-//guint64 tgenaction_getPauseTimeMillis(TGenAction* action) {
-//    TGEN_ASSERT(action);
-//    g_assert(action->data && action->type == TGEN_ACTION_PAUSE);
-//    guint64* time = tgenpool_getRandom(((TGenActionPauseData*)action->data)->pauseTimesNanos);
-//    return (guint64)(*time / 1000000);
-//}
-//
-//gboolean tgenaction_incrementPauseVisited(TGenAction* action) {
-//    TGEN_ASSERT(action);
-//    g_assert(action->data && action->type == TGEN_ACTION_PAUSE);
-//    TGenActionPauseData* pauseData = (TGenActionPauseData*)action->data;
-//
-//    pauseData->completedIncomingEdges++;
-//    if(pauseData->completedIncomingEdges >= pauseData->totalIncomingEdges) {
-//        pauseData->completedIncomingEdges = 0;
-//        return TRUE;
-//    } else {
-//        return FALSE;
-//    }
-//}
+TGenFlowOptions* tgengraph_getFlowOptions(TGenGraph* g, TGenActionID actionID) {
+    gpointer options = _tgengraph_getOptionsHelper(g, actionID, TGEN_ACTION_FLOW, "flow");
+    TGenFlowOptions* flowOptions = (TGenFlowOptions*) options;
+    _tgengraph_copyDefaultStreamOptions(g, &flowOptions->streamOpts);
+    return flowOptions;
+}
+
+gboolean tgengraph_incrementPauseVisited(TGenGraph* g, TGenActionID actionID) {
+    TGEN_ASSERT(g);
+
+    TGenAction* action = _tgengraph_getAction(g, (igraph_integer_t) actionID);
+    if(!action) {
+        tgen_error("The action object is NULL for vertex %i", (gint) actionID);
+    }
+
+    if(action->type != TGEN_ACTION_PAUSE) {
+        tgen_error("Action type is not pause for vertex %i", (gint) actionID);
+    }
+
+    action->completedIncomingEdges++;
+    if(action->completedIncomingEdges >= action->totalIncomingEdges) {
+        action->completedIncomingEdges = 0;
+        return TRUE;
+    } else {
+        return FALSE;
+    }
+}

@@ -7,8 +7,9 @@
 #include "tgen.h"
 
 /* 60 seconds default timeout */
-#define DEFAULT_XFER_TIMEOUT_USEC 60000000
-#define DEFAULT_XFER_STALLOUT_USEC 15000000
+#define DEFAULT_XFER_TIMEOUT_NSEC (60*((guint64)1000*1000*1000))
+/* 15 second default stallout */
+#define DEFAULT_XFER_STALLOUT_NSEC (15*((guint64)1000*1000*1000))
 
 /* default lengths for buffers used during i/o.
  * the read buffer is temporary and stack-allocated.
@@ -384,7 +385,7 @@ static gssize _tgentransfer_read(TGenTransfer* transfer, guchar* buffer, gsize l
             g_memmove(buffer, transfer->recv.buffer->str, limit);
 
             /* we want to keep the remaining bytes that we did not return */
-            GString* newBuffer = g_string_new(transfer->recv.buffer->str[limit]);
+            GString* newBuffer = g_string_new(&transfer->recv.buffer->str[limit]);
 
             /* replace the read buffer */
             g_string_free(transfer->recv.buffer, TRUE);
@@ -487,7 +488,7 @@ static gboolean _tgentransfer_readAuthenticate(TGenTransfer* transfer) {
 
     guchar authbuf[24];
     gsize amt = 21 - transfer->recv.authIndex;
-    gssize bytes = _tgentransfer_read(transfer->transport, &(authbuf[0]), amt);
+    gssize bytes = _tgentransfer_read(transfer, &(authbuf[0]), amt);
 
     if(bytes <= 0 || transfer->recv.state != TGEN_XFER_RECV_AUTHENTICATE) {
         /* we didn't get anything or some error when reading */
@@ -512,7 +513,7 @@ static gboolean _tgentransfer_readAuthenticate(TGenTransfer* transfer) {
         } else {
             /* password doesn't match */
             tgen_info("transfer authentication error: incorrect authentication token");
-            _tgentransfer_changeState(transfer, TGEN_XFER_RECV_ERROR);
+            _tgentransfer_changeRecvState(transfer, TGEN_XFER_RECV_ERROR);
             _tgentransfer_changeError(transfer, TGEN_XFER_ERR_AUTHENTICATE);
             return FALSE;
         }
@@ -536,11 +537,13 @@ static gboolean _tgentransfer_readHeader(TGenTransfer* transfer) {
     /* we have read the entire command header from the other end */
     gboolean hasError = FALSE;
 
+    tgen_debug("Parsing header string now: %s", line->str);
+
     /* lets parse the string */
     gchar** parts = g_strsplit(line->str, " ", 0);
 
-    /* parse all of the key=value pairs, skip the first program name arg */
-    for(gint i = 1; !hasError && parts != NULL && parts[i] != NULL; i++) {
+    /* parse all of the key=value pairs */
+    for(gint i = 0; !hasError && parts != NULL && parts[i] != NULL; i++) {
         gchar** pair = g_strsplit(parts[i], "=", 2);
         gchar* key = pair[0];
         gchar* value = pair[1];
@@ -629,24 +632,26 @@ static gboolean _tgentransfer_readHeader(TGenTransfer* transfer) {
     }
 
     if(transfer->isCommander) {
-        if(parsedKeys != (TGEN_HEADER_FLAG_PROTOCOL |
-                TGEN_HEADER_FLAG_HOSTNAME | TGEN_HEADER_FLAG_COUNT)) {
+        TGenTransferHeaderFlags required = (TGEN_HEADER_FLAG_PROTOCOL |
+                TGEN_HEADER_FLAG_HOSTNAME | TGEN_HEADER_FLAG_COUNT);
+        if((parsedKeys & required) != required) {
             tgen_info("Finished parsing header flags, we did not receive all required flags.");
             hasError = TRUE;
         }
     } else {
-        if(parsedKeys != (TGEN_HEADER_FLAG_PROTOCOL |
+        TGenTransferHeaderFlags required = (TGEN_HEADER_FLAG_PROTOCOL |
                 TGEN_HEADER_FLAG_HOSTNAME | TGEN_HEADER_FLAG_ID |
                 TGEN_HEADER_FLAG_COUNT | TGEN_HEADER_FLAG_SENDSIZE |
                 TGEN_HEADER_FLAG_RECVSIZE | TGEN_HEADER_FLAG_MODELNAME |
-                TGEN_HEADER_FLAG_MODELSEED | TGEN_HEADER_FLAG_MODELSIZE)) {
+                TGEN_HEADER_FLAG_MODELSEED | TGEN_HEADER_FLAG_MODELSIZE);
+        if((parsedKeys & required) != required) {
             tgen_info("Finished parsing header flags, we did not receive all required flags.");
             hasError = TRUE;
         }
     }
 
     if(hasError) {
-        _tgentransfer_changeState(transfer, TGEN_XFER_RECV_ERROR);
+        _tgentransfer_changeRecvState(transfer, TGEN_XFER_RECV_ERROR);
         _tgentransfer_changeError(transfer, TGEN_XFER_ERR_HEADER);
         return FALSE;
     } else {
@@ -664,7 +669,7 @@ static gboolean _tgentransfer_readModel(TGenTransfer* transfer) {
     TGEN_ASSERT(transfer);
 
     if(transfer->peer.modelSize == 0) {
-        _tgentransfer_changeState(transfer, TGEN_XFER_RECV_ERROR);
+        _tgentransfer_changeRecvState(transfer, TGEN_XFER_RECV_ERROR);
         _tgentransfer_changeError(transfer, TGEN_XFER_ERR_MODEL);
         return FALSE;
     }
@@ -679,7 +684,7 @@ static gboolean _tgentransfer_readModel(TGenTransfer* transfer) {
     gsize requested = MIN(DEFAULT_XFER_READ_BUFLEN, remaining);
     g_assert(requested > 0);
 
-    gssize bytes = _tgentransfer_read(transfer->transport, &buffer[0], requested);
+    gssize bytes = _tgentransfer_read(transfer, &buffer[0], requested);
 
     if(bytes <= 0 || transfer->recv.state != TGEN_XFER_RECV_MODEL) {
         /* we didn't get anything or some error when reading */
@@ -692,6 +697,8 @@ static gboolean _tgentransfer_readModel(TGenTransfer* transfer) {
     g_assert(transfer->peer.buffer->len <= transfer->peer.modelSize);
 
     if(transfer->peer.buffer->len == transfer->peer.modelSize) {
+        tgen_info("Parsing Markov model of size %"G_GSIZE_FORMAT, transfer->peer.buffer->len);
+
         /* done with the model, lets instantiate and parse it */
         transfer->mmodel = tgenmarkovmodel_newFromString(transfer->peer.modelName,
                 transfer->peer.modelSeed, transfer->peer.buffer);
@@ -701,6 +708,7 @@ static gboolean _tgentransfer_readModel(TGenTransfer* transfer) {
         transfer->peer.buffer = NULL;
 
         if(transfer->mmodel) {
+            tgen_info("We received a valid Markov model");
             if(!transfer->isCommander) {
                 /* we are done receive the command */
                 transfer->time.command = g_get_monotonic_time();
@@ -708,7 +716,7 @@ static gboolean _tgentransfer_readModel(TGenTransfer* transfer) {
             return TRUE;
         } else {
             /* some problem with the model */
-            _tgentransfer_changeState(transfer, TGEN_XFER_RECV_ERROR);
+            _tgentransfer_changeRecvState(transfer, TGEN_XFER_RECV_ERROR);
             _tgentransfer_changeError(transfer, TGEN_XFER_ERR_MODEL);
 
             tgen_critical("We received model '%s', but could not instantiate it",
@@ -733,7 +741,7 @@ static gboolean _tgentransfer_readPayload(TGenTransfer* transfer) {
     }
 
     /* we only run through the read loop once in order to give other sockets a chance for i/o */
-    gssize bytes = _tgentransfer_read(transfer->transport, &buffer[0], limit);
+    gssize bytes = _tgentransfer_read(transfer, &buffer[0], limit);
 
     /* EOF is a valid end state for transfers where we don't know the payload size */
     if(bytes == 0 && transfer->recv.requestedBytes == 0 && transfer->recv.payloadBytes > 0) {
@@ -762,10 +770,9 @@ static gboolean _tgentransfer_readPayload(TGenTransfer* transfer) {
     /* valid end state for transfers where we know the payload size */
     if(transfer->recv.requestedBytes > 0 &&
             transfer->recv.payloadBytes >= transfer->recv.requestedBytes) {
+        tgen_debug("Finished reading %"G_GSIZE_FORMAT
+                " requested payload bytes", transfer->recv.payloadBytes);
         transfer->time.lastPayloadByte = g_get_monotonic_time();
-
-        _tgentransfer_changeRecvState(transfer, TGEN_XFER_RECV_CHECKSUM);
-
         return TRUE;
     }
 
@@ -910,7 +917,7 @@ static gsize _tgentransfer_flushOut(TGenTransfer* transfer) {
     gssize bytes = tgentransport_write(transfer->transport, position, limit);
 
     if(bytes < 0 && errno != EAGAIN && errno != EWOULDBLOCK) {
-        _tgentransfer_changeState(transfer, TGEN_XFER_SEND_ERROR);
+        _tgentransfer_changeSendState(transfer, TGEN_XFER_SEND_ERROR);
         _tgentransfer_changeError(transfer, TGEN_XFER_ERR_WRITE);
 
         tgen_critical("write(): transport %s transfer %s error %i: %s",
@@ -918,7 +925,7 @@ static gsize _tgentransfer_flushOut(TGenTransfer* transfer) {
                 _tgentransfer_toString(transfer),
                 errno, g_strerror(errno));
     } else if(bytes == 0) {
-        _tgentransfer_changeState(transfer, TGEN_XFER_SEND_ERROR);
+        _tgentransfer_changeSendState(transfer, TGEN_XFER_SEND_ERROR);
         _tgentransfer_changeError(transfer, TGEN_XFER_ERR_WRITEEOF);
 
         tgen_critical("write(): transport %s transfer %s closed unexpectedly",
@@ -1103,6 +1110,7 @@ static gboolean _tgentransfer_writeChecksum(TGenTransfer* transfer) {
         transfer->send.buffer = g_string_new(NULL);
         g_string_printf(transfer->send.buffer, "MD5 %s\n",
                 g_checksum_get_string(transfer->send.checksum));
+        tgen_debug("Sending checksum %s", transfer->send.buffer->str);
     }
 
     _tgentransfer_flushOut(transfer);
@@ -1438,10 +1446,11 @@ gboolean tgentransfer_onCheckTimeout(TGenTransfer* transfer, gint descriptor) {
     }
 }
 
-static TGenTransfer* _tgentransfer_newFull(TGenMarkovModel* mmodel, const gchar* idStr, gsize count,
-        gsize sendSize, gsize recvSize, guint64 timeout, guint64 stallout,
-        TGenIO* io, TGenTransport* transport, TGenTransfer_notifyCompleteFunc notify,
-        gpointer data1, gpointer data2, GDestroyNotify destructData1, GDestroyNotify destructData2) {
+TGenTransfer* tgentransfer_new(const gchar* idStr, gsize count, TGenStreamOptions* options,
+        TGenMarkovModel* mmodel, TGenIO* io, TGenTransport* transport,
+        TGenTransfer_notifyCompleteFunc notify,
+        gpointer data1, GDestroyNotify destructData1,
+        gpointer data2, GDestroyNotify destructData2) {
     TGenTransfer* transfer = g_new0(TGenTransfer, 1);
     transfer->magic = TGEN_MAGIC;
     transfer->refcount = 1;
@@ -1450,8 +1459,8 @@ static TGenTransfer* _tgentransfer_newFull(TGenMarkovModel* mmodel, const gchar*
 
     transfer->notify = notify;
     transfer->data1 = data1;
-    transfer->data2 = data2;
     transfer->destructData1 = destructData1;
+    transfer->data2 = data2;
     transfer->destructData2 = destructData2;
 
     /* get the hostname */
@@ -1466,11 +1475,18 @@ static TGenTransfer* _tgentransfer_newFull(TGenMarkovModel* mmodel, const gchar*
     transfer->count = count;
 
     /* the timeout after which we abandon this transfer */
-    transfer->timeoutUSecs = (gint64)(timeout > 0 ? (timeout * 1000) : DEFAULT_XFER_TIMEOUT_USEC);
-    transfer->stalloutUSecs = (gint64)(stallout > 0 ? (stallout * 1000) : DEFAULT_XFER_STALLOUT_USEC);
+    guint64 timeoutNanos = (options && options->timeoutNanos.isSet) ?
+            options->timeoutNanos.value : DEFAULT_XFER_TIMEOUT_NSEC;
+    transfer->timeoutUSecs = (gint64)(timeoutNanos / 1000);
 
-    transfer->send.requestedBytes = sendSize;
-    transfer->recv.requestedBytes = recvSize;
+    /* the stallout after which we abandon this transfer */
+    guint64 stalloutNanos = (options && options->stalloutNanos.isSet) ?
+            options->stalloutNanos.value : DEFAULT_XFER_STALLOUT_NSEC;
+    transfer->stalloutUSecs = (gint64)(stalloutNanos / 1000);
+
+    /* can be 0 to indicate that we should stop when we reach the model end state */
+    transfer->send.requestedBytes = (options && options->sendSize.isSet) ? options->sendSize.value : 0;
+    transfer->recv.requestedBytes = (options && options->recvSize.isSet) ? options->recvSize.value : 0;
 
     transfer->send.checksum = g_checksum_new(G_CHECKSUM_MD5);
     transfer->recv.checksum = g_checksum_new(G_CHECKSUM_MD5);
@@ -1499,21 +1515,6 @@ static TGenTransfer* _tgentransfer_newFull(TGenMarkovModel* mmodel, const gchar*
     }
 
     return transfer;
-}
-
-TGenTransfer* tgentransfer_newActive(TGenMarkovModel* mmodel, const gchar* idStr, gsize count,
-        gsize sendSize, gsize recvSize, guint64 timeout, guint64 stallout,
-        TGenIO* io, TGenTransport* transport, TGenTransfer_notifyCompleteFunc notify,
-        gpointer data1, gpointer data2, GDestroyNotify destructData1, GDestroyNotify destructData2) {
-    return _tgentransfer_newFull(mmodel, idStr, count, sendSize, recvSize, timeout, stallout,
-            io, transport, notify, data1, data2, destructData1, destructData2);
-}
-
-TGenTransfer* tgentransfer_newPassive(gsize count, guint64 timeout, guint64 stallout,
-        TGenIO* io, TGenTransport* transport, TGenTransfer_notifyCompleteFunc notify,
-        gpointer data1, GDestroyNotify destructData1) {
-    return _tgentransfer_newFull(NULL, NULL, count, 0, 0, timeout, stallout,
-            io, transport, notify, data1, NULL, destructData1, NULL);
 }
 
 static void _tgentransfer_free(TGenTransfer* transfer) {

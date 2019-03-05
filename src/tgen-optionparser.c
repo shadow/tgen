@@ -2,6 +2,8 @@
  * See LICENSE for licensing information
  */
 
+#include <math.h>
+
 #include "tgen.h"
 
 GError* tgenoptionparser_parseUInt64(const gchar* attributeName,
@@ -10,7 +12,7 @@ GError* tgenoptionparser_parseUInt64(const gchar* attributeName,
 
     if(out) {
         out->isSet = FALSE;
-        out->value = NULL;
+        out->value = 0;
         /* if the string exists and is not set to the empty string */
         if (intStr && g_ascii_strncasecmp(intStr, "\0", (gsize) 1) != 0) {
             out->isSet = TRUE;
@@ -26,10 +28,10 @@ GError* tgenoptionparser_parseUInt64(const gchar* attributeName,
 GError* tgenoptionparser_parseUInt32(const gchar* attributeName,
         const gchar* intStr, TGenOptionUInt32* out) {
     TGenOptionUInt64 intOpt;
-    GError* error = tgenoptionparser_parseUInt64(attributeName, intStr, intOpt);
+    GError* error = tgenoptionparser_parseUInt64(attributeName, intStr, &intOpt);
     if(!error && out) {
-        out->isSet = intOpt->isSet;
-        out->value = (guint32) MIN(intOpt->value, G_MAXUINT32);
+        out->isSet = intOpt.isSet;
+        out->value = (guint32) MIN(intOpt.value, G_MAXUINT32);
     }
     return error;
 }
@@ -37,10 +39,10 @@ GError* tgenoptionparser_parseUInt32(const gchar* attributeName,
 GError* tgenoptionparser_parseUInt16(const gchar* attributeName,
         const gchar* intStr, TGenOptionUInt16* out) {
     TGenOptionUInt64 intOpt;
-    GError* error = tgenoptionparser_parseUInt64(attributeName, intStr, intOpt);
+    GError* error = tgenoptionparser_parseUInt64(attributeName, intStr, &intOpt);
     if(!error && out) {
-        out->isSet = intOpt->isSet;
-        out->value = (guint16) MIN(intOpt->value, G_MAXUINT16);
+        out->isSet = intOpt.isSet;
+        out->value = (guint16) MIN(intOpt.value, G_MAXUINT16);
     }
     return error;
 }
@@ -155,15 +157,16 @@ GError* tgenoptionparser_parsePeerList(const gchar* attributeName,
             TGenOptionPeer peerOpt;
             error = tgenoptionparser_parsePeer(attributeName, tokens[i], &peerOpt);
 
-            if (!error && peerOpt && peerOpt->isSet) {
+            if (!error && peerOpt.isSet) {
                 if(!peerPool) {
-                    peerPool = tgenpool_new(tgenpeer_unref);
+                    peerPool = tgenpool_new((GDestroyNotify)tgenpeer_unref);
                 }
-                tgenpool_add(peerPool, peerOpt->value);
+                tgenpool_add(peerPool, peerOpt.value);
+                isSet = TRUE;
             } else {
-                if(peerOpt->value) {
+                if(peerOpt.value) {
                     /* didn't add the peer */
-                    tgenpeer_unref(peerOpt->value);
+                    tgenpeer_unref(peerOpt.value);
                 }
                 if (error) {
                     /* some validation error */
@@ -175,9 +178,8 @@ GError* tgenoptionparser_parsePeerList(const gchar* attributeName,
         g_strfreev(tokens);
     }
 
-    if(!error) {
-        isSet = TRUE;
-    } else {
+    if(error) {
+        isSet = FALSE;
         if(peerPool) {
             tgenpool_unref(peerPool);
         }

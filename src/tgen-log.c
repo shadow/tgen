@@ -6,12 +6,10 @@
 
 #include <glib.h>
 
+#include "tgen-log.h"
+
 /* store a global pointer to the log filter */
 GLogLevelFlags tgenLogFilterLevel = G_LOG_LEVEL_MESSAGE;
-
-void tgenlog_setLogFilterLevel(GLogLevelFlags level) {
-    tgenLogFilterLevel = level;
-}
 
 static const gchar* _tgenlog_logLevelToString(GLogLevelFlags logLevel) {
     switch (logLevel) {
@@ -29,6 +27,15 @@ static const gchar* _tgenlog_logLevelToString(GLogLevelFlags logLevel) {
             return "debug";
         default:
             return "default";
+    }
+}
+
+void tgenlog_setLogFilterLevel(GLogLevelFlags level) {
+    GLogLevelFlags oldLevel = tgenLogFilterLevel;
+    if(oldLevel != level) {
+        tgenLogFilterLevel = level;
+        tgen_message("Changed log level filter from '%s' to '%s'",
+                _tgenlog_logLevelToString(oldLevel), _tgenlog_logLevelToString(level));
     }
 }
 
