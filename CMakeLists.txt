@@ -2,6 +2,11 @@
 project(tgen C)
 cmake_minimum_required(VERSION 2.8.12 FATAL_ERROR)
 
+## configure the default build type
+if(NOT CMAKE_BUILD_TYPE)
+	set(CMAKE_BUILD_TYPE "Release")
+endif()
+
 ## dependencies
 set(CMAKE_MODULE_PATH "${CMAKE_SOURCE_DIR}/cmake/" ${CMAKE_MODULE_PATH})
 find_package(RT REQUIRED)
@@ -12,11 +17,17 @@ find_package(GLIB REQUIRED)
 include_directories(AFTER src/ ${RT_INCLUDES} ${M_INCLUDES} ${GLIB_INCLUDES} ${IGRAPH_INCLUDES})
 
 ## build as position-independent so it can run in Shadow
+add_compile_options(-std=gnu11 -fPIC -fno-omit-frame-pointer -ggdb)
 add_definitions(-D_GNU_SOURCE)
-add_compile_options(-O2 -ggdb -fno-omit-frame-pointer -fPIC -std=gnu11)
 
-## CFLAGS status update
-message(STATUS "CMAKE_C_FLAGS = ${CMAKE_C_FLAGS}")
+## build type specific options
+if(CMAKE_BUILD_TYPE MATCHES "Release")
+	add_compile_options(-O3)
+	add_definitions(-DNDEBUG)
+else()
+	add_compile_options(-O0)
+	add_definitions(-DDEBUG)
+endif()
 
 set(tgen_sources
     src/tgen-config.c
@@ -51,3 +62,7 @@ set_target_properties(tgen PROPERTIES
 target_link_libraries(tgen ${RT_LIBRARIES} ${M_LIBRARIES} ${IGRAPH_LIBRARIES} ${GLIB_LIBRARIES})
 install(TARGETS tgen DESTINATION bin)
 
+## print a status update
+message(STATUS "CMAKE_BUILD_TYPE = ${CMAKE_BUILD_TYPE}")
+get_target_property(FLAGS tgen COMPILE_OPTIONS)
+message(STATUS "COMPILE_OPTIONS = ${FLAGS}")
