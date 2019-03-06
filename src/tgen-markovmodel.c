@@ -997,6 +997,7 @@ static Observation _tgenmarkovmodel_vertexToObservation(TGenMarkovModel* mmodel,
     }
 }
 
+/* the returned delay is in microseconds */
 Observation tgenmarkovmodel_getNextObservation(TGenMarkovModel* mmodel, guint64* delay) {
     TGEN_MMODEL_ASSERT(mmodel);
 
@@ -1066,6 +1067,11 @@ void tgenmarkovmodel_reset(TGenMarkovModel* mmodel) {
 
     mmodel->foundEndState = FALSE;
     mmodel->currentStateVertexIndex = mmodel->startVertexIndex;
+}
+
+gboolean tgenmarkovmodel_isInEndState(TGenMarkovModel* mmodel) {
+    TGEN_MMODEL_ASSERT(mmodel);
+    return mmodel->foundEndState;
 }
 
 guint32 tgenmarkovmodel_getSeed(TGenMarkovModel* mmodel) {

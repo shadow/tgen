@@ -6,10 +6,10 @@
 
 #include "tgen.h"
 
-/* 60 seconds default timeout */
-#define DEFAULT_XFER_TIMEOUT_NSEC (60*((guint64)1000*1000*1000))
-/* 15 second default stallout */
-#define DEFAULT_XFER_STALLOUT_NSEC (15*((guint64)1000*1000*1000))
+/* disable default timeout */
+#define DEFAULT_XFER_TIMEOUT_NSEC (0*((guint64)1000*1000*1000))
+/* 60 second default stallout */
+#define DEFAULT_XFER_STALLOUT_NSEC (60*((guint64)1000*1000*1000))
 
 /* default lengths for buffers used during i/o.
  * the read buffer is temporary and stack-allocated.
@@ -779,7 +779,6 @@ static gboolean _tgentransfer_readPayload(TGenTransfer* transfer) {
     }
 
     transfer->recv.payloadBytes += bytes;
-    transfer->recv.totalBytes += bytes;
     g_checksum_update(transfer->recv.checksum, buffer, bytes);
 
     /* valid end state for transfers where we know the payload size */
@@ -825,7 +824,7 @@ static gboolean _tgentransfer_readChecksum(TGenTransfer* transfer) {
 
     /* check that the sums match */
     if(receivedSum && matched) {
-        tgen_message("transport %s transfer %s MD5 checksums passed: computed=%s received=%s",
+        tgen_info("transport %s transfer %s MD5 checksums passed: computed=%s received=%s",
                 tgentransport_toString(transfer->transport), _tgentransfer_toString(transfer),
                 computedSum, receivedSum);
         isSuccess = TRUE;
@@ -915,6 +914,7 @@ static GString* _tgentransfer_getRandomString(gsize size) {
     /* fill the buffer. this was more efficient than malloc/memset and then g_string_new  */
     GString* buffer = g_string_new_len(NULL, (gssize)size);
     for(gsize i = 0; i < size; i++) {
+        /* this is an inline function so it's fast */
         g_string_append_c(buffer, c);
     }
     return buffer;
@@ -1053,69 +1053,101 @@ static gboolean _tgentransfer_writeResponse(TGenTransfer* transfer) {
 static gboolean _tgentransfer_writePayload(TGenTransfer* transfer) {
     TGEN_ASSERT(transfer);
 
-    transfer->send.buffer = _tgentransfer_getRandomString(1000000);
+    if(!transfer->mmodel) {
+        tgen_info("Trying to write payload but we have no Markov model");
+        _tgentransfer_changeSendState(transfer, TGEN_XFER_SEND_ERROR);
+        _tgentransfer_changeError(transfer, TGEN_XFER_ERR_MODEL);
+        return FALSE;
+    }
 
-    g_checksum_update(transfer->send.checksum, (guchar*)transfer->send.buffer->str,
-            (gssize)transfer->send.buffer->len);
-
+    /* try to flush any leftover bytes */
     transfer->send.payloadBytes += _tgentransfer_flushOut(transfer);
 
-    return TRUE;
+    if (transfer->send.buffer) {
+        /* still need to write it next time */
+        return FALSE;
+    }
 
-//    while(cumulativeDelay <= TGEN_MMODEL_MICROS_AT_ONCE) {
-//        amountToWrite += (gsize)TGEN_MMODEL_PACKET_DATA_SIZE;
-//
-//    gboolean firstByte = transfer->bytes.payloadWrite == 0 ? TRUE : FALSE;
-//
-//    /* try to flush any leftover bytes */
-//    transfer->bytes.payloadWrite += _tgentransfer_flushOut(transfer);
-//
-//    /* we only run through the write loop once in order to give other sockets a chance for i/o */
-//    if (!transfer->writeBuffer) {
-//        gsize length;
-//        if (transfer->type == TGEN_TYPE_PUT) {
-//            length = MIN(DEFAULT_XFER_WRITE_BUFLEN, (transfer->size - transfer->bytes.payloadWrite));
-//        } else {
-//            length = MIN(DEFAULT_XFER_WRITE_BUFLEN, (transfer->getput->ourSize - transfer->bytes.payloadWrite));
-//        }
-//
-//        if(length > 0) {
-//            /* we need to send more payload */
-//            transfer->writeBuffer = _tgentransfer_getRandomString(length);
-//            if (transfer->type == TGEN_TYPE_PUT) {
-//                g_checksum_update(transfer->payloadChecksum, (guchar*)transfer->writeBuffer->str,
-//                        (gssize)transfer->writeBuffer->len);
-//            } else if (transfer->type == TGEN_TYPE_GETPUT) {
-//                g_checksum_update(transfer->getput->ourPayloadChecksum,
-//                        (guchar*)transfer->writeBuffer->str,
-//                        (gssize)transfer->writeBuffer->len);
-//            } else {
-//                g_assert_not_reached();
-//            }
-//
-//            transfer->bytes.payloadWrite += _tgentransfer_flushOut(transfer);
-//
-//            if(firstByte && transfer->bytes.payloadWrite > 0) {
-//                firstByte = FALSE;
-//                transfer->time.firstPayloadByte = g_get_monotonic_time();
-//            }
-//        } else {
-//            if (transfer->type == TGEN_TYPE_PUT) {
-//                /* payload done, send the checksum next */
-//                _tgentransfer_changeState(transfer, TGEN_XFER_CHECKSUM);
-//                transfer->time.lastPayloadByte = g_get_monotonic_time();
-//            } else if (transfer->type == TGEN_TYPE_GETPUT) {
-//                transfer->getput->doneWritingPayload = TRUE;
-//                if (transfer->getput->doneReadingPayload) {
-//                    _tgentransfer_changeState(transfer, TGEN_XFER_CHECKSUM);
-//                    transfer->time.lastPayloadByte = g_get_monotonic_time();
-//                    transfer->events |= TGEN_EVENT_READ;
-//                }
-//            } else {
-//                g_assert_not_reached();
-//            }
-//        }
-//    }
+    /* we are done if we sent the total requested bytes or have no requested
+     * bytes but reached the end of the model */
+    if(transfer->send.requestedBytes > 0) {
+        if(transfer->send.payloadBytes >= transfer->send.requestedBytes) {
+            return TRUE;
+        }
+    } else {
+        if(tgenmarkovmodel_isInEndState(transfer->mmodel)) {
+            return TRUE;
+        }
+    }
+
+    /* we limit our write buffer size in order to give other sockets a chance for i/o */
+    gsize limit = DEFAULT_XFER_WRITE_BUFLEN;
+    if(transfer->send.requestedBytes > 0) {
+        g_assert(transfer->send.requestedBytes >= transfer->send.payloadBytes);
+        gsize remaining = transfer->send.requestedBytes - transfer->send.payloadBytes;
+        limit = MIN(remaining, DEFAULT_XFER_WRITE_BUFLEN);
+    }
+
+    gsize cumulativeSize = 0;
+    gsize cumulativeDelay = 0;
+    gsize interPacketDelay = 0;
+
+    while(TRUE) {
+        guint64 obsDelay = 0;
+        Observation obs = tgenmarkovmodel_getNextObservation(transfer->mmodel, &obsDelay);
+
+        if((transfer->isCommander && obs == OBSERVATION_PACKET_TO_ORIGIN)
+                || (!transfer->isCommander && obs == OBSERVATION_PACKET_TO_SERVER)) {
+            /* the other end is sending us a packet, we have nothing to do.
+             * but this delay should be included in the delay for our next outgoing packet. */
+            interPacketDelay += (gsize)obsDelay;
+            cumulativeDelay += (gsize)obsDelay;
+        } else if((transfer->isCommander && obs == OBSERVATION_PACKET_TO_SERVER)
+                || (!transfer->isCommander && obs == OBSERVATION_PACKET_TO_ORIGIN)) {
+            /* this means we should send a packet */
+            cumulativeSize += TGEN_MMODEL_PACKET_DATA_SIZE;
+            /* since we sent a packet, now we reset the delay */
+            interPacketDelay = (gsize)obsDelay;
+            cumulativeDelay += (gsize)obsDelay;
+        } else if(obs == OBSERVATION_END) {
+            /* if we have a specific requested send size, we need to reset and keep sending */
+            if(transfer->send.requestedBytes > 0) {
+                tgenmarkovmodel_reset(transfer->mmodel);
+            } else {
+                /* the model reached the end and we should stop sending */
+                break;
+            }
+        } else {
+            /* we should not be getting other observation types in a stream model */
+            tgen_info("Got a non-packet model observation from the Markov model");
+            _tgentransfer_changeSendState(transfer, TGEN_XFER_SEND_ERROR);
+            _tgentransfer_changeError(transfer, TGEN_XFER_ERR_MODEL);
+            return FALSE;
+        }
+
+        if(interPacketDelay > TGEN_MMODEL_MICROS_AT_ONCE) {
+            /* TODO we need to actually insert a pause here */
+            break;
+        }
+
+        if(cumulativeSize >= limit) {
+            break;
+        }
+    }
+
+    gsize newBufLen = MIN(limit, cumulativeSize);
+    if(newBufLen > 0) {
+        transfer->send.buffer = _tgentransfer_getRandomString(newBufLen);
+
+        g_checksum_update(transfer->send.checksum, (guchar*)transfer->send.buffer->str,
+                (gssize)transfer->send.buffer->len);
+
+        transfer->send.payloadBytes += _tgentransfer_flushOut(transfer);
+    }
+
+    /* return false so we stay in the payload state so we can flush and
+     * double check the end conditions again. */
+    return FALSE;
 }
 
 static gboolean _tgentransfer_writeChecksum(TGenTransfer* transfer) {
@@ -1298,6 +1330,7 @@ static void _tgentransfer_log(TGenTransfer* transfer, gboolean wasActive) {
         if(wasActive) {
             gchar* bytesMessage = _tgentransfer_getBytesStatusReport(transfer);
 
+            /* TODO should this be logged at debug? */
             tgen_info("[transfer-status] transport %s transfer %s %s",
                     tgentransport_toString(transfer->transport),
                     _tgentransfer_toString(transfer), bytesMessage);
@@ -1433,7 +1466,8 @@ gboolean tgentransfer_onCheckTimeout(TGenTransfer* transfer, gint descriptor) {
     gboolean transferStalled = (madeSomeProgress && (now >= stalloutCutoff)) ? TRUE : FALSE;
     gboolean transferTookTooLong = (now >= timeoutCutoff) ? TRUE : FALSE;
 
-    if(transferStalled || transferTookTooLong) {
+    if((transfer->stalloutUSecs > 0 && transferStalled) ||
+            (transfer->timeoutUSecs > 0 && transferTookTooLong)) {
         /* if the recv side is in a non-terminal state, change it to error */
         if(transfer->recv.state != TGEN_XFER_RECV_SUCCESS &&
                 transfer->recv.state != TGEN_XFER_RECV_ERROR) {
