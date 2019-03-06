@@ -4,7 +4,7 @@
   <graph edgedefault="directed">
     <node id="start">
       <data key="d0">30080</data>
-      <data key="d1">debug</data>
+      <data key="d1">message</data>
     </node>
   </graph>
 </graphml>

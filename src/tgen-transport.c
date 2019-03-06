@@ -323,8 +323,13 @@ static void _tgentransport_free(TGenTransport* transport) {
     TGEN_ASSERT(transport);
 
     if(transport->socketD > 0) {
-        tgen_info("closing transport socket for fd %i", transport->socketD);
-        close(transport->socketD);
+        if(transport->error == TGEN_XPORT_ERR_NONE) {
+            tgen_info("Calling shutdown() on transport %s", tgentransport_toString(transport));
+            shutdown(transport->socketD, SHUT_RDWR);
+        } else {
+            tgen_info("Calling close() on transport %s", tgentransport_toString(transport));
+            close(transport->socketD);
+        }
     }
 
     if(transport->string) {

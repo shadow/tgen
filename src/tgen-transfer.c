@@ -360,47 +360,57 @@ static void _tgentransfer_changeError(TGenTransfer* transfer, TGenTransferErrorT
     _tgentransfer_resetString(transfer);
 }
 
+static gssize _tgentransfer_readBuffered(TGenTransfer* transfer, guchar* buffer, gsize limit) {
+    TGEN_ASSERT(transfer);
+    g_assert(transfer->recv.buffer);
+    g_assert(transfer->recv.buffer->len > 0);
+
+    tgen_debug("Trying to read %"G_GSIZE_FORMAT" bytes, we already have %"G_GSIZE_FORMAT
+            " in the read buffer", limit, transfer->recv.buffer->len);
+
+    /* we need to drain the recv buffer first */
+    if(transfer->recv.buffer->len <= limit) {
+        /* take all of the recv buffer */
+        gsize amount = transfer->recv.buffer->len;
+        g_memmove(buffer, transfer->recv.buffer->str, amount);
+
+        /* don't need the recv buffer any more */
+        g_string_free(transfer->recv.buffer, TRUE);
+        transfer->recv.buffer = NULL;
+
+        /* their buffer might be larger than what they need, so return what we have */
+        return (gssize) amount;
+    } else {
+        /* we already have more buffered than the caller wants */
+        g_memmove(buffer, transfer->recv.buffer->str, limit);
+
+        /* we want to keep the remaining bytes that we did not return */
+        GString* newBuffer = g_string_new(&transfer->recv.buffer->str[limit]);
+
+        /* replace the read buffer */
+        g_string_free(transfer->recv.buffer, TRUE);
+        transfer->recv.buffer = newBuffer;
+
+        /* we read everything they wanted, don't try to read more */
+        return (gssize) limit;
+    }
+}
+
 static gssize _tgentransfer_read(TGenTransfer* transfer, guchar* buffer, gsize limit) {
     TGEN_ASSERT(transfer);
     g_assert(buffer);
     g_assert(limit > 0);
 
-    gsize offset = 0;
-
     /* if there is anything left over in the recv buffer, use that first */
-    if(transfer->recv.buffer && transfer->recv.buffer->len > 0) {
-        /* we need to drain the recv buffer first */
-        if(transfer->recv.buffer->len <= limit) {
-            /* take all of it */
-            g_memmove(buffer, transfer->recv.buffer->str, transfer->recv.buffer->len);
-
-            /* we might be able to read more */
-            offset = transfer->recv.buffer->len;
-
-            /* don't need the recv buffer any more */
-            g_string_free(transfer->recv.buffer, TRUE);
-            transfer->recv.buffer = NULL;
-        } else {
-            /* we already have more buffered than the caller wants */
-            g_memmove(buffer, transfer->recv.buffer->str, limit);
-
-            /* we want to keep the remaining bytes that we did not return */
-            GString* newBuffer = g_string_new(&transfer->recv.buffer->str[limit]);
-
-            /* replace the read buffer */
-            g_string_free(transfer->recv.buffer, TRUE);
-            transfer->recv.buffer = newBuffer;
-
-            /* we read everything they wanted, don't try to read more */
-            return (gssize) limit;
-        }
+    if(transfer->recv.buffer) {
+        return _tgentransfer_readBuffered(transfer, buffer, limit);
     }
 
     /* by now the recv buffer should be empty */
     g_assert(transfer->recv.buffer == NULL);
 
     /* get more bytes from the transport */
-    gssize bytes = tgentransport_read(transfer->transport, &(buffer[offset]), limit-offset);
+    gssize bytes = tgentransport_read(transfer->transport, &(buffer[0]), limit);
 
     /* check for errors and EOF */
     if(bytes < 0 && errno != EAGAIN && errno != EWOULDBLOCK) {
@@ -436,6 +446,8 @@ static GString* _tgentransfer_getLine(TGenTransfer* transfer) {
 
     /* if there was an error, just return */
     if(bytes <= 0) {
+        tgen_debug("Read returned %"G_GSSIZE_FORMAT" when reading a line: error %i: %s",
+                bytes, errno, g_strerror(errno));
         return NULL;
     }
 
@@ -463,6 +475,9 @@ static GString* _tgentransfer_getLine(TGenTransfer* transfer) {
             break;
         }
     }
+
+    tgen_debug("%s newline in %"G_GSSIZE_FORMAT" bytes",
+            foundNewline ? "Found" : "Did not find", bytes);
 
     /* if we didn't find the newline yet, then we need to keep everything */
     if(!foundNewline) {
@@ -983,7 +998,7 @@ static gboolean _tgentransfer_writeCommand(TGenTransfer* transfer) {
                 " MODEL_SIZE=%"G_GSIZE_FORMAT, modelGraphml->len);
 
         /* close off the tagged data with a newline */
-        g_string_append_printf(transfer->send.buffer, "\n");
+        g_string_append_c(transfer->send.buffer, '\n');
 
         /* then we write the graphml string of the specified size */
         g_string_append_printf(transfer->send.buffer, "%s", modelGraphml->str);
@@ -1018,6 +1033,9 @@ static gboolean _tgentransfer_writeResponse(TGenTransfer* transfer) {
                 " HOSTNAME=%s", transfer->hostname);
         g_string_append_printf(transfer->send.buffer,
                 " TRANSFER_COUNT=%"G_GSIZE_FORMAT, transfer->count);
+
+        /* close off the tagged data with a newline */
+        g_string_append_c(transfer->send.buffer, '\n');
     }
 
     _tgentransfer_flushOut(transfer);
@@ -1035,14 +1053,12 @@ static gboolean _tgentransfer_writeResponse(TGenTransfer* transfer) {
 static gboolean _tgentransfer_writePayload(TGenTransfer* transfer) {
     TGEN_ASSERT(transfer);
 
-    transfer->send.buffer = _tgentransfer_getRandomString(1);
+    transfer->send.buffer = _tgentransfer_getRandomString(1000000);
 
     g_checksum_update(transfer->send.checksum, (guchar*)transfer->send.buffer->str,
             (gssize)transfer->send.buffer->len);
 
     transfer->send.payloadBytes += _tgentransfer_flushOut(transfer);
-
-    _tgentransfer_changeSendState(transfer, TGEN_XFER_SEND_CHECKSUM);
 
     return TRUE;
 
@@ -1108,8 +1124,9 @@ static gboolean _tgentransfer_writeChecksum(TGenTransfer* transfer) {
     /* buffer the checksum if we have not done that yet */
     if(!transfer->send.buffer) {
         transfer->send.buffer = g_string_new(NULL);
-        g_string_printf(transfer->send.buffer, "MD5 %s\n",
+        g_string_printf(transfer->send.buffer, "MD5 %s",
                 g_checksum_get_string(transfer->send.checksum));
+        g_string_append_c(transfer->send.buffer, '\n');
         tgen_debug("Sending checksum %s", transfer->send.buffer->str);
     }
 
@@ -1326,8 +1343,9 @@ static TGenEvent _tgentransfer_computeWantedEvents(TGenTransfer* transfer) {
     gboolean sendDone = (transfer->send.state == TGEN_XFER_SEND_SUCCESS ||
             transfer->send.state == TGEN_XFER_SEND_ERROR) ? TRUE : FALSE;
 
-    /* the transfer is done if both sending and receiving is done */
-    if(recvDone && sendDone) {
+    /* the transfer is done if both sending and receiving states are done,
+     * and we have flushed our entire send buffer */
+    if(recvDone && sendDone && transfer->send.buffer == NULL) {
         wantedEvents |= TGEN_EVENT_DONE;
     } else {
         if(!recvDone && transfer->recv.state != TGEN_XFER_RECV_NONE) {
