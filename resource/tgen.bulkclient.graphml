@@ -7,14 +7,14 @@
   <graph edgedefault="directed">
     <node id="start">
       <data key="d0">localhost:30080</data>
-      <data key="d1">info</data>
+      <data key="d1">message</data>
     </node>
     <node id="stream">
-      <data key="d4">1</data>
-      <data key="d3">1</data>
+      <data key="d4">1000000</data>
+      <data key="d3">1000000</data>
     </node>
     <node id="end">
-      <data key="d5">10</data>
+      <data key="d5">1</data>
     </node>
     <edge source="start" target="stream" />
     <edge source="stream" target="end" />
