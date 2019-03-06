@@ -32,8 +32,23 @@ static gint _tgenserver_acceptPeer(TGenServer* server) {
     gint peerSocketD = accept(server->socketD, (struct sockaddr*)&peerAddress, &addressLength);
 
     if(peerSocketD >= 0) {
-        /* make sure the socket is in nonblocking mode */
-        int status = fcntl(peerSocketD, F_SETFL, fcntl(peerSocketD, F_GETFL, 0) | O_NONBLOCK);
+        /* make sure the socket is in nonblocking mode, otherwise a single peer could
+         * block a server from processing other peers. */
+        gint flags = fcntl(peerSocketD, F_GETFL, 0);
+        if(flags < 0) {
+            /* log the error, and then assume no flags were present */
+            tgen_warning("Error in fcntl(F_GETFL) on socket %i (accepted from socket %i): "
+                    "error %i: %s", peerSocketD, server->socketD, errno, g_strerror(errno));
+            flags = 0;
+        }
+
+        /* make it nonblocking */
+        flags = fcntl(peerSocketD, F_SETFL, flags | O_NONBLOCK);
+        if(flags < 0) {
+            /* log, but proceed anyway with the socket still in blocking mode */
+            tgen_warning("Error in fcntl(F_SETFL) on socket %i (accepted from socket %i): "
+                    "error %i: %s", peerSocketD, server->socketD, errno, g_strerror(errno));
+        }
 
         gint64 created = g_get_monotonic_time();
         if(server->notify) {
