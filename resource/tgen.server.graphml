@@ -1,10 +1,12 @@
 <graphml xmlns="http://graphml.graphdrawing.org/xmlns" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://graphml.graphdrawing.org/xmlns http://graphml.graphdrawing.org/xmlns/1.0/graphml.xsd">
   <key attr.name="serverport" attr.type="string" for="node" id="d0" />
   <key attr.name="loglevel" attr.type="string" for="node" id="d1" />
+  <key attr.name="timeout" attr.type="string" for="node" id="d2" />
   <graph edgedefault="directed">
     <node id="start">
       <data key="d0">30080</data>
       <data key="d1">message</data>
+      <data key="d2">1 hour</data>
     </node>
   </graph>
 </graphml>
