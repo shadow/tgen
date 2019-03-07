@@ -13,7 +13,7 @@ typedef enum {
     TGEN_XPORT_PROXY_REQUEST, TGEN_XPORT_PROXY_RESPONSEA,
     TGEN_XPORT_PROXY_RESPONSEB, TGEN_XPORT_PROXY_RESPONSEC,
     TGEN_XPORT_PROXY_RESPONSED, TGEN_XPORT_PROXY_RESPONSEE,
-    TGEN_XPORT_SUCCESS, TGEN_XPORT_ERROR
+    TGEN_XPORT_SUCCESSEOF, TGEN_XPORT_SUCCESSOPEN, TGEN_XPORT_ERROR
 } TGenTransportState;
 
 typedef enum {
@@ -97,8 +97,11 @@ static const gchar* _tgentransport_stateToString(TGenTransportState state) {
         case TGEN_XPORT_PROXY_RESPONSEE: {
             return "RESPONSEE";
         }
-        case TGEN_XPORT_SUCCESS: {
-            return "SUCCESS";
+        case TGEN_XPORT_SUCCESSOPEN: {
+            return "SUCCESSOPEN";
+        }
+        case TGEN_XPORT_SUCCESSEOF: {
+            return "SUCCESSEOF";
         }
         case TGEN_XPORT_ERROR:
         default: {
@@ -381,18 +384,27 @@ void tgentransport_unref(TGenTransport* transport) {
     }
 }
 
+void tgentransport_shutdownWrites(TGenTransport* transport) {
+    TGEN_ASSERT(transport);
+    if(transport->socketD > 0) {
+        shutdown(transport->socketD, SHUT_WR);
+    }
+}
+
 gssize tgentransport_write(TGenTransport* transport, gpointer buffer, gsize length) {
     TGEN_ASSERT(transport);
 
     gssize bytes = write(transport->socketD, buffer, length);
 
     if(bytes < 0 && errno != EAGAIN && errno != EWOULDBLOCK) {
-        tgen_info("write(): write to socket %i returned %"G_GSSIZE_FORMAT" error %i: %s",
-                        transport->socketD, bytes, errno, g_strerror(errno));
+        tgen_info("%s write(): write to socket %i returned %"G_GSSIZE_FORMAT" error %i: %s",
+                tgentransport_toString(transport),
+                transport->socketD, bytes, errno, g_strerror(errno));
         _tgentransport_changeState(transport, TGEN_XPORT_ERROR);
         _tgentransport_changeError(transport, TGEN_XPORT_ERR_WRITE);
     } else if(bytes == 0) {
-        tgen_info("write(): socket %i closed unexpectedly", transport->socketD);
+        tgen_info("%s write(): socket %i closed unexpectedly",
+                tgentransport_toString(transport), transport->socketD);
         _tgentransport_changeState(transport, TGEN_XPORT_ERROR);
         _tgentransport_changeError(transport, TGEN_XPORT_ERR_WRITE);
     }
@@ -410,14 +422,20 @@ gssize tgentransport_read(TGenTransport* transport, gpointer buffer, gsize lengt
     gssize bytes = read(transport->socketD, buffer, length);
 
     if(bytes < 0 && errno != EAGAIN && errno != EWOULDBLOCK) {
-        tgen_info("read(): read from socket %i returned %"G_GSSIZE_FORMAT" error %i: %s",
-                        transport->socketD, bytes, errno, g_strerror(errno));
+        tgen_info("%s read(): read from socket %i returned %"G_GSSIZE_FORMAT" error %i: %s",
+                tgentransport_toString(transport),
+                transport->socketD, bytes, errno, g_strerror(errno));
         _tgentransport_changeState(transport, TGEN_XPORT_ERROR);
         _tgentransport_changeError(transport, TGEN_XPORT_ERR_READ);
     } else if(bytes == 0) {
-        tgen_info("read(): socket %i closed unexpectedly", transport->socketD);
-        _tgentransport_changeState(transport, TGEN_XPORT_ERROR);
-        _tgentransport_changeError(transport, TGEN_XPORT_ERR_READ);
+        tgen_info("%s read(): read eof on socket %i",
+                tgentransport_toString(transport), transport->socketD);
+        if(transport->state == TGEN_XPORT_SUCCESSOPEN) {
+            _tgentransport_changeState(transport, TGEN_XPORT_SUCCESSEOF);
+        } else {
+            _tgentransport_changeState(transport, TGEN_XPORT_ERROR);
+            _tgentransport_changeError(transport, TGEN_XPORT_ERR_READ);
+        }
     }
 
     if(bytes > 0 && transport->notify) {
@@ -462,7 +480,8 @@ gchar* tgentransport_getTimeStatusReport(TGenTransport* transport) {
 
 gboolean tgentransport_wantsEvents(TGenTransport* transport) {
     TGEN_ASSERT(transport);
-    if(transport->state != TGEN_XPORT_SUCCESS && transport->state != TGEN_XPORT_ERROR) {
+    if(transport->state != TGEN_XPORT_SUCCESSOPEN &&
+            transport->state != TGEN_XPORT_SUCCESSEOF && transport->state != TGEN_XPORT_ERROR) {
         return TRUE;
     }
     return FALSE;
@@ -856,7 +875,7 @@ static TGenEvent _tgentransport_receiveSocksResponseE(TGenTransport* transport) 
                     tgenpeer_toString(transport->local), tgenpeer_toString(transport->proxy), tgenpeer_toString(transport->remote));
 
             transport->time.proxyResponse = g_get_monotonic_time();
-            _tgentransport_changeState(transport, TGEN_XPORT_SUCCESS);
+            _tgentransport_changeState(transport, TGEN_XPORT_SUCCESSOPEN);
             return TGEN_EVENT_DONE;
         } else {
             tgen_warning("connection from %s through socks proxy %s to %s failed: "
@@ -914,7 +933,7 @@ static TGenEvent _tgentransport_receiveSocksResponseC(TGenTransport* transport) 
             tgen_info("connection from %s through socks proxy %s to %s successful",
                     tgenpeer_toString(transport->local), tgenpeer_toString(transport->proxy), tgenpeer_toString(transport->remote));
 
-            _tgentransport_changeState(transport, TGEN_XPORT_SUCCESS);
+            _tgentransport_changeState(transport, TGEN_XPORT_SUCCESSOPEN);
             return TGEN_EVENT_DONE;
         } else {
             tgen_warning("connection from %s through socks proxy %s to %s failed: "
@@ -1093,7 +1112,7 @@ TGenEvent tgentransport_onEvent(TGenTransport* transport, TGenEvent events) {
                 return tgentransport_onEvent(transport, events);
             } else {
                 /* no proxy, this is a direct connection, we are all done */
-                _tgentransport_changeState(transport, TGEN_XPORT_SUCCESS);
+                _tgentransport_changeState(transport, TGEN_XPORT_SUCCESSOPEN);
                 return TGEN_EVENT_DONE;
             }
         }
@@ -1179,7 +1198,8 @@ TGenEvent tgentransport_onEvent(TGenTransport* transport, TGenEvent events) {
         }
     }
 
-    case TGEN_XPORT_SUCCESS: {
+    case TGEN_XPORT_SUCCESSEOF:
+    case TGEN_XPORT_SUCCESSOPEN: {
         return TGEN_EVENT_DONE;
     }
 

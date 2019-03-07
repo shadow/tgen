@@ -22,6 +22,8 @@ void tgentransport_unref(TGenTransport* transport);
 gssize tgentransport_write(TGenTransport* transport, gpointer buffer, gsize length);
 gssize tgentransport_read(TGenTransport* transport, gpointer buffer, gsize length);
 
+void tgentransport_shutdownWrites(TGenTransport* transport);
+
 gint tgentransport_getDescriptor(TGenTransport* transport);
 const gchar* tgentransport_toString(TGenTransport* transport);
 gchar* tgentransport_getTimeStatusReport(TGenTransport* transport);
