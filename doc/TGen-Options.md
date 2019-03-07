@@ -5,17 +5,18 @@ In [doc/TGen-Overview.md](TGen-Overview.md) we provided an overview how we use a
 All attributes are currently stored as strings in graphml. When we specify the attributes, we use the following shorthand to describe the value formats:
 
   + peer: \<ip\>:\<port\>  
-  e.g., 127.0.0.1:9050 or 192.168.1.100:8080
+    e.g., 127.0.0.1:9050 or 192.168.1.100:8080
   + size: \<integer\> \<suffix\>  
-  e.g., "5 suffix" ("5" defaults to "5 bytes") where suffix is case in-sensitive and one of: kb, mb, gb, tb, kib, mib, gib, tib
+    e.g., "5 suffix" ("5" defaults to "5 bytes") where suffix is case in-sensitive and one of:  
+    kb, mb, gb, tb, kib, mib, gib, tib
   + time: \<integer\> \<suffix\>  
-  e.g., "60 suffix" ("60" defaults to "60 seconds") where suffix is case in-sensitive and one of:  
-nanosecond, nanoseconds, nsec, nsecs, ns,  
-microsecond, microseconds, usec, usecs, us,  
-millisecond, milliseconds, msec, msecs, ms,  
-second, seconds, sec, secs, s,  
-minute, minutes, min, mins, m,  
-hour, hours, hr, hrs, h
+    e.g., "60 suffix" ("60" defaults to "60 seconds") where suffix is case in-sensitive and one of:  
+    nanosecond, nanoseconds, nsec, nsecs, ns,  
+    microsecond, microseconds, usec, usecs, us,  
+    millisecond, milliseconds, msec, msecs, ms,  
+    second, seconds, sec, secs, s,  
+    minute, minutes, min, mins, m,  
+    hour, hours, hr, hrs, h
 
 ## Start options
 
@@ -23,7 +24,7 @@ Acceptable attributes for the **start** action:
 
 | Name   | Format | Example | Description |
 |--------|--------|---------|-------------|
-| _serverport_ | \<integer\> | 8080 | **Required:** the local port that will be opened to listen for other tgen connections. This is **required** if your tgen instance should act as a server. |
+| _serverport_ | \<integer\> | 8080 | The local port that will be opened to listen for other tgen connections. Set this value if your tgen instance should act as a server for other tgen client requests. |
 | _time_ | \<time\> | 1&nbsp;second | The time that tgen should delay before starting a walk through the action graph. If not given, tgen will start immediately upon process initialization. |
 | _heartbeat_ | \<time\> | 1&nbsp;second | The time between which heartbeat status messages are logged at 'message' level. The default of 1 second is used if _heartbeat_ is 0 or is not set. |
 | _loglevel_ | \<string\> | info | The level above which tgen log messages will be filtered and not shown or logged. Valid values in increasing order are: 'error', 'critical', 'message', 'info', and 'debug'. The default value if _loglevel_ is not set is 'message'. |
@@ -38,12 +39,12 @@ Acceptable attributes for the **stream** action:
 |--------|--------|---------|-------------|
 | _packetmodelpath_ | \<filepath\> | ~/packets.graphml | The Markov model to use to generate packets. If unspecified, tgen will use a default Markov model that repeatedly generates packets in both directions at a constant rate and with no inter-packet delay. I.e., both the client and server will send as many packets as possible as fast as possible. |
 | _packetmodelseed_ | \<integer\> | 12345 | The seed that will be used to initialize the pseudorandom generator in the packet Markov model. If unspecified, tgen generates a seed using a global pseudorandom generator that was randomly seeded. |
-| _peers_ | \<peer\>,... | 10.0.0.1,... | **Required:** a comma-separated list of peers to use for this **stream**. The _peers_ attribute is **required** unless a _peers_ attribute is specified in the **start** action. A peer will be selected at random from this list, or at random from the **start** action list if this attribute is not specified for a **stream**. |
+| _peers_ | \<peer\>,... | 10.0.0.1,... | **Required:** a comma-separated list of peers to use for this **stream**. The _peers_ attribute is **required** unless a _peers_ attribute is specified in the **start** action. A peer will be selected at random from this list, or at random from the **start** action list if this attribute is not specified. |
 | _socksproxy_ | \<peer\> | 127.0.0.1:9050 | A peer to use as a proxy server through which all connections to other tgen peers will be made. If not given, tgen will connect to the peer directly unless this option is set in the **start** action. |
 | _socksusername_ | \<string\> | myuser | The SOCKS username that we should send to the SOCKS proxy during the SOCKS handshake for for this stream. This option is ignored unless _socksproxy_ is also set in either this **stream** action or in the **start** action. |
 | _sockspassword_ | \<string\> | mypass | The SOCKS password that we should send to the SOCKS proxy during the SOCKS handshake for for this stream. This option is ignored unless _socksproxy_ is also set in either this **stream** action or in the **start** action. |
-| _sendsize_ | \<size\> | 5&nbsp;KiB | The amount of data to send from the client to the server. If not set or set to 0, then the client will continue sending data until it reaches the end state in the Markov model. If set to a positive value, the Markov model will be reset and repeated as necessary until the _sendsize_ is reached. |
-| _recvsize_ | \<size\> | 10&nbsp;MiB | The amount of data to send from the server to the client. If not set or set to 0, then the server will continue sending data until it reaches the end state in the Markov model. If set to a positive value, the Markov model will be reset and repeated as necessary until the _recvsize_ is reached. |
+| _sendsize_ | \<size\> | 5&nbsp;KiB | The amount of data to send from the client to the server. If not set, then the client will continue sending data until it reaches the end state in the Markov model. If set to a positive value, the Markov model will be reset and repeated as necessary until the _sendsize_ is reached. If set to 0, the Markov model will be reset and repeated indefinitely. |
+| _recvsize_ | \<size\> | 10&nbsp;MiB | The amount of data to send from the server to the client. If not set, then the server will continue sending data until it reaches the end state in the Markov model. If set to a positive value, the Markov model will be reset and repeated as necessary until the _recvsize_ is reached. If set to 0, the Markov model will be reset and repeated indefinitely. |
 | _timeout_ | \<time\> | 60&nbsp;seconds | The amount of time since the stream started after which we give up on it. If specified, this stream overrides any _timeout_ attribute that may have been set on the **start** action. If this is set to 0, then an absolute timeout is disabled. If this is not set and is also not set in **start** action, then an absolute timeout is disabled. |
 | _stallout_ | \<time\> | 15&nbsp;seconds | The amount of time since bytes were last sent or received for this stream after which we consider this a stalled stream and give up on it. If specified, this stream overrides any _stallout_ attribute that may have been set on the **start** element. If this is set to 0, then a stallout is disabled. If this is not set and is also not set in **start** action, then an internally defined stallout is used instead (currently 60 seconds). |
 

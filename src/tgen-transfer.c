@@ -108,8 +108,10 @@ struct _TGenTransfer {
         TGenTransferRecvState state;
 
         /* bytes configured or requested by the peer, can be 0 to indicate
-         * that we should stop the first time we reach the model end state */
+         * that we should continue reading until EOF. */
         gsize requestedBytes;
+        /* TRUE if the configuration requested the peer to send indefinitely */
+        gboolean requestedInfinity;
         /* the number of payload bytes we have read */
         gsize payloadBytes;
         /* the total number of bytes we have read */
@@ -131,6 +133,8 @@ struct _TGenTransfer {
         /* bytes configured or requested by the peer, can be 0 to indicate
          * that we should stop the first time we reach the model end state */
         gsize requestedBytes;
+        /* TRUE if the configuration requested us to send indefinitely */
+        gboolean requestedInfinity;
         /* the number of payload bytes we have written */
         gsize payloadBytes;
         /* the total number of bytes we have written */
@@ -601,15 +605,29 @@ static gboolean _tgentransfer_readHeader(TGenTransfer* transfer) {
                 transfer->id = g_strdup(value);
                 parsedKeys |= TGEN_HEADER_FLAG_ID;
             } else if(!g_ascii_strcasecmp(key, "TRANSFER_COUNT")) {
-                transfer->peer.count = (gsize)atoll(value);
+                transfer->peer.count = (gsize)g_ascii_strtoull(value, NULL, 10);
                 parsedKeys |= TGEN_HEADER_FLAG_COUNT;
             } else if(!g_ascii_strcasecmp(key, "SEND_SIZE")) {
                 /* the other side's send size is our recv size */
-                transfer->recv.requestedBytes = (gsize)atoll(value);
+                if(value[0] == '~') {
+                    transfer->recv.requestedBytes = 0;
+                    transfer->recv.requestedInfinity = TRUE;
+                    tgen_warning("Peer requested infinity recv bytes on stream %s",
+                            _tgentransfer_toString(transfer));
+                } else {
+                    transfer->recv.requestedBytes = (gsize)g_ascii_strtoull(value, NULL, 10);
+                }
                 parsedKeys |= TGEN_HEADER_FLAG_SENDSIZE;
             } else if(!g_ascii_strcasecmp(key, "RECV_SIZE")) {
                 /* the other side's recv size is our send size */
-                transfer->send.requestedBytes = (gsize)atoll(value);
+                if(value[0] == '~') {
+                    transfer->send.requestedBytes = 0;
+                    transfer->send.requestedInfinity = TRUE;
+                    tgen_warning("Peer requested infinity send bytes on stream %s",
+                            _tgentransfer_toString(transfer));
+                } else {
+                    transfer->send.requestedBytes = (gsize)g_ascii_strtoull(value, NULL, 10);
+                }
                 parsedKeys |= TGEN_HEADER_FLAG_RECVSIZE;
             } else if(!g_ascii_strcasecmp(key, "MODEL_NAME")) {
                 transfer->peer.modelName = g_strdup(value);
@@ -787,7 +805,12 @@ static gboolean _tgentransfer_readPayload(TGenTransfer* transfer) {
     }
 
     transfer->recv.payloadBytes += bytes;
-    g_checksum_update(transfer->recv.checksum, buffer, bytes);
+
+    /* only track the checksum if we know the final size.
+     * TODO this needs to be updated if we support checksums on general streams. */
+    if(transfer->recv.requestedBytes > 0) {
+        g_checksum_update(transfer->recv.checksum, buffer, bytes);
+    }
 
     /* valid end state for transfers where we know the payload size */
     if(transfer->recv.requestedBytes > 0 &&
@@ -806,7 +829,8 @@ static gboolean _tgentransfer_readChecksum(TGenTransfer* transfer) {
     TGEN_ASSERT(transfer);
 
     if(transfer->recv.requestedBytes == 0) {
-        /* we don't handle checksums if we don't know the total size, so just move on */
+        /* we don't handle checksums if we don't know the total size, so just move on.
+         * TODO this needs to be updated if we support checksums on general streams. */
         tgen_debug("Ignoring checksum on stream with no requested bytes");
         return TRUE;
     }
@@ -995,10 +1019,20 @@ static gboolean _tgentransfer_writeCommand(TGenTransfer* transfer) {
                 " TRANSFER_ID=%s", transfer->id);
         g_string_append_printf(transfer->send.buffer,
                 " TRANSFER_COUNT=%"G_GSIZE_FORMAT, transfer->count);
-        g_string_append_printf(transfer->send.buffer,
-                " SEND_SIZE=%"G_GSIZE_FORMAT, transfer->send.requestedBytes);
-        g_string_append_printf(transfer->send.buffer,
-                " RECV_SIZE=%"G_GSIZE_FORMAT, transfer->recv.requestedBytes);
+        if(transfer->send.requestedInfinity) {
+            g_string_append_printf(transfer->send.buffer,
+                    " SEND_SIZE=~");
+        } else {
+            g_string_append_printf(transfer->send.buffer,
+                    " SEND_SIZE=%"G_GSIZE_FORMAT, transfer->send.requestedBytes);
+        }
+        if(transfer->recv.requestedInfinity) {
+            g_string_append_printf(transfer->send.buffer,
+                    " RECV_SIZE=~");
+        } else {
+            g_string_append_printf(transfer->send.buffer,
+                    " RECV_SIZE=%"G_GSIZE_FORMAT, transfer->recv.requestedBytes);
+        }
         g_string_append_printf(transfer->send.buffer,
                 " MODEL_NAME=%s", tgenmarkovmodel_getName(transfer->mmodel));
         g_string_append_printf(transfer->send.buffer,
@@ -1084,7 +1118,7 @@ static gboolean _tgentransfer_writePayload(TGenTransfer* transfer) {
             return TRUE;
         }
     } else {
-        if(tgenmarkovmodel_isInEndState(transfer->mmodel)) {
+        if(!transfer->send.requestedInfinity && tgenmarkovmodel_isInEndState(transfer->mmodel)) {
             return TRUE;
         }
     }
@@ -1121,8 +1155,8 @@ static gboolean _tgentransfer_writePayload(TGenTransfer* transfer) {
             interPacketDelay = (gsize)obsDelay;
             cumulativeDelay += (gsize)obsDelay;
         } else if(obs == OBSERVATION_END) {
-            /* if we have a specific requested send size, we need to reset and keep sending */
-            if(transfer->send.requestedBytes > 0) {
+            /* if we have infinity or a specific requested send size, we need to reset and keep sending */
+            if(transfer->send.requestedInfinity || transfer->send.requestedBytes > 0) {
                 tgenmarkovmodel_reset(transfer->mmodel);
             } else {
                 /* the model reached the end and we should stop sending */
@@ -1146,8 +1180,12 @@ static gboolean _tgentransfer_writePayload(TGenTransfer* transfer) {
     if(newBufLen > 0) {
         transfer->send.buffer = _tgentransfer_getRandomString(newBufLen);
 
-        g_checksum_update(transfer->send.checksum, (guchar*)transfer->send.buffer->str,
-                (gssize)transfer->send.buffer->len);
+        /* only send a checksum when we know the final size.
+         * TODO this needs to be updated if we support checksums on general streams. */
+        if(transfer->send.requestedBytes > 0) {
+            g_checksum_update(transfer->send.checksum, (guchar*)transfer->send.buffer->str,
+                    (gssize)transfer->send.buffer->len);
+        }
 
         transfer->send.payloadBytes += _tgentransfer_flushOut(transfer);
     }
@@ -1560,9 +1598,29 @@ TGenTransfer* tgentransfer_new(const gchar* idStr, gsize count, TGenStreamOption
             options->stalloutNanos.value : DEFAULT_XFER_STALLOUT_NSEC;
     transfer->stalloutUSecs = (gint64)(stalloutNanos / 1000);
 
-    /* can be 0 to indicate that we should stop when we reach the model end state */
-    transfer->send.requestedBytes = (options && options->sendSize.isSet) ? options->sendSize.value : 0;
-    transfer->recv.requestedBytes = (options && options->recvSize.isSet) ? options->recvSize.value : 0;
+    /* if they explicitly requested 0, they mean they want infinite send bytes */
+    if(options && options->sendSize.isSet) {
+        transfer->send.requestedBytes = options->sendSize.value;
+        if(options->sendSize.value == 0) {
+            transfer->send.requestedInfinity = TRUE;
+            tgen_warning("Stream requested infinity send bytes on transport %s",
+                    tgentransport_toString(transport));
+        }
+    } else {
+        transfer->send.requestedBytes = 0;
+    }
+
+    /* if they explicitly requested 0, they mean they want infinite recv bytes */
+    if(options && options->recvSize.isSet) {
+        transfer->recv.requestedBytes = options->recvSize.value;
+        if(options->recvSize.value == 0) {
+            transfer->recv.requestedInfinity = TRUE;
+            tgen_warning("Stream requested infinity recv bytes on transport %s",
+                    tgentransport_toString(transport));
+        }
+    } else {
+        transfer->recv.requestedBytes = 0;
+    }
 
     transfer->send.checksum = g_checksum_new(G_CHECKSUM_MD5);
     transfer->recv.checksum = g_checksum_new(G_CHECKSUM_MD5);
