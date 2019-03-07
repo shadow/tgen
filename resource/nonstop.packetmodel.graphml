@@ -1,0 +1,60 @@
+<?xml version="1.0" encoding="utf-8"?><graphml xmlns="http://graphml.graphdrawing.org/xmlns" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://graphml.graphdrawing.org/xmlns http://graphml.graphdrawing.org/xmlns/1.0/graphml.xsd">
+  <key attr.name="lognorm_mu" attr.type="double" for="edge" id="d6" />
+  <key attr.name="lognorm_sigma" attr.type="double" for="edge" id="d5" />
+  <key attr.name="exp_lambda" attr.type="int" for="edge" id="d4" />
+  <key attr.name="weight" attr.type="double" for="edge" id="d3" />
+  <key attr.name="type" attr.type="string" for="edge" id="d2" />
+  <key attr.name="name" attr.type="string" for="node" id="d1" />
+  <key attr.name="type" attr.type="string" for="node" id="d0" />
+  <graph edgedefault="directed">
+    <node id="s1">
+      <data key="d0">state</data>
+      <data key="d1">nonstop</data>
+    </node>
+    <node id="s0">
+      <data key="d0">state</data>
+      <data key="d1">start</data>
+    </node>
+    <node id="o3">
+      <data key="d0">observation</data>
+      <data key="d1">F</data>
+    </node>
+    <node id="o2">
+      <data key="d0">observation</data>
+      <data key="d1">-</data>
+    </node>
+    <node id="o1">
+      <data key="d0">observation</data>
+      <data key="d1">+</data>
+    </node>
+    <edge source="s1" target="s1">
+      <data key="d2">transition</data>
+      <data key="d3">1.0</data>
+    </edge>
+    <edge source="s1" target="o3">
+      <data key="d4">4294967295</data>
+      <data key="d2">emission</data>
+      <data key="d5">0.0</data>
+      <data key="d3">0.002</data>
+      <data key="d6">0.0</data>
+    </edge>
+    <edge source="s1" target="o2">
+      <data key="d4">4294967295</data>
+      <data key="d2">emission</data>
+      <data key="d5">0.0</data>
+      <data key="d3">0.499</data>
+      <data key="d6">0.0</data>
+    </edge>
+    <edge source="s1" target="o1">
+      <data key="d4">4294967295</data>
+      <data key="d2">emission</data>
+      <data key="d5">0.0</data>
+      <data key="d3">0.499</data>
+      <data key="d6">0.0</data>
+    </edge>
+    <edge source="s0" target="s1">
+      <data key="d2">transition</data>
+      <data key="d3">1.0</data>
+    </edge>
+  </graph>
+</graphml>

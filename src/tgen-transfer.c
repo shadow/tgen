@@ -42,6 +42,7 @@ typedef enum _TGenTransferSendState {
     TGEN_XFER_SEND_RESPONSE,
     TGEN_XFER_SEND_PAYLOAD,
     TGEN_XFER_SEND_CHECKSUM,
+    TGEN_XFER_SEND_FLUSH,
     TGEN_XFER_SEND_SUCCESS,
     TGEN_XFER_SEND_ERROR,
 } TGenTransferSendState;
@@ -228,6 +229,9 @@ static const gchar* _tgentransfer_sendStateToString(TGenTransferSendState state)
         }
         case TGEN_XFER_SEND_CHECKSUM: {
             return "SEND_CHECKSUM";
+        }
+        case TGEN_XFER_SEND_FLUSH: {
+            return "SEND_FLUSH";
         }
         /* success and error are terminal states */
         case TGEN_XFER_SEND_SUCCESS: {
@@ -422,12 +426,17 @@ static gssize _tgentransfer_read(TGenTransfer* transfer, guchar* buffer, gsize l
                 _tgentransfer_toString(transfer),
                 errno, g_strerror(errno));
     } else if(bytes == 0) {
-        _tgentransfer_changeRecvState(transfer, TGEN_XFER_RECV_ERROR);
-        _tgentransfer_changeError(transfer, TGEN_XFER_ERR_READEOF);
+        /* reading an EOF is only an error if we were expecting a certain recvsize */
+        if(transfer->recv.state != TGEN_XFER_RECV_PAYLOAD ||
+                (transfer->recv.requestedBytes > 0 &&
+                        transfer->recv.payloadBytes < transfer->recv.requestedBytes)) {
+            _tgentransfer_changeRecvState(transfer, TGEN_XFER_RECV_ERROR);
+            _tgentransfer_changeError(transfer, TGEN_XFER_ERR_READEOF);
 
-        tgen_critical("read(): transport %s transfer %s closed unexpectedly",
-                tgentransport_toString(transfer->transport),
-                _tgentransfer_toString(transfer));
+            tgen_critical("read(): transport %s transfer %s closed unexpectedly",
+                    tgentransport_toString(transfer->transport),
+                    _tgentransfer_toString(transfer));
+        }
     } else {
         transfer->recv.totalBytes += bytes;
     }
@@ -759,12 +768,11 @@ static gboolean _tgentransfer_readPayload(TGenTransfer* transfer) {
     gssize bytes = _tgentransfer_read(transfer, &buffer[0], limit);
 
     /* EOF is a valid end state for transfers where we don't know the payload size */
-    if(bytes == 0 && transfer->recv.requestedBytes == 0 && transfer->recv.payloadBytes > 0) {
-        transfer->time.lastPayloadByte = g_get_monotonic_time();
-
-        /* note reading the EOF above put us in an error state, and now we reverse it */
-        _tgentransfer_changeRecvState(transfer, TGEN_XFER_RECV_PAYLOAD);
-        _tgentransfer_changeError(transfer, TGEN_XFER_ERR_NONE);
+    if(bytes == 0 && transfer->recv.requestedBytes == 0) {
+        /* its possible they didnt send us anything */
+        if(transfer->recv.payloadBytes > 0) {
+            transfer->time.lastPayloadByte = g_get_monotonic_time();
+        }
 
         return TRUE;
     }
@@ -799,6 +807,7 @@ static gboolean _tgentransfer_readChecksum(TGenTransfer* transfer) {
 
     if(transfer->recv.requestedBytes == 0) {
         /* we don't handle checksums if we don't know the total size, so just move on */
+        tgen_debug("Ignoring checksum on stream with no requested bytes");
         return TRUE;
     }
 
@@ -1080,7 +1089,9 @@ static gboolean _tgentransfer_writePayload(TGenTransfer* transfer) {
         }
     }
 
-    /* we limit our write buffer size in order to give other sockets a chance for i/o */
+    /* We limit our write buffer size in order to give other sockets a chance for i/o.
+     * This allows us to return to the epoll loop and service other active transfers.
+     * If we don't do this, it's possible that this single transfer will block the others. */
     gsize limit = DEFAULT_XFER_WRITE_BUFLEN;
     if(transfer->send.requestedBytes > 0) {
         g_assert(transfer->send.requestedBytes >= transfer->send.payloadBytes);
@@ -1092,7 +1103,7 @@ static gboolean _tgentransfer_writePayload(TGenTransfer* transfer) {
     gsize cumulativeDelay = 0;
     gsize interPacketDelay = 0;
 
-    while(TRUE) {
+    while(cumulativeSize < limit) {
         guint64 obsDelay = 0;
         Observation obs = tgenmarkovmodel_getNextObservation(transfer->mmodel, &obsDelay);
 
@@ -1129,10 +1140,6 @@ static gboolean _tgentransfer_writePayload(TGenTransfer* transfer) {
             /* TODO we need to actually insert a pause here */
             break;
         }
-
-        if(cumulativeSize >= limit) {
-            break;
-        }
     }
 
     gsize newBufLen = MIN(limit, cumulativeSize);
@@ -1159,7 +1166,7 @@ static gboolean _tgentransfer_writeChecksum(TGenTransfer* transfer) {
         g_string_printf(transfer->send.buffer, "MD5 %s",
                 g_checksum_get_string(transfer->send.checksum));
         g_string_append_c(transfer->send.buffer, '\n');
-        tgen_debug("Sending checksum %s", transfer->send.buffer->str);
+        tgen_debug("Sending checksum '%s'", transfer->send.buffer->str);
     }
 
     _tgentransfer_flushOut(transfer);
@@ -1211,8 +1218,20 @@ static void _tgentransfer_onWritable(TGenTransfer* transfer) {
 
     if(transfer->send.state == TGEN_XFER_SEND_CHECKSUM) {
         if(_tgentransfer_writeChecksum(transfer)) {
-            /* yay, now we are done! */
+            /* now we just need to make sure we finished flushing */
+            _tgentransfer_changeSendState(transfer, TGEN_XFER_SEND_FLUSH);
+        }
+    }
+
+    if(transfer->send.state == TGEN_XFER_SEND_FLUSH) {
+        /* make sure we flush the rest of the send buffer */
+        _tgentransfer_flushOut(transfer);
+        if(transfer->send.buffer == NULL) {
+            /* yay, now we are done sending everything! */
             _tgentransfer_changeSendState(transfer, TGEN_XFER_SEND_SUCCESS);
+
+            tgen_debug("Stream finished writing, shutting down transport writes now");
+            tgentransport_shutdownWrites(transfer->transport);
         }
     }
 
@@ -1244,6 +1263,8 @@ static gchar* _tgentransfer_getBytesStatusReport(TGenTransfer* transfer) {
         gdouble progress = (gdouble)transfer->recv.payloadBytes /
                 (gdouble)transfer->recv.requestedBytes * 100.0f;
         g_string_append_printf(buffer, " payload-progress-recv=%.2f%%", progress);
+    } else if(transfer->recv.state == TGEN_XFER_RECV_SUCCESS) {
+        g_string_append_printf(buffer, " payload-progress-recv=%.2f%%", 100.0f);
     } else {
         g_string_append_printf(buffer, " payload-progress-recv=?");
     }
@@ -1252,6 +1273,8 @@ static gchar* _tgentransfer_getBytesStatusReport(TGenTransfer* transfer) {
         gdouble progress = (gdouble)transfer->send.payloadBytes /
                 (gdouble)transfer->send.requestedBytes * 100.0f;
         g_string_append_printf(buffer, " payload-progress-send=%.2f%%", progress);
+    } else if(transfer->send.state == TGEN_XFER_SEND_SUCCESS) {
+        g_string_append_printf(buffer, " payload-progress-send=%.2f%%", 100.0f);
     } else {
         g_string_append_printf(buffer, " payload-progress-send=?");
     }
@@ -1373,12 +1396,13 @@ static TGenEvent _tgentransfer_computeWantedEvents(TGenTransfer* transfer) {
     /* each part of the conn is done if we have reached success or error */
     gboolean recvDone = (transfer->recv.state == TGEN_XFER_RECV_SUCCESS ||
             transfer->recv.state == TGEN_XFER_RECV_ERROR) ? TRUE : FALSE;
+    /* for sending, we also need to make sure we flush the outbuf after success */
     gboolean sendDone = (transfer->send.state == TGEN_XFER_SEND_SUCCESS ||
             transfer->send.state == TGEN_XFER_SEND_ERROR) ? TRUE : FALSE;
 
     /* the transfer is done if both sending and receiving states are done,
      * and we have flushed our entire send buffer */
-    if(recvDone && sendDone && transfer->send.buffer == NULL) {
+    if(recvDone && sendDone) {
         wantedEvents |= TGEN_EVENT_DONE;
     } else {
         if(!recvDone && transfer->recv.state != TGEN_XFER_RECV_NONE) {

@@ -12,8 +12,8 @@
       <data key="d2">1 hour</data>
     </node>
     <node id="stream">
-      <data key="d4">10 gib</data>
-      <data key="d3">10 kib</data>
+      <data key="d4">1 gib</data>
+      <data key="d3">1 mib</data>
     </node>
     <node id="end">
       <data key="d5">1</data>

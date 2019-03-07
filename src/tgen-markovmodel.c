@@ -22,7 +22,7 @@
 
 typedef enum _VertexAttribute VertexAttribute;
 enum _VertexAttribute {
-    VERTEX_ATTR_NAME=1,
+    VERTEX_ATTR_ID=1,
     VERTEX_ATTR_TYPE=2,
 };
 
@@ -49,11 +49,11 @@ enum _EdgeType {
 
 typedef enum _VertexID VertexID;
 enum _VertexID {
-    VERTEX_NAME_START=12,
-    VERTEX_NAME_PACKET_TO_SERVER=13,
-    VERTEX_NAME_PACKET_TO_ORIGIN=14,
-    VERTEX_NAME_STREAM=15,
-    VERTEX_NAME_END=16,
+    VERTEX_ID_START=12,
+    VERTEX_ID_PACKET_TO_SERVER=13,
+    VERTEX_ID_PACKET_TO_ORIGIN=14,
+    VERTEX_ID_STREAM=15,
+    VERTEX_ID_END=16,
 };
 
 struct _TGenMarkovModel {
@@ -75,7 +75,7 @@ struct _TGenMarkovModel {
 };
 
 static const gchar* _tgenmarkovmodel_vertexAttributeToString(VertexAttribute attr) {
-    if(attr == VERTEX_ATTR_NAME) {
+    if(attr == VERTEX_ATTR_ID) {
         return "name";
     } else if(attr == VERTEX_ATTR_TYPE) {
         return "type";
@@ -141,15 +141,15 @@ static gboolean _tgenmarkovmodel_edgeTypeIsEqual(const gchar* typeStr, EdgeType 
 }
 
 static const gchar* _tgenmarkovmodel_vertexIDToString(VertexID id) {
-    if(id == VERTEX_NAME_START) {
+    if(id == VERTEX_ID_START) {
         return "start";
-    } else if(id == VERTEX_NAME_PACKET_TO_SERVER) {
+    } else if(id == VERTEX_ID_PACKET_TO_SERVER) {
         return "+";
-    } else if(id == VERTEX_NAME_PACKET_TO_ORIGIN) {
+    } else if(id == VERTEX_ID_PACKET_TO_ORIGIN) {
         return "-";
-    } else if(id == VERTEX_NAME_STREAM) {
+    } else if(id == VERTEX_ID_STREAM) {
         return "$";
-    } else if(id == VERTEX_NAME_END) {
+    } else if(id == VERTEX_ID_END) {
         return "F";
     } else {
         return "?";
@@ -167,10 +167,10 @@ static gboolean _tgenmarkovmodel_vertexIDIsEqual(const gchar* idStr, VertexID id
 }
 
 static gboolean _tgenmarkovmodel_vertexIDIsEmission(const gchar* idStr) {
-    if(_tgenmarkovmodel_vertexIDIsEqual(idStr, VERTEX_NAME_PACKET_TO_SERVER) ||
-            _tgenmarkovmodel_vertexIDIsEqual(idStr, VERTEX_NAME_PACKET_TO_ORIGIN) ||
-            _tgenmarkovmodel_vertexIDIsEqual(idStr, VERTEX_NAME_STREAM) ||
-            _tgenmarkovmodel_vertexIDIsEqual(idStr, VERTEX_NAME_END)) {
+    if(_tgenmarkovmodel_vertexIDIsEqual(idStr, VERTEX_ID_PACKET_TO_SERVER) ||
+            _tgenmarkovmodel_vertexIDIsEqual(idStr, VERTEX_ID_PACKET_TO_ORIGIN) ||
+            _tgenmarkovmodel_vertexIDIsEqual(idStr, VERTEX_ID_STREAM) ||
+            _tgenmarkovmodel_vertexIDIsEqual(idStr, VERTEX_ID_END)) {
         return TRUE;
     } else {
         return FALSE;
@@ -182,6 +182,10 @@ static gboolean _tgenmarkovmodel_vertexIDIsEmission(const gchar* idStr) {
 static gboolean _tgenmarkovmodel_findVertexAttributeString(TGenMarkovModel* mmodel, igraph_integer_t vertexIndex,
         VertexAttribute attr, const gchar** valueOut) {
     TGEN_MMODEL_ASSERT(mmodel);
+
+    if(valueOut != NULL) {
+        *valueOut = NULL;
+    }
 
     const gchar* name = _tgenmarkovmodel_vertexAttributeToString(attr);
 
@@ -225,6 +229,10 @@ static gboolean _tgenmarkovmodel_findEdgeAttributeString(TGenMarkovModel* mmodel
         EdgeAttribute attr, const gchar** valueOut) {
     TGEN_MMODEL_ASSERT(mmodel);
 
+    if(valueOut != NULL) {
+        *valueOut = NULL;
+    }
+
     const gchar* name = _tgenmarkovmodel_edgeAttributeToString(attr);
 
     if(igraph_cattribute_has_attr(mmodel->graph, IGRAPH_ATTRIBUTE_EDGE, name)) {
@@ -252,10 +260,10 @@ static gboolean _tgenmarkovmodel_checkVertexAttributes(TGenMarkovModel* mmodel, 
     gchar* idStr = NULL;
 
     /* this attribute is required, so it is an error if it doesn't exist */
-    const gchar* idKey = _tgenmarkovmodel_vertexAttributeToString(VERTEX_ATTR_NAME);
+    const gchar* idKey = _tgenmarkovmodel_vertexAttributeToString(VERTEX_ATTR_ID);
     if(igraph_cattribute_has_attr(mmodel->graph, IGRAPH_ATTRIBUTE_VERTEX, idKey)) {
         const gchar* vidStr;
-        if(_tgenmarkovmodel_findVertexAttributeString(mmodel, vertexIndex, VERTEX_ATTR_NAME, &vidStr)) {
+        if(_tgenmarkovmodel_findVertexAttributeString(mmodel, vertexIndex, VERTEX_ATTR_ID, &vidStr)) {
             g_string_append_printf(message, " %s='%s'", idKey, vidStr);
             idStr = g_strdup(vidStr);
         } else {
@@ -273,7 +281,7 @@ static gboolean _tgenmarkovmodel_checkVertexAttributes(TGenMarkovModel* mmodel, 
     const gchar* typeKey = _tgenmarkovmodel_vertexAttributeToString(VERTEX_ATTR_TYPE);
     if(igraph_cattribute_has_attr(mmodel->graph, IGRAPH_ATTRIBUTE_VERTEX, typeKey)) {
         const gchar* typeStr;
-        if(_tgenmarkovmodel_vertexIDIsEqual(idStr, VERTEX_NAME_START)) {
+        if(_tgenmarkovmodel_vertexIDIsEqual(idStr, VERTEX_ID_START)) {
             /* start vertex doesnt need any attributes */
         } else if(_tgenmarkovmodel_findVertexAttributeString(mmodel, vertexIndex, VERTEX_ATTR_TYPE, &typeStr)) {
             g_string_append_printf(message, " %s='%s'", typeKey, typeStr);
@@ -286,10 +294,10 @@ static gboolean _tgenmarkovmodel_checkVertexAttributes(TGenMarkovModel* mmodel, 
                             "but you gave %s='%s'",
                             _tgenmarkovmodel_vertexTypeToString(VERTEX_TYPE_OBSERVATION),
                             (glong)vertexIndex,
-                            _tgenmarkovmodel_vertexTypeToString(VERTEX_NAME_PACKET_TO_SERVER),
-                            _tgenmarkovmodel_vertexTypeToString(VERTEX_NAME_PACKET_TO_ORIGIN),
-                            _tgenmarkovmodel_vertexTypeToString(VERTEX_NAME_STREAM),
-                            _tgenmarkovmodel_vertexTypeToString(VERTEX_NAME_END),
+                            _tgenmarkovmodel_vertexTypeToString(VERTEX_ID_PACKET_TO_SERVER),
+                            _tgenmarkovmodel_vertexTypeToString(VERTEX_ID_PACKET_TO_ORIGIN),
+                            _tgenmarkovmodel_vertexTypeToString(VERTEX_ID_STREAM),
+                            _tgenmarkovmodel_vertexTypeToString(VERTEX_ID_END),
                             idKey, idStr);
                     isSuccess = FALSE;
                 }
@@ -343,8 +351,8 @@ static gboolean _tgenmarkovmodel_validateVertices(TGenMarkovModel* mmodel, igrap
         }
 
         const gchar* idStr = VAS(mmodel->graph,
-                _tgenmarkovmodel_vertexAttributeToString(VERTEX_ATTR_NAME), vertexIndex);
-        if (_tgenmarkovmodel_vertexIDIsEqual(idStr, VERTEX_NAME_START)) {
+                _tgenmarkovmodel_vertexAttributeToString(VERTEX_ATTR_ID), vertexIndex);
+        if (_tgenmarkovmodel_vertexIDIsEqual(idStr, VERTEX_ID_START)) {
             /* found the start vertex */
             foundStart = TRUE;
 
@@ -380,13 +388,13 @@ static gboolean _tgenmarkovmodel_checkEdgeAttributes(TGenMarkovModel* mmodel, ig
     const gchar* fromIDStr = NULL;
     const gchar* toIDStr = NULL;
 
-    found = _tgenmarkovmodel_findVertexAttributeString(mmodel, fromVertexIndex, VERTEX_ATTR_NAME, &fromIDStr);
+    found = _tgenmarkovmodel_findVertexAttributeString(mmodel, fromVertexIndex, VERTEX_ATTR_ID, &fromIDStr);
     if(!found) {
         tgen_warning("unable to find source vertex for edge %li", (glong)edgeIndex);
         return FALSE;
     }
 
-    found = _tgenmarkovmodel_findVertexAttributeString(mmodel, toVertexIndex, VERTEX_ATTR_NAME, &toIDStr);
+    found = _tgenmarkovmodel_findVertexAttributeString(mmodel, toVertexIndex, VERTEX_ATTR_ID, &toIDStr);
     if(!found) {
         tgen_warning("unable to find destination vertex for edge %li", (glong)edgeIndex);
         return FALSE;
@@ -983,16 +991,21 @@ static Observation _tgenmarkovmodel_vertexToObservation(TGenMarkovModel* mmodel,
     g_assert(_tgenmarkovmodel_vertexTypeIsEqual(typeStr, VERTEX_TYPE_OBSERVATION));
 
     const gchar* vidStr;
-    isSuccess = _tgenmarkovmodel_findVertexAttributeString(mmodel, vertexIndex, VERTEX_ATTR_NAME, &vidStr);
+    isSuccess = _tgenmarkovmodel_findVertexAttributeString(mmodel, vertexIndex, VERTEX_ATTR_ID, &vidStr);
     g_assert(isSuccess);
 
-    if(_tgenmarkovmodel_vertexIDIsEqual(vidStr, VERTEX_NAME_PACKET_TO_ORIGIN)) {
+    if(_tgenmarkovmodel_vertexIDIsEqual(vidStr, VERTEX_ID_PACKET_TO_ORIGIN)) {
+        tgen_debug("Returning OBSERVATION_PACKET_TO_ORIGIN");
         return OBSERVATION_PACKET_TO_ORIGIN;
-    } else if(_tgenmarkovmodel_vertexIDIsEqual(vidStr, VERTEX_NAME_PACKET_TO_SERVER)) {
+    } else if(_tgenmarkovmodel_vertexIDIsEqual(vidStr, VERTEX_ID_PACKET_TO_SERVER)) {
+        tgen_debug("Returning OBSERVATION_PACKET_TO_SERVER");
         return OBSERVATION_PACKET_TO_SERVER;
-    } else if(_tgenmarkovmodel_vertexIDIsEqual(vidStr, VERTEX_NAME_STREAM)) {
+    } else if(_tgenmarkovmodel_vertexIDIsEqual(vidStr, VERTEX_ID_STREAM)) {
+        tgen_debug("Returning OBSERVATION_STREAM");
         return OBSERVATION_STREAM;
     } else {
+        mmodel->foundEndState = TRUE;
+        tgen_debug("Returning OBSERVATION_END");
         return OBSERVATION_END;
     }
 }
@@ -1015,7 +1028,7 @@ Observation tgenmarkovmodel_getNextObservation(TGenMarkovModel* mmodel, guint64*
     if(!isSuccess) {
         const gchar* fromIDStr;
         _tgenmarkovmodel_findVertexAttributeString(mmodel,
-                mmodel->currentStateVertexIndex, VERTEX_ATTR_NAME, &fromIDStr);
+                mmodel->currentStateVertexIndex, VERTEX_ATTR_ID, &fromIDStr);
 
         tgen_warning("Failed to choose a transition edge from state %li (%s)",
                 (glong)mmodel->currentStateVertexIndex, fromIDStr);
@@ -1024,12 +1037,26 @@ Observation tgenmarkovmodel_getNextObservation(TGenMarkovModel* mmodel, guint64*
         return OBSERVATION_END;
     }
 
-    tgen_debug("Found transition to vertex %li", (glong)nextStateVertexIndex);
+#ifdef DEBUG
+    const gchar* from;
+    const gchar* to;
+    _tgenmarkovmodel_findVertexAttributeString(mmodel,
+            mmodel->currentStateVertexIndex, VERTEX_ATTR_ID, &from);
+    _tgenmarkovmodel_findVertexAttributeString(mmodel,
+            nextStateVertexIndex, VERTEX_ATTR_ID, &to);
+    tgen_debug("Found transition from state vertex %li (%s) to state vertex %li (%s)",
+            mmodel->currentStateVertexIndex, from, (glong)nextStateVertexIndex, to);
+#endif
+
 
     /* update our current state */
     mmodel->currentStateVertexIndex = nextStateVertexIndex;
 
-    tgen_debug("About to choose emission from vertex %li", (glong)mmodel->currentStateVertexIndex);
+#ifdef DEBUG
+    from = to;
+    tgen_debug("About to choose emission from vertex %li (%s)",
+            (glong)mmodel->currentStateVertexIndex, from);
+#endif
 
     /* now choose an observation through an emission edge */
     igraph_integer_t emissionEdgeIndex = 0;
@@ -1040,7 +1067,7 @@ Observation tgenmarkovmodel_getNextObservation(TGenMarkovModel* mmodel, guint64*
     if(!isSuccess) {
         const gchar* fromIDStr;
         _tgenmarkovmodel_findVertexAttributeString(mmodel,
-                mmodel->currentStateVertexIndex, VERTEX_ATTR_NAME, &fromIDStr);
+                mmodel->currentStateVertexIndex, VERTEX_ATTR_ID, &fromIDStr);
 
         tgen_warning("Failed to choose an emission edge from state %li (%s)",
                 (glong)mmodel->currentStateVertexIndex, fromIDStr);
@@ -1049,8 +1076,13 @@ Observation tgenmarkovmodel_getNextObservation(TGenMarkovModel* mmodel, guint64*
         return OBSERVATION_END;
     }
 
-    tgen_debug("Found emission on edge %li and observation on vertex %li",
-            (glong)emissionEdgeIndex, (glong)emissionObservationVertexIndex);
+#ifdef DEBUG
+    _tgenmarkovmodel_findVertexAttributeString(mmodel,
+            emissionObservationVertexIndex, VERTEX_ATTR_ID, &to);
+    tgen_debug("Found emission on edge %li from state vertex %li (%s) to observation vertex %li (%s)",
+            (glong)emissionEdgeIndex, (glong)mmodel->currentStateVertexIndex, from,
+            (glong)emissionObservationVertexIndex, to);
+#endif
 
     if(delay) {
         *delay = _tgenmarkovmodel_generateDelay(mmodel, emissionEdgeIndex);
@@ -1067,6 +1099,8 @@ void tgenmarkovmodel_reset(TGenMarkovModel* mmodel) {
 
     mmodel->foundEndState = FALSE;
     mmodel->currentStateVertexIndex = mmodel->startVertexIndex;
+
+    tgen_debug("Markov model graph name '%s' was reset", mmodel->name);
 }
 
 gboolean tgenmarkovmodel_isInEndState(TGenMarkovModel* mmodel) {
@@ -1102,8 +1136,9 @@ GString* tgenmarkovmodel_toGraphmlString(TGenMarkovModel* mmodel) {
      * Normally igraph would print the following warning to stderr:
      *   Warning: Could not add vertex ids, there is already an 'id' vertex attribute
      *   in file foreign-graphml.c, line 443
-     * The fix is to remove the id attributes since we don't use it anyway, which
-     * prevents igraph from trying to write it in the vertex id field AND as an attribute. */
+     * The fix is to remove the id *attributes* since we don't use it anyway. It will still
+     * store the ids in the vertex id field, but this fix ensures it doesn't *also* store
+     * the ids as vertex attributes. */
     igraph_cattribute_remove_v(mmodel->graph, "id");
 
     int result = igraph_write_graph_graphml(mmodel->graph, graphStream, FALSE);
