@@ -6,7 +6,7 @@
   <key attr.name="loglevel" attr.type="string" for="node" id="d0" />
   <graph edgedefault="directed">
     <node id="start">
-      <data key="d0">message</data>
+      <data key="d0">debug</data>
       <data key="d1">1 second</data>
       <data key="d2">localhost:8888</data>
       <data key="d3">1 second</data>

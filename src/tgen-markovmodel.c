@@ -30,9 +30,10 @@ typedef enum _EdgeAttribute EdgeAttribute;
 enum _EdgeAttribute {
     EDGE_ATTR_TYPE=3,
     EDGE_ATTR_WEIGHT=4,
-    EDGE_ATTR_LOGNORMMU=5,
-    EDGE_ATTR_LOGNORMSIGMA=6,
-    EDGE_ATTR_EXPLAMBDA=7,
+    EDGE_ATTR_DISTRIBUTION=5,
+    EDGE_ATTR_PARAM_MU=6,
+    EDGE_ATTR_PARAM_SIGMA=7,
+    EDGE_ATTR_PARAM_LAMBDA=8,
 };
 
 typedef enum _VertexType VertexType;
@@ -47,13 +48,19 @@ enum _EdgeType {
     EDGE_TYPE_EMISSION=11,
 };
 
+typedef enum _EdgeDistribution EdgeDistribution;
+enum _EdgeDistribution {
+    EDGE_DISTRIBUTION_LOGNORMAL=12,
+    EDGE_DISTRIBUTION_EXPONENTIAL=13,
+};
+
 typedef enum _VertexID VertexID;
 enum _VertexID {
-    VERTEX_ID_START=12,
-    VERTEX_ID_PACKET_TO_SERVER=13,
-    VERTEX_ID_PACKET_TO_ORIGIN=14,
-    VERTEX_ID_STREAM=15,
-    VERTEX_ID_END=16,
+    VERTEX_ID_START=14,
+    VERTEX_ID_PACKET_TO_SERVER=15,
+    VERTEX_ID_PACKET_TO_ORIGIN=16,
+    VERTEX_ID_STREAM=17,
+    VERTEX_ID_END=18,
 };
 
 struct _TGenMarkovModel {
@@ -89,12 +96,14 @@ static const gchar* _tgenmarkovmodel_edgeAttributeToString(EdgeAttribute attr) {
         return "type";
     } else if(attr == EDGE_ATTR_WEIGHT) {
         return "weight";
-    } else if(attr == EDGE_ATTR_LOGNORMMU) {
-        return "lognorm_mu";
-    } else if(attr == EDGE_ATTR_LOGNORMSIGMA) {
-        return "lognorm_sigma";
-    } else if(attr == EDGE_ATTR_EXPLAMBDA) {
-        return "exp_lambda";
+    } else if(attr == EDGE_ATTR_DISTRIBUTION) {
+        return "distribution";
+    } else if(attr == EDGE_ATTR_PARAM_MU) {
+        return "param_mu";
+    } else if(attr == EDGE_ATTR_PARAM_SIGMA) {
+        return "param_sigma";
+    } else if(attr == EDGE_ATTR_PARAM_LAMBDA) {
+        return "param_lambda";
     } else {
         return "unknown";
     }
@@ -138,6 +147,26 @@ static gboolean _tgenmarkovmodel_edgeTypeIsEqual(const gchar* typeStr, EdgeType 
     const gchar* constTypeStr = _tgenmarkovmodel_edgeTypeToString(type);
     size_t length = _tgenmarkovmodel_edgeTypeStringLength(type);
     return (g_ascii_strncasecmp(typeStr, constTypeStr, length) == 0) ? TRUE : FALSE;
+}
+
+static const gchar* _tgenmarkovmodel_edgeDistToString(EdgeDistribution dist) {
+    if(dist == EDGE_DISTRIBUTION_LOGNORMAL) {
+        return "lognormal";
+    } else if(dist == EDGE_DISTRIBUTION_EXPONENTIAL) {
+        return "exponential";
+    } else {
+        return "unknown";
+    }
+}
+
+static size_t _tgenmarkovmodel_edgeDistStringLength(EdgeDistribution dist) {
+    return strlen(_tgenmarkovmodel_edgeDistToString(dist));
+}
+
+static gboolean _tgenmarkovmodel_edgeDistIsEqual(const gchar* distStr, EdgeDistribution dist) {
+    const gchar* constDistStr = _tgenmarkovmodel_edgeDistToString(dist);
+    size_t length = _tgenmarkovmodel_edgeDistStringLength(dist);
+    return (g_ascii_strncasecmp(distStr, constDistStr, length) == 0) ? TRUE : FALSE;
 }
 
 static const gchar* _tgenmarkovmodel_vertexIDToString(VertexID id) {
@@ -485,59 +514,93 @@ static gboolean _tgenmarkovmodel_checkEdgeAttributes(TGenMarkovModel* mmodel, ig
 
     if(isValidEmission) {
         /* this attribute is required, so it is an error if it doesn't exist */
-        const gchar* muKey = _tgenmarkovmodel_edgeAttributeToString(EDGE_ATTR_LOGNORMMU);
-        gdouble muValue;
-        if(igraph_cattribute_has_attr(mmodel->graph, IGRAPH_ATTRIBUTE_EDGE, muKey) &&
-                _tgenmarkovmodel_findEdgeAttributeDouble(mmodel, edgeIndex, EDGE_ATTR_LOGNORMMU, &muValue)) {
-            if(muValue >= 0.0f) {
-                g_string_append_printf(message, " %s='%f'", muKey, muValue);
-            } else {
-                /* its an error if they gave a value that is incorrect */
-                tgen_warning("required attribute '%s' on edge %li (from '%s' to '%s') must be non-negative",
-                        muKey, (glong)edgeIndex, fromIDStr, toIDStr);
-                isSuccess = FALSE;
-            }
-        } else {
-            tgen_warning("required attribute '%s' on edge %li (from '%s' to '%s') is missing or NAN",
-                    muKey, (glong)edgeIndex, fromIDStr, toIDStr);
-            isSuccess = FALSE;
-        }
+        const gchar* distKey = _tgenmarkovmodel_edgeAttributeToString(EDGE_ATTR_DISTRIBUTION);
+        if(igraph_cattribute_has_attr(mmodel->graph, IGRAPH_ATTRIBUTE_EDGE, distKey)) {
+            const gchar* distStr;
+            if(_tgenmarkovmodel_findEdgeAttributeString(mmodel, edgeIndex, EDGE_ATTR_DISTRIBUTION, &distStr)) {
+                g_string_append_printf(message, " %s='%s'", distKey, distStr);
 
-        /* this attribute is required, so it is an error if it doesn't exist */
-        const gchar* sigmaKey = _tgenmarkovmodel_edgeAttributeToString(EDGE_ATTR_LOGNORMSIGMA);
-        gdouble sigmaValue;
-        if(igraph_cattribute_has_attr(mmodel->graph, IGRAPH_ATTRIBUTE_EDGE, sigmaKey) &&
-                _tgenmarkovmodel_findEdgeAttributeDouble(mmodel, edgeIndex, EDGE_ATTR_LOGNORMSIGMA, &sigmaValue)) {
-            if(sigmaValue >= 0.0f) {
-                g_string_append_printf(message, " %s='%f'", sigmaKey, sigmaValue);
-            } else {
-                /* its an error if they gave a value that is incorrect */
-                tgen_warning("required attribute '%s' on edge %li (from '%s' to '%s') must be non-negative",
-                        sigmaKey, (glong)edgeIndex, fromIDStr, toIDStr);
-                isSuccess = FALSE;
-            }
-        } else {
-            tgen_warning("required attribute '%s' on edge %li (from '%s' to '%s') is missing or NAN",
-                    sigmaKey, (glong)edgeIndex, fromIDStr, toIDStr);
-            isSuccess = FALSE;
-        }
+                if(_tgenmarkovmodel_edgeDistIsEqual(distStr, EDGE_DISTRIBUTION_LOGNORMAL)) {
+                    /* lognormal requires mu and sigma. check mu first.
+                     * it is an error if it doesn't exist */
+                    const gchar* muKey = _tgenmarkovmodel_edgeAttributeToString(EDGE_ATTR_PARAM_MU);
+                    gdouble muValue;
+                    if(igraph_cattribute_has_attr(mmodel->graph, IGRAPH_ATTRIBUTE_EDGE, muKey) &&
+                            _tgenmarkovmodel_findEdgeAttributeDouble(mmodel, edgeIndex, EDGE_ATTR_PARAM_MU, &muValue)) {
+                        if(muValue >= 0.0f) {
+                            g_string_append_printf(message, " %s='%f'", muKey, muValue);
+                        } else {
+                            /* its an error if they gave a value that is incorrect */
+                            tgen_warning("required attribute '%s' for distribution '%s' "
+                                    "on edge %li (from '%s' to '%s') must be non-negative",
+                                    muKey, distStr, (glong)edgeIndex, fromIDStr, toIDStr);
+                            isSuccess = FALSE;
+                        }
+                    } else {
+                        tgen_warning("required attribute '%s' for distribution '%s' "
+                                "on edge %li (from '%s' to '%s') is missing or NAN",
+                                muKey, distStr, (glong)edgeIndex, fromIDStr, toIDStr);
+                        isSuccess = FALSE;
+                    }
 
-        /* this attribute is required, so it is an error if it doesn't exist */
-        const gchar* lambdaKey = _tgenmarkovmodel_edgeAttributeToString(EDGE_ATTR_EXPLAMBDA);
-        gdouble lambdaValue;
-        if(igraph_cattribute_has_attr(mmodel->graph, IGRAPH_ATTRIBUTE_EDGE, lambdaKey) &&
-                _tgenmarkovmodel_findEdgeAttributeDouble(mmodel, edgeIndex, EDGE_ATTR_EXPLAMBDA, &lambdaValue)) {
-            if(lambdaValue >= 0.0f) {
-                g_string_append_printf(message, " %s='%f'", lambdaKey, lambdaValue);
+                    /* now check sigma. it is an error if it doesn't exist.  */
+                    const gchar* sigmaKey = _tgenmarkovmodel_edgeAttributeToString(EDGE_ATTR_PARAM_SIGMA);
+                    gdouble sigmaValue;
+                    if(igraph_cattribute_has_attr(mmodel->graph, IGRAPH_ATTRIBUTE_EDGE, sigmaKey) &&
+                            _tgenmarkovmodel_findEdgeAttributeDouble(mmodel, edgeIndex, EDGE_ATTR_PARAM_SIGMA, &sigmaValue)) {
+                        if(sigmaValue >= 0.0f) {
+                            g_string_append_printf(message, " %s='%f'", sigmaKey, sigmaValue);
+                        } else {
+                            /* its an error if they gave a value that is incorrect */
+                            tgen_warning("required attribute '%s' for distribution '%s' "
+                                    "on edge %li (from '%s' to '%s') must be non-negative",
+                                    sigmaKey, distStr, (glong)edgeIndex, fromIDStr, toIDStr);
+                            isSuccess = FALSE;
+                        }
+                    } else {
+                        tgen_warning("required attribute '%s' for distribution '%s' "
+                                "on edge %li (from '%s' to '%s') is missing or NAN",
+                                sigmaKey, distStr, (glong)edgeIndex, fromIDStr, toIDStr);
+                        isSuccess = FALSE;
+                    }
+
+                } else if(_tgenmarkovmodel_edgeDistIsEqual(distStr, EDGE_DISTRIBUTION_EXPONENTIAL)) {
+                    /* exponential requires lambda, so it is an error if it doesn't exist */
+                    const gchar* lambdaKey = _tgenmarkovmodel_edgeAttributeToString(EDGE_ATTR_PARAM_LAMBDA);
+                    gdouble lambdaValue;
+                    if(igraph_cattribute_has_attr(mmodel->graph, IGRAPH_ATTRIBUTE_EDGE, lambdaKey) &&
+                            _tgenmarkovmodel_findEdgeAttributeDouble(mmodel, edgeIndex, EDGE_ATTR_PARAM_LAMBDA, &lambdaValue)) {
+                        if(lambdaValue >= 0.0f) {
+                            g_string_append_printf(message, " %s='%f'", lambdaKey, lambdaValue);
+                        } else {
+                            /* its an error if they gave a value that is incorrect */
+                            tgen_warning("required attribute '%s' for distribution '%s' "
+                                    "on edge %li (from '%s' to '%s') must be non-negative",
+                                    lambdaKey, distStr, (glong)edgeIndex, fromIDStr, toIDStr);
+                            isSuccess = FALSE;
+                        }
+                    } else {
+                        tgen_warning("required attribute '%s' for distribution '%s' "
+                                "on edge %li (from '%s' to '%s') is missing or NAN",
+                                lambdaKey, distStr, (glong)edgeIndex, fromIDStr, toIDStr);
+                        isSuccess = FALSE;
+                    }
+                } else {
+                    tgen_warning("required attribute '%s' value '%s' on edge %li (from '%s' to '%s') is invalid, "
+                            "need '%s' or '%s'", distKey, distStr,
+                            (glong)edgeIndex, fromIDStr, toIDStr,
+                            _tgenmarkovmodel_edgeDistToString(EDGE_DISTRIBUTION_LOGNORMAL),
+                            _tgenmarkovmodel_edgeDistToString(EDGE_DISTRIBUTION_EXPONENTIAL));
+                    isSuccess = FALSE;
+                }
             } else {
-                /* its an error if they gave a value that is incorrect */
-                tgen_warning("required attribute '%s' on edge %li (from '%s' to '%s') must be non-negative",
-                        lambdaKey, (glong)edgeIndex, fromIDStr, toIDStr);
+                tgen_warning("required attribute '%s' on edge %li (from '%s' to '%s') is NULL",
+                        distKey, (glong)edgeIndex, fromIDStr, toIDStr);
                 isSuccess = FALSE;
             }
         } else {
-            tgen_warning("required attribute '%s' on edge %li (from '%s' to '%s') is missing or NAN",
-                    lambdaKey, (glong)edgeIndex, fromIDStr, toIDStr);
+            tgen_warning("required attribute '%s' on edge %li (from '%s' to '%s') is missing",
+                    distKey, (glong)edgeIndex, fromIDStr, toIDStr);
             isSuccess = FALSE;
         }
     }
@@ -952,23 +1015,31 @@ static guint64 _tgenmarkovmodel_generateDelay(TGenMarkovModel* mmodel,
     g_assert(isSuccess);
     g_assert(_tgenmarkovmodel_edgeTypeIsEqual(typeStr, EDGE_TYPE_EMISSION));
 
-    gdouble muValue = 0;
-    isSuccess = _tgenmarkovmodel_findEdgeAttributeDouble(mmodel, edgeIndex, EDGE_ATTR_LOGNORMMU, &muValue);
+    const gchar* distStr;
+    isSuccess = _tgenmarkovmodel_findEdgeAttributeString(mmodel, edgeIndex, EDGE_ATTR_DISTRIBUTION, &distStr);
     g_assert(isSuccess);
 
-    gdouble sigmaValue = 0;
-    isSuccess = _tgenmarkovmodel_findEdgeAttributeDouble(mmodel, edgeIndex, EDGE_ATTR_LOGNORMSIGMA, &sigmaValue);
-    g_assert(isSuccess);
-
+    /* now we generate a value following the configured distribution type */
     gdouble generatedValue = 0;
-    if(sigmaValue > 0 || muValue > 0) {
+
+    if(_tgenmarkovmodel_edgeDistIsEqual(distStr, EDGE_DISTRIBUTION_LOGNORMAL)) {
+        gdouble muValue = 0;
+        isSuccess = _tgenmarkovmodel_findEdgeAttributeDouble(mmodel, edgeIndex, EDGE_ATTR_PARAM_MU, &muValue);
+        g_assert(isSuccess);
+
+        gdouble sigmaValue = 0;
+        isSuccess = _tgenmarkovmodel_findEdgeAttributeDouble(mmodel, edgeIndex, EDGE_ATTR_PARAM_SIGMA, &sigmaValue);
+        g_assert(isSuccess);
+
         generatedValue = _tgenmarkovmodel_generateLogNormalValue(mmodel, muValue, sigmaValue);
-    } else {
+    } else if(_tgenmarkovmodel_edgeDistIsEqual(distStr, EDGE_DISTRIBUTION_EXPONENTIAL)) {
         gdouble lambdaValue = 0;
-        isSuccess = _tgenmarkovmodel_findEdgeAttributeDouble(mmodel, edgeIndex, EDGE_ATTR_EXPLAMBDA, &lambdaValue);
+        isSuccess = _tgenmarkovmodel_findEdgeAttributeDouble(mmodel, edgeIndex, EDGE_ATTR_PARAM_LAMBDA, &lambdaValue);
         g_assert(isSuccess);
 
         generatedValue = _tgenmarkovmodel_generateExponentialValue(mmodel, lambdaValue);
+    } else {
+        g_assert_not_reached();
     }
 
     if(generatedValue > UINT64_MAX) {
