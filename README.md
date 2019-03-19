@@ -36,11 +36,11 @@ Optionally install to the prefix:
 Run TGen with a single argument (the path to a config file). For example,
 first run a server:
 
-    tgen resource/tgen.server.graphml.xml > tgen.server.log
+    tgen resource/server.tgenrc.graphml > tgen.server.log
 
 and then run a client that connects to the server:
 
-    tgen resource/tgen.webclient.graphml.xml > tgen.client.log
+    tgen resource/client.tgenrc.graphml > tgen.client.log
 
 See the [resource/](resource) directory for example config files.
 
