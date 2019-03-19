@@ -26,7 +26,7 @@ Acceptable attributes for the **start** action:
 |--------|--------|---------|-------------|
 | _serverport_ | \<integer\> | 8080 | The local port that will be opened to listen for other tgen connections. Set this value if your tgen instance should act as a server for other tgen client requests. |
 | _time_ | \<time\> | 1&nbsp;second | The time that tgen should delay before starting a walk through the action graph. If not given, tgen will start immediately upon process initialization. |
-| _heartbeat_ | \<time\> | 1&nbsp;second | The time between which heartbeat status messages are logged at 'message' level. The default of 1 second is used if _heartbeat_ is 0 or is not set. |
+| _heartbeat_ | \<time\> | 1&nbsp;second | The time between which heartbeat status messages are logged at 'message' level. A default of 1 second is used if _heartbeat_ is not set. The heartbeat message is disabled if _heartbeat_ is set to 0. |
 | _loglevel_ | \<string\> | info | The level above which tgen log messages will be filtered and not shown or logged. Valid values in increasing order are: 'error', 'critical', 'message', 'info', and 'debug'. The default value if _loglevel_ is not set is 'message'. |
 
 **NOTE:** all options for the **stream** action specified below can also be set in the **start** action. Any stream options that are specified in the **start** action are treated as the global default option for all streams. You can then override this global default by also setting that option in any individual **stream** action. (You could also just specify stream options in every **stream** action and never set a global value in the **start** action.)
@@ -37,7 +37,7 @@ Acceptable attributes for the **stream** action:
 
 | Name   | Format | Example | Description |
 |--------|--------|---------|-------------|
-| _packetmodelpath_ | \<filepath\> | ~/packets.graphml | The Markov model to use to generate packets. If unspecified, tgen will use a default Markov model that repeatedly generates packets in both directions at a constant rate and with no inter-packet delay. I.e., both the client and server will send as many packets as possible as fast as possible. |
+| _packetmodelpath_ | \<filepath\> | ~/packets.graphml | The Markov model to use to generate packets. If unspecified, tgen will use an internal default Markov model with no end state that causes tgen to continously generates packets in both directions with no inter-packet delay. |
 | _packetmodelseed_ | \<integer\> | 12345 | The seed that will be used to initialize the pseudorandom generator in the packet Markov model. If unspecified, tgen generates a seed using a global pseudorandom generator that was randomly seeded. |
 | _peers_ | \<peer\>,... | 10.0.0.1,... | **Required:** a comma-separated list of peers to use for this **stream**. The _peers_ attribute is **required** unless a _peers_ attribute is specified in the **start** action. A peer will be selected at random from this list, or at random from the **start** action list if this attribute is not specified. |
 | _socksproxy_ | \<peer\> | 127.0.0.1:9050 | A peer to use as a proxy server through which all connections to other tgen peers will be made. If not given, tgen will connect to the peer directly unless this option is set in the **start** action. |

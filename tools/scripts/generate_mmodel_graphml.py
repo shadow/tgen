@@ -15,7 +15,7 @@ def generate_nonstop_packetmodel(filename):
 
     # 'start' is a special keyword and must exist once
     G.add_node('s0', type="state", name='start')
-    # non-start states can be given any name as the id
+    # non-start states can be given any name
     G.add_node('s1', type="state", name='nonstop')
 
     # the "type" and "weight" attributes are required on
@@ -32,11 +32,9 @@ def generate_nonstop_packetmodel(filename):
     # you should not mix packet and stream creations in the same model
     G.add_node('o1', type="observation", name='+')
     G.add_node('o2', type="observation", name='-')
-    G.add_node('o3', type="observation", name='F')
 
-    G.add_edge('s1', 'o1', type='emission', weight=0.499, lognorm_mu=0.0, lognorm_sigma=0.0, exp_lambda=4294967295)
-    G.add_edge('s1', 'o2', type='emission', weight=0.499, lognorm_mu=0.0, lognorm_sigma=0.0, exp_lambda=4294967295)
-    G.add_edge('s1', 'o3', type='emission', weight=0.002, lognorm_mu=0.0, lognorm_sigma=0.0, exp_lambda=4294967295)
+    G.add_edge('s1', 'o1', type='emission', weight=0.5, lognorm_mu=0.0, lognorm_sigma=0.0, exp_lambda=4294967295)
+    G.add_edge('s1', 'o2', type='emission', weight=0.5, lognorm_mu=0.0, lognorm_sigma=0.0, exp_lambda=4294967295)
 
     networkx.write_graphml(G, filename)
 

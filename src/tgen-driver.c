@@ -479,7 +479,7 @@ static void _tgendriver_checkEndConditions(TGenDriver* driver, TGenActionID acti
     if(options->sendSize.isSet) {
         if(driver->totalBytesWritten >= ((gsize)options->sendSize.value)) {
             tgen_message("TGen will end because we sent %"G_GSIZE_FORMAT" bytes "
-                    "and we exceeded the configured send limit of %"G_GUINT64_FORMAT" bytes",
+                    "and we met or exceeded the configured send limit of %"G_GUINT64_FORMAT" bytes",
                     driver->totalBytesWritten, options->sendSize.value);
             driver->clientHasEnded = TRUE;
             driver->serverHasEnded = TRUE;
@@ -489,7 +489,7 @@ static void _tgendriver_checkEndConditions(TGenDriver* driver, TGenActionID acti
     if(options->recvSize.isSet) {
         if(driver->totalBytesRead >= ((gsize)options->recvSize.value)) {
             tgen_message("TGen will end because we received %"G_GSIZE_FORMAT" bytes "
-                    "and we exceeded the configured receive limit of %"G_GUINT64_FORMAT" bytes",
+                    "and we met or exceeded the configured receive limit of %"G_GUINT64_FORMAT" bytes",
                     driver->totalBytesRead, options->recvSize.value);
             driver->clientHasEnded = TRUE;
             driver->serverHasEnded = TRUE;
@@ -499,7 +499,7 @@ static void _tgendriver_checkEndConditions(TGenDriver* driver, TGenActionID acti
     if(options->count.isSet) {
         if(driver->totalTransfersCompleted >= options->count.value) {
             tgen_message("TGen will end because we completed %"G_GUINT64_FORMAT" transfers "
-                    "and we exceeded the configured limit of %"G_GUINT64_FORMAT" transfers",
+                    "and we met or exceeded the configured limit of %"G_GUINT64_FORMAT" transfers",
                     driver->totalTransfersCompleted, options->count.value);
             driver->clientHasEnded = TRUE;
             driver->serverHasEnded = TRUE;
@@ -514,7 +514,7 @@ static void _tgendriver_checkEndConditions(TGenDriver* driver, TGenActionID acti
 
         if(elapsedNanos >= options->timeNanos.value) {
             tgen_message("TGen will end because %"G_GUINT64_FORMAT" nanoseconds have elapsed "
-                    "and exceeded the configured limit of %"G_GUINT64_FORMAT" nanoseconds",
+                    "and we met or exceeded the configured limit of %"G_GUINT64_FORMAT" nanoseconds",
                     elapsedNanos, options->timeNanos.value);
             driver->clientHasEnded = TRUE;
             driver->serverHasEnded = TRUE;
@@ -703,7 +703,13 @@ static gboolean _tgendriver_setHeartbeatTimerHelper(TGenDriver* driver) {
 
     guint64 heartbeatPeriodMicros = 0;
     if(driver->startOptions->heartbeatPeriodNanos.isSet) {
-        heartbeatPeriodMicros = (guint64)(driver->startOptions->heartbeatPeriodNanos.value / 1000);
+        if(driver->startOptions->heartbeatPeriodNanos.value == 0) {
+            /* do not print a heartbeat */
+            tgen_warning("The heartbeat message was disabled, so log output may be sparse.");
+            return TRUE;
+        } else {
+            heartbeatPeriodMicros = (guint64)(driver->startOptions->heartbeatPeriodNanos.value / 1000);
+        }
     } else {
         heartbeatPeriodMicros = 1000*1000; /* 1 second */
     }
@@ -742,7 +748,7 @@ TGenDriver* tgendriver_new(TGenGraph* graph) {
     driver->startActionID = tgengraph_getStartActionID(graph);
     driver->startOptions = tgengraph_getStartOptions(graph);
 
-    /* start a heartbeat status message every second */
+    /* start a  status message every second */
     if(!_tgendriver_setHeartbeatTimerHelper(driver)) {
         tgendriver_unref(driver);
         return NULL;
