@@ -9,7 +9,7 @@
 /* disable default timeout */
 #define DEFAULT_XFER_TIMEOUT_NSEC (0*((guint64)1000*1000*1000))
 /* 60 second default stallout */
-#define DEFAULT_XFER_STALLOUT_NSEC (60*((guint64)1000*1000*1000))
+#define DEFAULT_XFER_STALLOUT_NSEC (30*((guint64)1000*1000*1000))
 
 /* default lengths for buffers used during i/o.
  * the read buffer is temporary and stack-allocated.
