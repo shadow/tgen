@@ -34,10 +34,12 @@ def generate_nonstop_packetmodel(filename):
     G.add_node('o2', type="observation", name='-')
 
     # 'distribution' is required
-    # if 'exponential', then 'param_lambda' is required
-    # if 'lognormal', ' then 'param_mu' and 'param_sigma' are required
-    G.add_edge('s1', 'o1', type='emission', weight=0.5, distribution='exponential', param_lambda=4294967295)
-    G.add_edge('s1', 'o2', type='emission', weight=0.5, distribution='exponential', param_lambda=4294967295)
+    # if 'exponential', then 'param_rate' is required
+    # if 'lognormal', ' then 'param_location' and 'param_scale' are required
+    # if 'normal', ' then 'param_location' and 'param_scale' are required
+    # if 'pareto', ' then 'param_scale' and 'param_shape' are required
+    G.add_edge('s1', 'o1', type='emission', weight=0.5, distribution='exponential', param_rate=4294967295)
+    G.add_edge('s1', 'o2', type='emission', weight=0.5, distribution='exponential', param_rate=4294967295)
 
     networkx.write_graphml(G, filename)
 
