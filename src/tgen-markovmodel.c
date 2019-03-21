@@ -29,41 +29,40 @@ enum _VertexAttribute {
 typedef enum _VertexID VertexID;
 enum _VertexID {
     VERTEX_ID_START=3,
-    VERTEX_ID_PACKET_TO_SERVER=4,
-    VERTEX_ID_PACKET_TO_ORIGIN=5,
-    VERTEX_ID_STREAM=6,
-    VERTEX_ID_END=7,
+    VERTEX_ID_TO_SERVER=4,
+    VERTEX_ID_TO_ORIGIN=5,
+    VERTEX_ID_END=6,
 };
 
 typedef enum _VertexType VertexType;
 enum _VertexType {
-    VERTEX_TYPE_STATE=8,
-    VERTEX_TYPE_OBSERVATION=9,
+    VERTEX_TYPE_STATE=7,
+    VERTEX_TYPE_OBSERVATION=8,
 };
 
 typedef enum _EdgeAttribute EdgeAttribute;
 enum _EdgeAttribute {
-    EDGE_ATTR_TYPE=10,
-    EDGE_ATTR_WEIGHT=11,
-    EDGE_ATTR_DISTRIBUTION=12,
-    EDGE_ATTR_PARAM_LOCATION=13,
-    EDGE_ATTR_PARAM_SCALE=14,
-    EDGE_ATTR_PARAM_RATE=15,
-    EDGE_ATTR_PARAM_SHAPE=16,
+    EDGE_ATTR_TYPE=9,
+    EDGE_ATTR_WEIGHT=10,
+    EDGE_ATTR_DISTRIBUTION=11,
+    EDGE_ATTR_PARAM_LOCATION=12,
+    EDGE_ATTR_PARAM_SCALE=13,
+    EDGE_ATTR_PARAM_RATE=14,
+    EDGE_ATTR_PARAM_SHAPE=15,
 };
 
 typedef enum _EdgeType EdgeType;
 enum _EdgeType {
-    EDGE_TYPE_TRANSITION=17,
-    EDGE_TYPE_EMISSION=18,
+    EDGE_TYPE_TRANSITION=16,
+    EDGE_TYPE_EMISSION=17,
 };
 
 typedef enum _EdgeDistribution EdgeDistribution;
 enum _EdgeDistribution {
-    EDGE_DISTRIBUTION_NORMAL=19,
-    EDGE_DISTRIBUTION_LOGNORMAL=20,
-    EDGE_DISTRIBUTION_EXPONENTIAL=21,
-    EDGE_DISTRIBUTION_PARETO=22,
+    EDGE_DISTRIBUTION_NORMAL=18,
+    EDGE_DISTRIBUTION_LOGNORMAL=19,
+    EDGE_DISTRIBUTION_EXPONENTIAL=20,
+    EDGE_DISTRIBUTION_PARETO=21,
 };
 
 struct _TGenMarkovModel {
@@ -181,12 +180,10 @@ static gboolean _tgenmarkovmodel_edgeDistIsEqual(const gchar* distStr, EdgeDistr
 static const gchar* _tgenmarkovmodel_vertexIDToString(VertexID id) {
     if(id == VERTEX_ID_START) {
         return "start";
-    } else if(id == VERTEX_ID_PACKET_TO_SERVER) {
+    } else if(id == VERTEX_ID_TO_SERVER) {
         return "+";
-    } else if(id == VERTEX_ID_PACKET_TO_ORIGIN) {
+    } else if(id == VERTEX_ID_TO_ORIGIN) {
         return "-";
-    } else if(id == VERTEX_ID_STREAM) {
-        return "$";
     } else if(id == VERTEX_ID_END) {
         return "F";
     } else {
@@ -205,9 +202,8 @@ static gboolean _tgenmarkovmodel_vertexIDIsEqual(const gchar* idStr, VertexID id
 }
 
 static gboolean _tgenmarkovmodel_vertexIDIsEmission(const gchar* idStr) {
-    if(_tgenmarkovmodel_vertexIDIsEqual(idStr, VERTEX_ID_PACKET_TO_SERVER) ||
-            _tgenmarkovmodel_vertexIDIsEqual(idStr, VERTEX_ID_PACKET_TO_ORIGIN) ||
-            _tgenmarkovmodel_vertexIDIsEqual(idStr, VERTEX_ID_STREAM) ||
+    if(_tgenmarkovmodel_vertexIDIsEqual(idStr, VERTEX_ID_TO_SERVER) ||
+            _tgenmarkovmodel_vertexIDIsEqual(idStr, VERTEX_ID_TO_ORIGIN) ||
             _tgenmarkovmodel_vertexIDIsEqual(idStr, VERTEX_ID_END)) {
         return TRUE;
     } else {
@@ -328,13 +324,12 @@ static gboolean _tgenmarkovmodel_checkVertexAttributes(TGenMarkovModel* mmodel, 
                 /* pass, nothing to do for now */
             } else if(_tgenmarkovmodel_vertexTypeIsEqual(typeStr, VERTEX_TYPE_OBSERVATION)) {
                 if(!_tgenmarkovmodel_vertexIDIsEmission(idStr)) {
-                    tgen_warning("'$s' type on vertex %li must be one of '%s', '%s', '%s', or '%s', "
+                    tgen_warning("'$s' type on vertex %li must be one of '%s', '%s', or '%s', "
                             "but you gave %s='%s'",
                             _tgenmarkovmodel_vertexTypeToString(VERTEX_TYPE_OBSERVATION),
                             (glong)vertexIndex,
-                            _tgenmarkovmodel_vertexTypeToString(VERTEX_ID_PACKET_TO_SERVER),
-                            _tgenmarkovmodel_vertexTypeToString(VERTEX_ID_PACKET_TO_ORIGIN),
-                            _tgenmarkovmodel_vertexTypeToString(VERTEX_ID_STREAM),
+                            _tgenmarkovmodel_vertexTypeToString(VERTEX_ID_TO_SERVER),
+                            _tgenmarkovmodel_vertexTypeToString(VERTEX_ID_TO_ORIGIN),
                             _tgenmarkovmodel_vertexTypeToString(VERTEX_ID_END),
                             idKey, idStr);
                     isSuccess = FALSE;
@@ -1219,15 +1214,12 @@ static Observation _tgenmarkovmodel_vertexToObservation(TGenMarkovModel* mmodel,
     isSuccess = _tgenmarkovmodel_findVertexAttributeString(mmodel, vertexIndex, VERTEX_ATTR_ID, &vidStr);
     g_assert(isSuccess);
 
-    if(_tgenmarkovmodel_vertexIDIsEqual(vidStr, VERTEX_ID_PACKET_TO_ORIGIN)) {
+    if(_tgenmarkovmodel_vertexIDIsEqual(vidStr, VERTEX_ID_TO_ORIGIN)) {
         tgen_debug("Returning OBSERVATION_PACKET_TO_ORIGIN");
-        return OBSERVATION_PACKET_TO_ORIGIN;
-    } else if(_tgenmarkovmodel_vertexIDIsEqual(vidStr, VERTEX_ID_PACKET_TO_SERVER)) {
+        return OBSERVATION_TO_ORIGIN;
+    } else if(_tgenmarkovmodel_vertexIDIsEqual(vidStr, VERTEX_ID_TO_SERVER)) {
         tgen_debug("Returning OBSERVATION_PACKET_TO_SERVER");
-        return OBSERVATION_PACKET_TO_SERVER;
-    } else if(_tgenmarkovmodel_vertexIDIsEqual(vidStr, VERTEX_ID_STREAM)) {
-        tgen_debug("Returning OBSERVATION_STREAM");
-        return OBSERVATION_STREAM;
+        return OBSERVATION_TO_SERVER;
     } else {
         mmodel->foundEndState = TRUE;
         tgen_debug("Returning OBSERVATION_END");

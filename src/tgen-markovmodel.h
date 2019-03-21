@@ -15,9 +15,8 @@
 
 typedef enum _Observation Observation;
 enum _Observation {
-    OBSERVATION_PACKET_TO_SERVER,
-    OBSERVATION_PACKET_TO_ORIGIN,
-    OBSERVATION_STREAM,
+    OBSERVATION_TO_SERVER,
+    OBSERVATION_TO_ORIGIN,
     OBSERVATION_END,
 };
 

@@ -189,7 +189,7 @@ static void _tgengenerator_generatePacketSchedules(TGenGenerator* gen,
         }
 
         /* now build the schedule */
-        if(obs == OBSERVATION_PACKET_TO_ORIGIN) {
+        if(obs == OBSERVATION_TO_ORIGIN) {
             tgen_debug("Found packet to origin observation with packet delay %"G_GUINT64_FORMAT, packetDelay);
 
             /* packet to origin means the server sent it.
@@ -200,7 +200,7 @@ static void _tgengenerator_generatePacketSchedules(TGenGenerator* gen,
             nextServerPacketDelay = 0;
             numServerPackets++;
             gen->numPacketsGenerated++;
-        } else if(obs == OBSERVATION_PACKET_TO_SERVER) {
+        } else if(obs == OBSERVATION_TO_SERVER) {
             tgen_debug("Found packet to server observation with packet delay %"G_GUINT64_FORMAT, packetDelay);
 
             /* packet to server means the origin sent it.
@@ -265,7 +265,7 @@ gboolean tgengenerator_generateStream(TGenGenerator* gen,
 
     g_timer_stop(gen->cumulativeStreamTimer);
 
-    if(obs == OBSERVATION_STREAM) {
+    if(obs == OBSERVATION_TO_ORIGIN || obs == OBSERVATION_TO_SERVER) {
         tgen_debug("Found stream observation with a generated stream delay of "
                 "%"G_GUINT64_FORMAT" microseconds", streamDelay);
 

@@ -1151,14 +1151,14 @@ static gboolean _tgentransfer_writePayload(TGenTransfer* transfer) {
         guint64 obsDelay = 0;
         Observation obs = tgenmarkovmodel_getNextObservation(transfer->mmodel, &obsDelay);
 
-        if((transfer->isCommander && obs == OBSERVATION_PACKET_TO_ORIGIN)
-                || (!transfer->isCommander && obs == OBSERVATION_PACKET_TO_SERVER)) {
+        if((transfer->isCommander && obs == OBSERVATION_TO_ORIGIN)
+                || (!transfer->isCommander && obs == OBSERVATION_TO_SERVER)) {
             /* the other end is sending us a packet, we have nothing to do.
              * but this delay should be included in the delay for our next outgoing packet. */
             interPacketDelay += (gsize)obsDelay;
             cumulativeDelay += (gsize)obsDelay;
-        } else if((transfer->isCommander && obs == OBSERVATION_PACKET_TO_SERVER)
-                || (!transfer->isCommander && obs == OBSERVATION_PACKET_TO_ORIGIN)) {
+        } else if((transfer->isCommander && obs == OBSERVATION_TO_SERVER)
+                || (!transfer->isCommander && obs == OBSERVATION_TO_ORIGIN)) {
             /* this means we should send a packet */
             cumulativeSize += TGEN_MMODEL_PACKET_DATA_SIZE;
             /* since we sent a packet, now we reset the delay */
