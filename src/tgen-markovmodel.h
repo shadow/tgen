@@ -11,7 +11,7 @@
 #define TGEN_MMODEL_PACKET_DATA_SIZE 1434
 /* and packets sent within this many microseconds will be sent
  * at the same time for efficiency reasons */
-#define TGEN_MMODEL_MICROS_AT_ONCE 1000
+#define TGEN_MMODEL_MICROS_AT_ONCE 10000
 
 typedef enum _Observation Observation;
 enum _Observation {
