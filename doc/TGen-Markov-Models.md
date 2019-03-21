@@ -113,8 +113,8 @@ Once an `emission` edge has been selected, the `observation` vertex
 connected by the edge instructs TGen which type of action to take.
 Additionally, each `emission` edge must specify the `distribution` attribute
 and the associated parameters for that distribution. These distributions encode
-the delay that TGen should create after the observation before transitioning
-to the next state.
+the **time delay in microseconds** that TGen should create after the observation
+before transitioning to the next state.
 
 The following delay distributions are currently supported (more can be added
 as the need arises):
