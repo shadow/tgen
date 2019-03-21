@@ -1,3 +1,159 @@
 # Markov Models
 
-TODO.
+TGen supports the use of Markov models to allow the user to control how TCP
+streams are created. TGen uses Markov models for two distinct processes:
+
+  * In a **flow** action, a Markov model can be used to configure the stream
+    creation process, i.e., the frequency with which new TCP streams should
+    be created. The Markov model specifies inter-stream delay distributions.
+    This model is configured with the _streammodelpath_ and _streammodelseed_
+    attributes on the **flow** action.
+  * In a **stream** action, a Markov model can be used to configure the packet
+    creation process on the associated TCP stream, i.e., the frequency with
+    which packets should be created. The Markov model specifies inter-packet
+    delay distributions. This model is configured with the _packetmodelpath_
+    and _packetmodelseed_ attributes on the **stream** action. It can also be
+    configured on a **flow** action in order to apply the model to all TCP
+    streams generated for the flow.
+    
+More information about how to set up a Markov model in your TGen configuration
+file can be found in the [doc/TGen-Options.md](doc/TGen-Options.md) file.
+
+The remainder of this document explains the Markov model file format that TGen
+supports, and provides examples of how to generate Markov models that will
+pass TGen's Markov model validation.
+
+# File Format and Structure
+
+As with the config file, TGen uses the `graphml` file format to represent
+Markov models. As we explain the structure supported by TGen, we provide
+examples of generating the corresponding `graphml` elements and atrributes
+using `python` and the `networkx` python module (installing the TGenTools
+toolkit will install the networkx module).
+
+Models are constructed as directed graphs:
+
+```python
+G = networkx.DiGraph()
+```
+
+Generally, the Markov model specifies a set of Markov model states and a set
+of transitions between pairs of states. Each state is also associated with a
+set of observations, and a set of emissions between states and observations.
+
+### Vertices: Markov model states and observations
+
+Vertices in the graph can either be Markov model "states" or "observations",
+and the type is encoded in the graph using the _type_ attribute on the graph
+node. Each vertex must specify a _type_ and a _name_. The vertex _id_ is
+required and must be unique but are otherwise not used by TGen.
+
+```python
+G.add_node('s0', type="state", name='start')
+G.add_node('s1', type="state", name='anything_you_want')
+```
+
+The graph must contain one and only one vertex of _type_ `state` whose _name_
+is `start`. This instructs TGen in which state the Marov model begins. The
+_name_ of the other vertices of _type_ `state` are insignificant and can be
+set to any string.
+
+```python
+G.add_node('o1', type="observation", name='+')
+G.add_node('o2', type="observation", name='-')
+```
+
+Vertices of _type_ `observation` must set one of the following as the _name_,
+which encodes the action to be taken upon reaching a particular vertex. Valid
+_name_ strings are:
+
+  * `+`: Generate a packet from client to server (for packet models) or a new
+    stream (for stream models)
+  * `-`: Generate a packet from server to client (for packet models) or a new
+    stream (for stream models)
+  * `F`: Stop generating new packets (for packet models) or new streams 
+    (for stream models)
+
+For stream models, there is no difference between `+` and `-`: you can simply
+use `+` to indicate new stream creation on stream models.
+
+### Edges: Markov model state transitions and emissions
+
+Edges in the graph can either be Markov model "transitions" or "emissions",
+and the type us encoded in the graph using the _type_ attribute on the graph
+edge. Each edge must specify a _type_ and a _weight_. The source and target
+vertex _id_ must match those that were defined when creating the nodes.
+
+```python
+G.add_edge('s0', 's1', type='transition', weight=1.0)
+G.add_edge('s1', 's1', type='transition', weight=1.0)
+```
+
+Edges of _type_ `transition` instruct TGen how to move between pairs of
+vertices of _type_ `state`. For vertices of _type_ `state` with multiple
+outgoing edges of _type_ `transition`, TGen randomly selects one outgoing
+edge according to the weighted probabilities (each edge's probability is
+computed by dividing its weight by the sum of the weights of all outgoing
+`transition` edges from the same `state` vertex).
+
+```python
+G.add_edge('s1', 'o1', type='emission', weight=0.5, distribution='normal', param_location=5000000, param_scale=1000000)
+G.add_edge('s1', 'o2', type='emission', weight=0.5, distribution='exponential', param_rate=0.001)
+```
+
+Whenever TGen moves between states, there is an associated event observation.
+Edges of _type_ `emission` instruct TGen how to move between vertices of 
+_type_ `state` and vertices of _type_ `observation`. For vertices of _type_ 
+`state` with multiple outgoing edges of _type_ `emission`, TGen randomly
+selects one outgoing edge according to the weighted probabilities (each edge's
+probability is computed by dividing its weight by the sum of the weights of
+all outgoing `emission` edges from the same `state` vertex).
+
+Once an `emission` edge has been selected, the `observation` vertex
+connected by the edge instructs TGen which type of action to take.
+Additionally, each `emission` edge must specify the `distribution` attribute
+and the associated parameters for that distribution. These distributions encode
+the delay that TGen should create after the observation before transitioning
+to the next state.
+
+The following delay distributions are currently supported (more can be added
+as the need arises):
+
+  * `normal`: a normal distribution requires the attributes
+     `param_location` (mu) and `param_scale` (sigma)
+  * `lognormal`: a lognormal distribution requires the attributes
+    `param_location` (mu) and `param_scale` (sigma)
+  * `exponential`: an exponential distribution requires the attribute
+     `param_rate` (lamda)
+  * `pareto`: a Pareto distribution requires the attributes
+    `param_scale` (xm) and `param_shape` (alpha)
+
+A final graph can be written to a file using:
+
+```python
+networkx.write_graphml(G, 'sample.mmodel.graphml')
+```
+
+# Examples
+
+Below is a full example of code provided above. Another example script, which
+we use to generate our internal default packet and stream models, can be found
+in the repository at [tools/scripts/generate_mmodel_graphml.py](tools/scripts/generate_mmodel_graphml.py).
+
+```python
+G = networkx.DiGraph()
+
+G.add_node('s0', type="state", name='start')
+G.add_node('s1', type="state", name='anything_you_want')
+
+G.add_node('o1', type="observation", name='+')
+G.add_node('o2', type="observation", name='-')
+
+G.add_edge('s0', 's1', type='transition', weight=1.0)
+G.add_edge('s1', 's1', type='transition', weight=1.0)
+
+G.add_edge('s1', 'o1', type='emission', weight=0.5, distribution='normal', param_location=5000000, param_scale=1000000)
+G.add_edge('s1', 'o2', type='emission', weight=0.5, distribution='exponential', param_rate=0.001)
+
+networkx.write_graphml(G, 'sample.mmodel.graphml')
+```

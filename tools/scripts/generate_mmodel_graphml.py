@@ -24,10 +24,9 @@ def generate_nonstop_packetmodel(filename):
     G.add_edge('s0', 's1', type='transition', weight=1.0)
     G.add_edge('s1', 's1', type='transition', weight=1.0)
 
-    # '+', '-', '$', and 'F' are special keywords
-    # '+': packet from client to server
-    # '-': packet from server to client
-    # '$': create new stream
+    # '+', '-', and 'F' are special keywords
+    # '+': packet from client to server, or create new stream
+    # '-': packet from server to client, or create new stream
     # observations must use one of these keywords
     # you should not mix packet and stream creations in the same model
     G.add_node('o1', type="observation", name='+')

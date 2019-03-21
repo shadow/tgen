@@ -31,7 +31,7 @@ static void generate(TGenMarkovModel* mmodel) {
             /* keep track of cumulative delay for each packet. we need this because
              * we are actually computing independent delays for the server and the origin.
              * we take care not to overflow the int32 type. */
-            if(obs == OBSERVATION_PACKET_TO_ORIGIN || obs == OBSERVATION_PACKET_TO_SERVER) {
+            if(obs == OBSERVATION_TO_ORIGIN || obs == OBSERVATION_TO_SERVER) {
                 if(delay > INT32_MAX) {
                     nextOriginpacketDelay = INT32_MAX;
                     nextServerPacketDelay = INT32_MAX;
@@ -51,7 +51,7 @@ static void generate(TGenMarkovModel* mmodel) {
             }
 
             /* now build the schedule */
-            if(obs == OBSERVATION_PACKET_TO_ORIGIN) {
+            if(obs == OBSERVATION_TO_ORIGIN) {
                 /* packet to origin means the server sent it. */
                 numServerPackets++;
 
@@ -60,7 +60,7 @@ static void generate(TGenMarkovModel* mmodel) {
                         delay, nextServerPacketDelay);
 
                 nextServerPacketDelay = 0;
-            } else if(obs == OBSERVATION_PACKET_TO_SERVER) {
+            } else if(obs == OBSERVATION_TO_SERVER) {
                 /* packet to server means the origin sent it. */
                 numOriginPackets++;
 

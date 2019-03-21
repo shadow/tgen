@@ -6,10 +6,12 @@ number of parallel flows, etc.) can be configured by the user.
 
 TGen can generate complex traffic patterns. Users write relatively simple
 python scripts to generate `graphml` files that are then used as TGen
-configuration files that instruct TGen how to generate traffic.
+configuration files that instruct TGen how to generate traffic. TGen also
+supports the use of Markov models in order to generate TCP flows and packet
+streams according to common probability distributions.
 
 TGen is used to simulate traffic flows in [Shadow](https://github.com/shadow/shadow),
-and to monitor Tor performance in [OnionPerf](https://gitweb.torproject.org/onionperf.git)
+and to monitor Tor performance in [OnionPerf](https://gitweb.torproject.org/onionperf.git).
 
 ## Setup
 
@@ -55,5 +57,5 @@ a graph to instruct TGen how it should generate traffic, and then see
 supported by TGen.
 
 See [doc/TGen-Markov-Models.md](doc/TGen-Markov-Models.md) for a description
-of how to create and use markov models to instruct TGen how to generate
+of how to create and use Markov models to instruct TGen how to generate
 streams in a traffic flow and packets in a stream.
