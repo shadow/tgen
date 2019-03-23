@@ -323,7 +323,7 @@ static GError* _tgengraph_parseGraphEdges(TGenGraph* g) {
         if(!fromIDStr) {
             error = g_error_new(G_MARKUP_ERROR, G_MARKUP_ERROR_MISSING_ATTRIBUTE,
                     "found vertex %li with missing '%s' attribute",
-                    _tgengraph_attributeToString(TGEN_VA_ID), (glong)fromVertexIndex);
+                    (glong)fromVertexIndex, _tgengraph_attributeToString(TGEN_VA_ID));
             break;
         }
 
@@ -332,7 +332,7 @@ static GError* _tgengraph_parseGraphEdges(TGenGraph* g) {
         if(!toIDStr) {
             error = g_error_new(G_MARKUP_ERROR, G_MARKUP_ERROR_MISSING_ATTRIBUTE,
                     "found vertex %li with missing '%s' attribute",
-                    _tgengraph_attributeToString(TGEN_VA_ID), (glong)toVertexIndex);
+                    (glong)toVertexIndex, _tgengraph_attributeToString(TGEN_VA_ID));
             break;
         }
 
