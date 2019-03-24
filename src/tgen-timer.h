@@ -19,9 +19,9 @@ TGenTimer* tgentimer_new(guint64 microseconds, gboolean isPersistent,
 void tgentimer_ref(TGenTimer* timer);
 void tgentimer_unref(TGenTimer* timer);
 
-TGenEvent tgentimer_onEvent(TGenTimer* timer, gint descriptor, TGenEvent events);
+TGenIOResponse tgentimer_onEvent(TGenTimer* timer, gint descriptor, TGenEvent events);
 gint tgentimer_getDescriptor(TGenTimer* timer);
-void tgentimer_settime_micros(TGenTimer *timer, guint64 micros);
+void tgentimer_setExpireTimeMicros(TGenTimer *timer, guint64 micros);
 void tgentimer_cancel(TGenTimer *timer);
 
 #endif /* TGEN_TIMER_H_ */

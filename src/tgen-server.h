@@ -17,7 +17,7 @@ TGenServer* tgenserver_new(in_port_t serverPort, TGenServer_notifyNewPeerFunc no
 void tgenserver_ref(TGenServer* server);
 void tgenserver_unref(TGenServer* server);
 
-TGenEvent tgenserver_onEvent(TGenServer* server, gint descriptor, TGenEvent events);
+TGenIOResponse tgenserver_onEvent(TGenServer* server, gint descriptor, TGenEvent events);
 gint tgenserver_getDescriptor(TGenServer* server);
 
 #endif /* TGEN_SERVER_H_ */

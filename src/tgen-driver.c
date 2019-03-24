@@ -148,7 +148,7 @@ static void _tgendriver_onNewPeer(TGenDriver* driver, gint socketD, gint64 start
 
     /* don't send a Markov model on passive streams */
     TGenTransfer* transfer = tgentransfer_new("passive-stream", count, options, NULL,
-            driver->io, transport, (TGenTransfer_notifyCompleteFunc)_tgendriver_onTransferComplete,
+            transport, (TGenTransfer_notifyCompleteFunc)_tgendriver_onTransferComplete,
             driver, (GDestroyNotify)tgendriver_unref, GINT_TO_POINTER(-1), NULL);
 
     if(!transfer) {
@@ -224,7 +224,7 @@ static gboolean _tgendriver_createNewActiveTransfer(TGenDriver* driver,
     /* a new transfer will be coming in on this transport. the transfer
      * takes control of the transport pointer reference. */
     TGenTransfer* transfer = tgentransfer_new(actionIDStr, count, options, mmodel,
-            driver->io, transport, onComplete,
+            transport, onComplete,
             callbackArg1, arg1Destroy, callbackArg2, arg2Destroy);
 
     if(!transfer) {

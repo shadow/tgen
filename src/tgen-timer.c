@@ -46,12 +46,10 @@ void tgentimer_cancel(TGenTimer *timer) {
 }
 
 /** Sets the timer to go off in the given number of microseconds. If the timer
- * is persistent, then configure it to continue going off at the new interval.
- */
-void
-tgentimer_settime_micros(TGenTimer *timer, guint64 micros)
-{
+ * is persistent, then configure it to continue going off at the new interval. */
+void tgentimer_setExpireTimeMicros(TGenTimer *timer, guint64 micros) {
     TGEN_ASSERT(timer);
+
     struct itimerspec arm;
     guint64 seconds = micros / 1000000;
     guint64 nanoseconds = (micros % 1000000) * 1000;
@@ -73,8 +71,11 @@ tgentimer_settime_micros(TGenTimer *timer, guint64 micros)
     }
 }
 
-TGenEvent tgentimer_onEvent(TGenTimer* timer, gint descriptor, TGenEvent events) {
+TGenIOResponse tgentimer_onEvent(TGenTimer* timer, gint descriptor, TGenEvent events) {
     TGEN_ASSERT(timer);
+
+    TGenIOResponse response;
+    memset(&response, 0, sizeof(TGenIOResponse));
 
     /* our timerD is readable, so our timer has expired */
     g_assert((events & TGEN_EVENT_READ) && descriptor == timer->timerD);
@@ -87,7 +88,8 @@ TGenEvent tgentimer_onEvent(TGenTimer* timer, gint descriptor, TGenEvent events)
     	/* the timer actually wasn't ready to read yet */
     	tgen_info("We thought timer fd %i was ready, but it returned EAGAIN", timer->timerD);
     	/* keep waiting for read */
-    	return TGEN_EVENT_READ;
+    	response.events = TGEN_EVENT_READ;
+    	return response;
     }
 
     /* call the registered notification function */
@@ -96,16 +98,18 @@ TGenEvent tgentimer_onEvent(TGenTimer* timer, gint descriptor, TGenEvent events)
         shouldCancel = timer->notify(timer->data1, timer->data2);
     }
 
-    if(shouldCancel || !timer->isPersistent) {
+    if(shouldCancel) {
         /* it already expired once, so its only armed if persistent */
         if(timer->isPersistent) {
             _tgentimer_disarm(timer);
         }
-        return TGEN_EVENT_DONE;
+        response.events = TGEN_EVENT_DONE;
     } else {
         /* we will only ever read timer expirations and never write */
-        return TGEN_EVENT_READ;
+        response.events = TGEN_EVENT_READ;
     }
+
+    return response;
 }
 
 TGenTimer* tgentimer_new(guint64 microseconds, gboolean isPersistent,

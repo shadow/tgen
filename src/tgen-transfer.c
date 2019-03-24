@@ -94,8 +94,6 @@ struct _TGenTransfer {
     gint64 timeoutUSecs;
     gint64 stalloutUSecs;
 
-    /* the main tgen i/o event system */
-    TGenIO* io;
     /* socket communication layer and buffers */
     TGenTransport* transport;
 
@@ -146,6 +144,10 @@ struct _TGenTransfer {
         guint offset;
         /* checksum over payload bytes for integrity */
         GChecksum* checksum;
+
+        /* if non-zero, then our sending model told us to pause sending until
+         * g_get_monotonic_time() returns a result >= this time. */
+        gint64 deferBarrierMicros;
     } send;
 
     /* information about the other end of the connection */
@@ -1144,8 +1146,8 @@ static gboolean _tgentransfer_writePayload(TGenTransfer* transfer) {
     }
 
     gsize cumulativeSize = 0;
-    gsize cumulativeDelay = 0;
-    gsize interPacketDelay = 0;
+    guint64 cumulativeDelay = 0;
+    guint64 interPacketDelay = 0;
 
     while(cumulativeSize < limit) {
         guint64 obsDelay = 0;
@@ -1155,15 +1157,15 @@ static gboolean _tgentransfer_writePayload(TGenTransfer* transfer) {
                 || (!transfer->isCommander && obs == OBSERVATION_TO_SERVER)) {
             /* the other end is sending us a packet, we have nothing to do.
              * but this delay should be included in the delay for our next outgoing packet. */
-            interPacketDelay += (gsize)obsDelay;
-            cumulativeDelay += (gsize)obsDelay;
+            interPacketDelay += obsDelay;
+            cumulativeDelay += obsDelay;
         } else if((transfer->isCommander && obs == OBSERVATION_TO_SERVER)
                 || (!transfer->isCommander && obs == OBSERVATION_TO_ORIGIN)) {
             /* this means we should send a packet */
             cumulativeSize += TGEN_MMODEL_PACKET_DATA_SIZE;
             /* since we sent a packet, now we reset the delay */
-            interPacketDelay = (gsize)obsDelay;
-            cumulativeDelay += (gsize)obsDelay;
+            interPacketDelay = obsDelay;
+            cumulativeDelay += obsDelay;
         } else if(obs == OBSERVATION_END) {
             /* if we have a specific requested send size, we need to reset and keep sending.
              * we never reset when requestedBytes is 0 (it either means no bytes, or end
@@ -1183,7 +1185,8 @@ static gboolean _tgentransfer_writePayload(TGenTransfer* transfer) {
         }
 
         if(interPacketDelay > TGEN_MMODEL_MICROS_AT_ONCE) {
-            /* TODO we need to actually insert a pause here */
+            /* pause before we continue sending more */
+            transfer->send.deferBarrierMicros = g_get_monotonic_time() + (gint64)interPacketDelay;
             break;
         }
     }
@@ -1236,6 +1239,12 @@ static void _tgentransfer_onWritable(TGenTransfer* transfer) {
 
     tgen_debug("active transfer %s is writable", _tgentransfer_toString(transfer));
     gsize startBytes = transfer->send.totalBytes;
+
+    /* if we previously wanted to defer writes, reset the cache */
+    if(transfer->send.deferBarrierMicros > 0) {
+        g_assert(g_get_monotonic_time() >= transfer->send.deferBarrierMicros);
+        transfer->send.deferBarrierMicros = 0;
+    }
 
     if(transfer->send.state == TGEN_XFER_SEND_COMMAND) {
         /* only the commander sends the command */
@@ -1416,7 +1425,10 @@ static void _tgentransfer_log(TGenTransfer* transfer, gboolean wasActive) {
     }
 }
 
-static TGenEvent _tgentransfer_runTransportEventLoop(TGenTransfer* transfer, TGenEvent events) {
+static TGenIOResponse _tgentransfer_runTransportEventLoop(TGenTransfer* transfer, TGenEvent events) {
+    TGenIOResponse response;
+    memset(&response, 0, sizeof(TGenIOResponse));
+
     TGenEvent retEvents = tgentransport_onEvent(transfer->transport, events);
     if(retEvents == TGEN_EVENT_NONE) {
         /* proxy failed */
@@ -1426,23 +1438,25 @@ static TGenEvent _tgentransfer_runTransportEventLoop(TGenTransfer* transfer, TGe
         _tgentransfer_log(transfer, FALSE);
 
         /* return DONE to the io module so it does deregistration */
-        return TGEN_EVENT_DONE;
+        response.events = TGEN_EVENT_DONE;
     } else {
         transfer->time.lastProgress = g_get_monotonic_time();
         if(retEvents & TGEN_EVENT_DONE) {
             /* proxy is connected and ready, now its our turn */
-            return TGEN_EVENT_READ|TGEN_EVENT_WRITE;
+            response.events = TGEN_EVENT_READ|TGEN_EVENT_WRITE;
         } else {
             /* proxy in progress */
-            return retEvents;
+            response.events = retEvents;
         }
     }
+
+    return response;
 }
 
 static TGenEvent _tgentransfer_computeWantedEvents(TGenTransfer* transfer) {
     TGEN_ASSERT(transfer);
 
-    /* the events we need on order to make progress */
+    /* the events we need in order to make progress */
     TGenEvent wantedEvents = TGEN_EVENT_NONE;
 
     /* each part of the conn is done if we have reached success or error */
@@ -1462,14 +1476,19 @@ static TGenEvent _tgentransfer_computeWantedEvents(TGenTransfer* transfer) {
         }
 
         if(!sendDone && transfer->send.state != TGEN_XFER_SEND_NONE) {
-            wantedEvents |= TGEN_EVENT_WRITE;
+            /* check if we should defer writes */
+            if(transfer->send.deferBarrierMicros > 0) {
+                wantedEvents |= TGEN_EVENT_WRITE_DEFERRED;
+            } else {
+                wantedEvents |= TGEN_EVENT_WRITE;
+            }
         }
     }
 
     return wantedEvents;
 }
 
-static TGenEvent _tgentransfer_runTransferEventLoop(TGenTransfer* transfer, TGenEvent events) {
+static TGenIOResponse _tgentransfer_runTransferEventLoop(TGenTransfer* transfer, TGenEvent events) {
     TGEN_ASSERT(transfer);
 
     gsize recvBefore = transfer->recv.payloadBytes;
@@ -1480,6 +1499,7 @@ static TGenEvent _tgentransfer_runTransferEventLoop(TGenTransfer* transfer, TGen
         _tgentransfer_onReadable(transfer);
     }
     if(events & TGEN_EVENT_WRITE) {
+        /* process the events */
         _tgentransfer_onWritable(transfer);
     }
 
@@ -1490,16 +1510,12 @@ static TGenEvent _tgentransfer_runTransferEventLoop(TGenTransfer* transfer, TGen
     _tgentransfer_log(transfer, wasActive);
 
     /* figure out which events we need to advance */
-    TGenEvent wantedEvents = _tgentransfer_computeWantedEvents(transfer);
+    TGenIOResponse response;
+    memset(&response, 0, sizeof(TGenIOResponse));
+    response.events = _tgentransfer_computeWantedEvents(transfer);
 
     /* if the transfer is done, notify the driver */
-    if(wantedEvents & TGEN_EVENT_DONE) {
-//        /* cancel the in-progress schedule timer if we have one */
-//        // TODO
-//        if (transfer->schedule && transfer->schedule->timer) {
-//            _tgentransfer_schedTimerCancel(transfer);
-//        }
-
+    if(response.events & TGEN_EVENT_DONE) {
         if(transfer->notify) {
             /* execute the callback to notify that we are complete */
             gboolean wasSuccess = transfer->error == TGEN_XFER_ERR_NONE ? TRUE : FALSE;
@@ -1507,25 +1523,24 @@ static TGenEvent _tgentransfer_runTransferEventLoop(TGenTransfer* transfer, TGen
             /* make sure we only do the notification once */
             transfer->notify = NULL;
         }
+    } else if(response.events & TGEN_EVENT_WRITE_DEFERRED) {
+        g_assert(transfer->send.deferBarrierMicros > 0);
+        response.deferUntilUSec = transfer->send.deferBarrierMicros;
     }
 
-    return wantedEvents;
+    return response;
 }
 
-TGenEvent tgentransfer_onEvent(TGenTransfer* transfer, gint descriptor, TGenEvent events) {
+TGenIOResponse tgentransfer_onEvent(TGenTransfer* transfer, gint descriptor, TGenEvent events) {
     TGEN_ASSERT(transfer);
-
-    TGenEvent retEvents = TGEN_EVENT_NONE;
 
     if(transfer->transport && tgentransport_wantsEvents(transfer->transport)) {
         /* transport layer wants to do some IO, redirect as needed */
-        retEvents = _tgentransfer_runTransportEventLoop(transfer, events);
+        return _tgentransfer_runTransportEventLoop(transfer, events);
     } else {
         /* transport layer is happy, our turn to start the transfer */
-        retEvents = _tgentransfer_runTransferEventLoop(transfer, events);
+        return _tgentransfer_runTransferEventLoop(transfer, events);
     }
-
-    return retEvents;
 }
 
 gboolean tgentransfer_onCheckTimeout(TGenTransfer* transfer, gint descriptor) {
@@ -1575,7 +1590,7 @@ gboolean tgentransfer_onCheckTimeout(TGenTransfer* transfer, gint descriptor) {
 }
 
 TGenTransfer* tgentransfer_new(const gchar* idStr, gsize count, TGenStreamOptions* options,
-        TGenMarkovModel* mmodel, TGenIO* io, TGenTransport* transport,
+        TGenMarkovModel* mmodel, TGenTransport* transport,
         TGenTransfer_notifyCompleteFunc notify,
         gpointer data1, GDestroyNotify destructData1,
         gpointer data2, GDestroyNotify destructData2) {
@@ -1643,11 +1658,6 @@ TGenTransfer* tgentransfer_new(const gchar* idStr, gsize count, TGenStreamOption
     if(transport) {
         tgentransport_ref(transport);
         transfer->transport = transport;
-    }
-
-    if(io) {
-        tgenio_ref(io);
-        transfer->io = io;
     }
 
     if(mmodel) {
@@ -1719,10 +1729,6 @@ static void _tgentransfer_free(TGenTransfer* transfer) {
 
     if(transfer->transport) {
         tgentransport_unref(transfer->transport);
-    }
-
-    if(transfer->io) {
-        tgenio_unref(transfer->io);
     }
 
     if(transfer->mmodel) {

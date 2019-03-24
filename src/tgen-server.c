@@ -68,7 +68,7 @@ static gint _tgenserver_acceptPeer(TGenServer* server) {
     return peerSocketD;
 }
 
-TGenEvent tgenserver_onEvent(TGenServer* server, gint descriptor, TGenEvent events) {
+TGenIOResponse tgenserver_onEvent(TGenServer* server, gint descriptor, TGenEvent events) {
     TGEN_ASSERT(server);
 
     g_assert((events & TGEN_EVENT_READ) && descriptor == server->socketD);
@@ -94,7 +94,10 @@ TGenEvent tgenserver_onEvent(TGenServer* server, gint descriptor, TGenEvent even
     tgen_debug("accepted %i peer connection(s), and now the listen port is blocked", acceptedCount);
 
     /* we will only ever accept and never write */
-    return TGEN_EVENT_READ;
+    TGenIOResponse response;
+    memset(&response, 0, sizeof(TGenIOResponse));
+    response.events = TGEN_EVENT_READ;
+    return response;
 }
 
 TGenServer* tgenserver_new(in_port_t serverPort, TGenServer_notifyNewPeerFunc notify,
