@@ -16,16 +16,30 @@ struct _TGenIO {
 
 typedef struct _TGenIOChild {
     gint descriptor;
+    uint32_t currentEvents;
+    TGenTimer* deferWriteTimer;
+    gint refcount;
+
     TGenIO_notifyEventFunc notify;
     TGenIO_notifyCheckTimeoutFunc checkTimeout;
     gpointer data;
     GDestroyNotify destructData;
+
+    /* We keep a pointer to the io, but we don't hold a ref in order to
+     * avoid circular references that would prevent both io and children
+     * from getting freed correctly. Instead we assume that the io is
+     * ALWAYS in a valid state any time any child code is being run.
+     * (The io always frees all children before destroying itself.) */
+    TGenIO* io;
 } TGenIOChild;
 
-static TGenIOChild* _tgeniochild_new(gint descriptor, TGenIO_notifyEventFunc notify,
-        TGenIO_notifyCheckTimeoutFunc checkTimeout, gpointer data, GDestroyNotify destructData) {
+static TGenIOChild* _tgeniochild_new(TGenIO* io, gint descriptor, uint32_t events,
+        TGenIO_notifyEventFunc notify, TGenIO_notifyCheckTimeoutFunc checkTimeout,
+        gpointer data, GDestroyNotify destructData) {
     TGenIOChild* child = g_new0(TGenIOChild, 1);
+    child->io = io;
     child->descriptor = descriptor;
+    child->currentEvents = events;
     child->notify = notify;
     child->checkTimeout = checkTimeout;
     child->data = data;
@@ -38,8 +52,38 @@ static void _tgeniochild_free(TGenIOChild* child) {
     if(child->destructData && child->data) {
         child->destructData(child->data);
     }
+    if(child->deferWriteTimer) {
+        tgentimer_unref(child->deferWriteTimer);
+    }
     memset(child, 0, sizeof(TGenIOChild));
     g_free(child);
+}
+
+static void _tgeniochild_ref(TGenIOChild* child) {
+    g_assert(child);
+    child->refcount++;
+}
+
+static void _tgeniochild_unref(TGenIOChild* child) {
+    g_assert(child);
+    if(--(child->refcount) <= 0) {
+        _tgeniochild_free(child);
+    }
+}
+
+/* this function is needed because the child and timer hold refs to each other.
+ * to ensure it is freed correctly, we need to remove one ref. */
+static void _tgeniochild_hashTableDestroy(TGenIOChild* child) {
+    g_assert(child);
+    if(child->deferWriteTimer) {
+        /* tell the timer that we don't want it to fire anymore */
+        tgentimer_cancel(child->deferWriteTimer);
+
+        /* the child will never use the timer again. */
+        tgentimer_unref(child->deferWriteTimer);
+        child->deferWriteTimer = NULL;
+    }
+    _tgeniochild_unref(child);
 }
 
 TGenIO* tgenio_new() {
@@ -55,7 +99,8 @@ TGenIO* tgenio_new() {
     io->magic = TGEN_MAGIC;
     io->refcount = 1;
 
-    io->children = g_hash_table_new_full(g_direct_hash, g_direct_equal, NULL, (GDestroyNotify)_tgeniochild_free);
+    io->children = g_hash_table_new_full(g_direct_hash, g_direct_equal,
+            NULL, (GDestroyNotify)_tgeniochild_hashTableDestroy);
 
     io->epollD = epollD;
 
@@ -86,13 +131,31 @@ void tgenio_unref(TGenIO* io) {
     }
 }
 
-void tgenio_deregister(TGenIO* io, gint descriptor) {
+static void _tgenio_deregister(TGenIO* io, gint descriptor) {
     TGEN_ASSERT(io);
 
+    /* don't watch events for the descriptor anymore */
     gint result = epoll_ctl(io->epollD, EPOLL_CTL_DEL, descriptor, NULL);
     if(result != 0) {
         tgen_warning("epoll_ctl(): epoll %i descriptor %i returned %i error %i: %s",
                 io->epollD, descriptor, result, errno, g_strerror(errno));
+    }
+
+    TGenIOChild* child = g_hash_table_lookup(io->children, GINT_TO_POINTER(descriptor));
+    if(child && child->deferWriteTimer) {
+        gint timerD = tgentimer_getDescriptor(child->deferWriteTimer);
+
+        /* tell the timer that we don't want it to fire anymore */
+        tgentimer_cancel(child->deferWriteTimer);
+
+        /* the child will never use the timer again. */
+        tgentimer_unref(child->deferWriteTimer);
+        child->deferWriteTimer = NULL;
+
+        /* tell the io module to stop paying attention to the timer. after this call
+         * if the timer fires (becomes readable) we won't notice. this will call the
+         * tgentimer_unref destructor that we passed in tgenio_register.*/
+        _tgenio_deregister(io, timerD);
     }
 
     g_hash_table_remove(io->children, GINT_TO_POINTER(descriptor));
@@ -102,15 +165,18 @@ gboolean tgenio_register(TGenIO* io, gint descriptor, TGenIO_notifyEventFunc not
         TGenIO_notifyCheckTimeoutFunc checkTimeout, gpointer data, GDestroyNotify destructData) {
     TGEN_ASSERT(io);
 
-    if(g_hash_table_lookup(io->children, GINT_TO_POINTER(descriptor))) {
-        tgenio_deregister(io, descriptor);
-        tgen_warning("removed existing entry at descriptor %i to make room for a new one", descriptor);
+    TGenIOChild* oldchild = g_hash_table_lookup(io->children, GINT_TO_POINTER(descriptor));
+
+    if(oldchild) {
+        _tgenio_deregister(io, descriptor);
+        tgen_warning("IO removed existing child descriptor %i to make room for a new one", descriptor);
     }
 
     /* start watching */
+    uint32_t ev = EPOLLIN|EPOLLOUT;
     struct epoll_event ee;
     memset(&ee, 0, sizeof(struct epoll_event));
-    ee.events = EPOLLIN|EPOLLOUT;
+    ee.events = ev;
     ee.data.fd = descriptor;
 
     gint result = epoll_ctl(io->epollD, EPOLL_CTL_ADD, descriptor, &ee);
@@ -121,56 +187,149 @@ gboolean tgenio_register(TGenIO* io, gint descriptor, TGenIO_notifyEventFunc not
         return FALSE;
     }
 
-    TGenIOChild* child = _tgeniochild_new(descriptor, notify, checkTimeout, data, destructData);
-    g_hash_table_replace(io->children, GINT_TO_POINTER(child->descriptor), child);
+    TGenIOChild* newchild = _tgeniochild_new(io, descriptor, ev, notify, checkTimeout, data, destructData);
+    g_hash_table_replace(io->children, GINT_TO_POINTER(newchild->descriptor), newchild);
 
     return TRUE;
 }
 
-static void _tgenio_helper(TGenIO* io, TGenIOChild* child, gboolean in, gboolean out) {
+static void _tgenio_syncEpollEvents(TGenIO* io, TGenIOChild* child, uint32_t newEvents) {
     TGEN_ASSERT(io);
     g_assert(child);
 
-    TGenEvent inEvents = TGEN_EVENT_NONE;
-
-    /* check if we need read flag */
-    if(in) {
-        tgen_debug("descriptor %i is readable", child->descriptor);
-        inEvents |= TGEN_EVENT_READ;
-    }
-
-    /* check if we need write flag */
-    if(out) {
-        tgen_debug("descriptor %i is writable", child->descriptor);
-        inEvents |= TGEN_EVENT_WRITE;
-    }
-
-    /* activate the transfer */
-    TGenEvent outEvents = child->notify(child->data, child->descriptor, inEvents);
-
-    /* now check if we should update our epoll events */
-    if(outEvents & TGEN_EVENT_DONE) {
-        tgenio_deregister(io, child->descriptor);
-    } else if(inEvents != outEvents) {
-        guint32 newEvents = 0;
-        if(outEvents & TGEN_EVENT_READ) {
-            newEvents |= EPOLLIN;
-        }
-        if(outEvents & TGEN_EVENT_WRITE) {
-            newEvents |= EPOLLOUT;
-        }
-
+    /* only modify the epoll if the events we are watching should change.
+     * note that the ready events may only be a subset of the events we are watching.*/
+    if(child->currentEvents != newEvents) {
         struct epoll_event ee;
         memset(&ee, 0, sizeof(struct epoll_event));
         ee.events = newEvents;
         ee.data.fd = child->descriptor;
 
         gint result = epoll_ctl(io->epollD, EPOLL_CTL_MOD, child->descriptor, &ee);
-        if(result != 0) {
+        if(result == 0) {
+            child->currentEvents = newEvents;
+        } else {
             tgen_warning("epoll_ctl(): epoll %i descriptor %i returned %i error %i: %s",
                     io->epollD, child->descriptor, result, errno, g_strerror(errno));
         }
     }
+}
+
+static gboolean _tgenio_onDeferTimerExpired(TGenIOChild* child, gpointer none) {
+    g_assert(child);
+    TGenIO* io = child->io;
+    TGEN_ASSERT(io);
+
+    tgen_debug("Defer timer expired on descriptor %i. Asking for write events again.",
+            child->descriptor);
+
+    /* If the child was previously deregistered, then the timer would have been cancelled.
+     * Since the timer fired and called this function, the child must still exist. */
+    TGenIOChild* oldchild = g_hash_table_lookup(io->children, GINT_TO_POINTER(child->descriptor));
+    g_assert(oldchild);
+    g_assert(child == oldchild);
+
+    /* listen for writes again */
+    _tgenio_syncEpollEvents(io, child, (child->currentEvents|EPOLLOUT));
+
+    /* When we created the timer, we said it should not be persistent
+     * and so should only expire once. But we still want the timer to be
+     * tracked by the IO epoll so we don't have to register it again
+     * if we have a new defer time in the future. Return FALSE so that
+     * the timer will still fire again next time we set a new defer time. */
+    return FALSE;
+}
+
+static void _tgenio_setDeferTimer(TGenIO* io, TGenIOChild* child, gint64 microsecondsPause) {
+    TGEN_ASSERT(io);
+    g_assert(child);
+    g_assert(microsecondsPause > 0);
+
+    tgen_debug("Deferring write events on descriptor %i by %"G_GUINT64_FORMAT" "
+            "microseconds using %s",
+            child->descriptor, microsecondsPause,
+            child->deferWriteTimer ? "an existing timer" : "a new timer");
+
+    /* if we already have a timer, just update the trigger time */
+    if(child->deferWriteTimer) {
+        /* it should already be registered */
+        gint timerD = tgentimer_getDescriptor(child->deferWriteTimer);
+        g_assert(g_hash_table_lookup(io->children, GINT_TO_POINTER(timerD)));
+
+        /* make it expire again after a pause */
+        tgentimer_setExpireTimeMicros(child->deferWriteTimer, microsecondsPause);
+    } else {
+        /* the timer will hold a ref to child, which it will unref when the timer is destroyed */
+        _tgeniochild_ref(child);
+        /* the timer itself starts with one ref */
+        child->deferWriteTimer = tgentimer_new(microsecondsPause, FALSE,
+                (TGenTimer_notifyExpiredFunc)_tgenio_onDeferTimerExpired,
+                child, NULL, (GDestroyNotify)_tgeniochild_unref, NULL);
+
+        /* Tell the io module to watch the timer so we know when it expires.
+         * The io module holds a second reference to the timer.
+         * The order here is that the io module will watch the timer and then call
+         * tgentimer_onEvent when the timer expires, then the timer will call
+         * _tgenio_onDeferTimerExpired and will adjust the timer as appropriate. */
+        tgentimer_ref(child->deferWriteTimer);
+        /* the ref above will be unreffed when the timer is deregistered. */
+        tgenio_register(io, tgentimer_getDescriptor(child->deferWriteTimer),
+                (TGenIO_notifyEventFunc)tgentimer_onEvent, NULL,
+                child->deferWriteTimer, (GDestroyNotify)tgentimer_unref);
+    }
+}
+
+static void _tgenio_helper(TGenIO* io, TGenIOChild* child, gboolean in, gboolean out) {
+    TGEN_ASSERT(io);
+    g_assert(child);
+
+    TGenEvent readyEvents = TGEN_EVENT_NONE;
+
+    /* check if we need read flag */
+    if(in) {
+        tgen_debug("descriptor %i is readable", child->descriptor);
+        readyEvents |= TGEN_EVENT_READ;
+    }
+
+    /* check if we need write flag */
+    if(out) {
+        tgen_debug("descriptor %i is writable", child->descriptor);
+        readyEvents |= TGEN_EVENT_WRITE;
+    }
+
+    /* activate the transfer */
+    TGenIOResponse response = child->notify(child->data, child->descriptor, readyEvents);
+
+    /* if done, we can clean up the child now and exit */
+    if(response.events & TGEN_EVENT_DONE) {
+        _tgenio_deregister(io, child->descriptor);
+        return;
+    }
+
+    /* check which events we need to watch */
+    guint32 newEvents = 0;
+    if(response.events & TGEN_EVENT_READ) {
+        /* epoll for reads now */
+        newEvents |= EPOLLIN;
+    }
+    if(response.events & TGEN_EVENT_WRITE_DEFERRED) {
+        /* don't epoll for writes until after a pause */
+        gint64 nowUSec = g_get_monotonic_time();
+        if(response.deferUntilUSec > nowUSec) {
+            /* we still need to pause */
+            gint64 microsecondsPause = response.deferUntilUSec - nowUSec;
+            _tgenio_setDeferTimer(io, child, microsecondsPause);
+        } else {
+            /* the requested pause already passed, so just turn on writes now */
+            newEvents |= EPOLLOUT;
+        }
+    } else if(response.events & TGEN_EVENT_WRITE) {
+        /* epoll for writes now */
+        newEvents |= EPOLLOUT;
+    }
+
+    /* sync up the events we should watch with the epoll instance */
+    _tgenio_syncEpollEvents(io, child, newEvents);
 }
 
 gint tgenio_loopOnce(TGenIO* io, gint maxEvents) {
@@ -202,9 +361,13 @@ gint tgenio_loopOnce(TGenIO* io, gint maxEvents) {
         if(child) {
             _tgenio_helper(io, child, in, out);
         } else {
-            /* we don't currently have a child for the event descriptor, stop paying attention to it */
-            tgen_warning("can't find child for descriptor %i, canceling event now", eventDescriptor);
-            tgenio_deregister(io, eventDescriptor);
+            /* we don't currently have a child for the event descriptor.
+             * it may have been deleted by a previous event in this event loop: e.g.,
+             * at i=0 a transfer closed and that caused its timer to dereg, then at i=1
+             * the timer would have expired but it was just dereged. just log the valid case.
+             * make sure we stop paying attention to it. */
+            tgen_info("can't find child for descriptor %i, canceling event now", eventDescriptor);
+            _tgenio_deregister(io, eventDescriptor);
         }
     }
 
@@ -226,7 +389,7 @@ void tgenio_checkTimeouts(TGenIO* io) {
             /* this calls tgentransfer_onCheckTimeout to check and handle if a timeout is present */
             gboolean hasTimeout = child->checkTimeout(child->data, child->descriptor);
             if(hasTimeout) {
-                tgenio_deregister(io, child->descriptor);
+                _tgenio_deregister(io, child->descriptor);
             }
         }
         item = g_list_next(item);
@@ -239,47 +402,47 @@ void tgenio_checkTimeouts(TGenIO* io) {
 
 /** Modify the tgenio epoll instance so that it notifies us when the given
  * events occur on the given descriptor. */
-void
-tgenio_setEvents(TGenIO *io, gint descriptor, TGenEvent events)
-{
-    /* FIXME
-     * RGJ: there is an error here due to the new SCHED transfer code.
-     * If a SCHED wants to delay sending, then it uses this function to
-     * disable events and then it pauses for a while. In the meantime,
-     * the transfer might close because of a timeout or stallout, and
-     * that event will destroy the descriptor and deregister it from
-     * the children table. Then the SCHED pause timer expires and this
-     * function is called with a descriptor that is no longer valid, or
-     * worse, with a descriptor that has been re-assigned to a completely
-     * different socket.
-     *
-     * For now I'm going to add the children table check, but this needs
-     * to be redesigned to avoid this problem in the first place.
-     * (We probably need to ref and store the transport object in the
-     * pause event, and then when it expires, we can check a flag somewhere
-     * to see if it is in an error state and only continue if it's not.)
-     */
-    if(g_hash_table_lookup(io->children, GINT_TO_POINTER(descriptor)) == NULL) {
-        tgen_warning("transport descriptor %i cannot be found", descriptor);
-        return;
-    }
-
-    struct epoll_event ee;
-    memset(&ee, 0, sizeof(struct epoll_event));
-    if (events & TGEN_EVENT_READ) {
-        ee.events |= EPOLLIN;
-    }
-    if (events & TGEN_EVENT_WRITE) {
-        ee.events |= EPOLLOUT;
-    }
-    ee.data.fd = descriptor;
-    gint result = epoll_ctl(io->epollD, EPOLL_CTL_MOD, descriptor, &ee);
-    if (result != 0) {
-        tgen_warning("epoll_ctl(): epoll %i descriptor %i returned %i error %i: %s",
-                io->epollD, descriptor, result, errno, g_strerror(errno));
-    }
-
-}
+//void
+//tgenio_setEvents(TGenIO *io, gint descriptor, TGenEvent events)
+//{
+//    /* FIXME
+//     * RGJ: there is an error here due to the new SCHED transfer code.
+//     * If a SCHED wants to delay sending, then it uses this function to
+//     * disable events and then it pauses for a while. In the meantime,
+//     * the transfer might close because of a timeout or stallout, and
+//     * that event will destroy the descriptor and deregister it from
+//     * the children table. Then the SCHED pause timer expires and this
+//     * function is called with a descriptor that is no longer valid, or
+//     * worse, with a descriptor that has been re-assigned to a completely
+//     * different socket.
+//     *
+//     * For now I'm going to add the children table check, but this needs
+//     * to be redesigned to avoid this problem in the first place.
+//     * (We probably need to ref and store the transport object in the
+//     * pause event, and then when it expires, we can check a flag somewhere
+//     * to see if it is in an error state and only continue if it's not.)
+//     */
+//    if(g_hash_table_lookup(io->children, GINT_TO_POINTER(descriptor)) == NULL) {
+//        tgen_warning("transport descriptor %i cannot be found", descriptor);
+//        return;
+//    }
+//
+//    struct epoll_event ee;
+//    memset(&ee, 0, sizeof(struct epoll_event));
+//    if (events & TGEN_EVENT_READ) {
+//        ee.events |= EPOLLIN;
+//    }
+//    if (events & TGEN_EVENT_WRITE) {
+//        ee.events |= EPOLLOUT;
+//    }
+//    ee.data.fd = descriptor;
+//    gint result = epoll_ctl(io->epollD, EPOLL_CTL_MOD, descriptor, &ee);
+//    if (result != 0) {
+//        tgen_warning("epoll_ctl(): epoll %i descriptor %i returned %i error %i: %s",
+//                io->epollD, descriptor, result, errno, g_strerror(errno));
+//    }
+//
+//}
 
 gint tgenio_getEpollDescriptor(TGenIO* io) {
     TGEN_ASSERT(io);
