@@ -427,7 +427,7 @@ static glong _tgengraph_countIncomingEdges(TGenGraph* g, igraph_integer_t vertex
 
     /* handle the results */
     glong totalIncoming = igraph_vector_size(resultNeighborVertices);
-    tgen_debug("found %li incoming 1-hop neighbors to vertex %i", totalIncoming, (gint)vertexIndex);
+    tgen_debug("found %li incoming 1-hop neighbors to vertex %li", totalIncoming, (glong)vertexIndex);
 
     /* cleanup */
     igraph_vector_destroy(resultNeighborVertices);
@@ -462,7 +462,7 @@ static GError* _tgengraph_parseStreamAttributesHelper(TGenGraph* g, const gchar*
     TGEN_ASSERT(g);
     g_assert(options);
 
-    GError* error;
+    GError* error = NULL;
 
     if(g->knownAttributes & TGEN_VA_PACKETMODELPATH) {
         const gchar* name = _tgengraph_attributeToString(TGEN_VA_PACKETMODELPATH);
@@ -1161,7 +1161,7 @@ GQueue* tgengraph_getNextActionIDs(TGenGraph* g, TGenActionID actionID) {
 
     /* handle the results */
     glong nVertices = igraph_vector_size(resultNeighborVertices);
-    tgen_debug("found %li outgoing neighbors from vertex %i", nVertices, (gint)srcVertexIndex);
+    tgen_debug("found %li outgoing neighbors from vertex %li", nVertices, (glong)srcVertexIndex);
 
     /* only follow one edge of all edges with the 'weight' attribute (do a weighted choice)
      * but follow all edges without the 'weight' attribute */
