@@ -12,3 +12,7 @@ gint tgenconfig_gethostname(gchar* name, size_t len) {
 gchar* tgenconfig_getIP() {
     return getenv("TGENIP");
 }
+
+gchar* tgenconfig_getSOCKS() {
+    return getenv("TGENSOCKS");
+}
