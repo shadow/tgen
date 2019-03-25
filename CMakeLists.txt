@@ -32,7 +32,7 @@ endif()
 set(tgen_sources
     src/tgen-config.c
     src/tgen-driver.c
-    src/tgen-generator.c
+    src/tgen-flow.c
     src/tgen-graph.c
     src/tgen-io.c
     src/tgen-log.c
