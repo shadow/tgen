@@ -247,11 +247,15 @@ static GError* _tgengraph_parseStartVertex(TGenGraph* g, const gchar* idStr,
             VAS(g->graph, "serverport", vertexIndex) : NULL;
     const gchar* peersStr = (g->knownAttributes&TGEN_VA_PEERS) ?
             VAS(g->graph, "peers", vertexIndex) : NULL;
-    const gchar* socksProxyStr = (g->knownAttributes&TGEN_VA_SOCKSPROXY) ?
-            VAS(g->graph, "socksproxy", vertexIndex) : NULL;
     const gchar* loglevelStr = (g->knownAttributes&TGEN_VA_LOGLEVEL) ?
-                VAS(g->graph, "loglevel", vertexIndex) : NULL;
-
+            VAS(g->graph, "loglevel", vertexIndex) : NULL;
+    const gchar* socksProxyStr;
+    if (tgenconfig_getSOCKS()) {
+        socksProxyStr = tgenconfig_getSOCKS();
+    } else {
+        socksProxyStr = (g->knownAttributes&TGEN_VA_SOCKSPROXY) ?
+            VAS(g->graph, "socksproxy", vertexIndex) : NULL;
+    }
     tgen_debug("validating action '%s' at vertex %li, time=%s timeout=%s "
             "stallout=%s heartbeat=%s loglevel=%s serverport=%s socksproxy=%s "
             "peers=%s",
