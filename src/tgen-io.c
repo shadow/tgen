@@ -245,7 +245,7 @@ static void _tgenio_setDeferTimer(TGenIO* io, TGenIOChild* child, gint64 microse
     g_assert(child);
     g_assert(microsecondsPause > 0);
 
-    tgen_debug("Deferring write events on descriptor %i by %"G_GUINT64_FORMAT" "
+    tgen_debug("Deferring write events on descriptor %i by %"G_GINT64_FORMAT" "
             "microseconds using %s",
             child->descriptor, microsecondsPause,
             child->deferWriteTimer ? "an existing timer" : "a new timer");
@@ -399,50 +399,6 @@ void tgenio_checkTimeouts(TGenIO* io) {
         g_list_free(items);
     }
 }
-
-/** Modify the tgenio epoll instance so that it notifies us when the given
- * events occur on the given descriptor. */
-//void
-//tgenio_setEvents(TGenIO *io, gint descriptor, TGenEvent events)
-//{
-//    /* FIXME
-//     * RGJ: there is an error here due to the new SCHED transfer code.
-//     * If a SCHED wants to delay sending, then it uses this function to
-//     * disable events and then it pauses for a while. In the meantime,
-//     * the transfer might close because of a timeout or stallout, and
-//     * that event will destroy the descriptor and deregister it from
-//     * the children table. Then the SCHED pause timer expires and this
-//     * function is called with a descriptor that is no longer valid, or
-//     * worse, with a descriptor that has been re-assigned to a completely
-//     * different socket.
-//     *
-//     * For now I'm going to add the children table check, but this needs
-//     * to be redesigned to avoid this problem in the first place.
-//     * (We probably need to ref and store the transport object in the
-//     * pause event, and then when it expires, we can check a flag somewhere
-//     * to see if it is in an error state and only continue if it's not.)
-//     */
-//    if(g_hash_table_lookup(io->children, GINT_TO_POINTER(descriptor)) == NULL) {
-//        tgen_warning("transport descriptor %i cannot be found", descriptor);
-//        return;
-//    }
-//
-//    struct epoll_event ee;
-//    memset(&ee, 0, sizeof(struct epoll_event));
-//    if (events & TGEN_EVENT_READ) {
-//        ee.events |= EPOLLIN;
-//    }
-//    if (events & TGEN_EVENT_WRITE) {
-//        ee.events |= EPOLLOUT;
-//    }
-//    ee.data.fd = descriptor;
-//    gint result = epoll_ctl(io->epollD, EPOLL_CTL_MOD, descriptor, &ee);
-//    if (result != 0) {
-//        tgen_warning("epoll_ctl(): epoll %i descriptor %i returned %i error %i: %s",
-//                io->epollD, descriptor, result, errno, g_strerror(errno));
-//    }
-//
-//}
 
 gint tgenio_getEpollDescriptor(TGenIO* io) {
     TGEN_ASSERT(io);
