@@ -4,10 +4,14 @@ import networkx
 
 def main():
     nonstop = "nonstop.packetmodel.graphml"
-    generate_nonstop_packetmodel(nonstop)
+    generate_default_packetmodel(nonstop)
     print_as_c_string(nonstop)
 
-def generate_nonstop_packetmodel(filename):
+    nonstop = "nonstop.streammodel.graphml"
+    generate_default_streammodel(nonstop)
+    print_as_c_string(nonstop)
+
+def generate_default_packetmodel(filename):
     G = networkx.DiGraph()
 
     # the "type" and "name" attributes are required on
@@ -39,6 +43,21 @@ def generate_nonstop_packetmodel(filename):
     # if 'pareto', ' then 'param_scale' and 'param_shape' are required
     G.add_edge('s1', 'o1', type='emission', weight=0.5, distribution='exponential', param_rate=4294967295)
     G.add_edge('s1', 'o2', type='emission', weight=0.5, distribution='exponential', param_rate=4294967295)
+
+    networkx.write_graphml(G, filename)
+
+def generate_default_streammodel(filename):
+    G = networkx.DiGraph()
+
+    G.add_node('s0', type="state", name='start')
+    G.add_node('s1', type="state", name='default')
+
+    G.add_edge('s0', 's1', type='transition', weight=1.0)
+    G.add_edge('s1', 's1', type='transition', weight=1.0)
+
+    G.add_node('o1', type="observation", name='+')
+
+    G.add_edge('s1', 'o1', type='emission', weight=1.0, distribution='normal', param_location=30000000, param_scale=15000000)
 
     networkx.write_graphml(G, filename)
 

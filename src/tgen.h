@@ -38,7 +38,7 @@
 #include "tgen-graph.h"
 #include "tgen-transport.h"
 #include "tgen-transfer.h"
-#include "tgen-generator.h"
+#include "tgen-flow.h"
 #include "tgen-driver.h"
 
 #endif /* SHD_TGEN_H_ */

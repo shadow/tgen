@@ -9,7 +9,7 @@ typedef struct _TGenTransfer TGenTransfer;
 
 typedef void (*TGenTransfer_notifyCompleteFunc)(gpointer data1, gpointer data2, gboolean wasSuccess);
 
-TGenTransfer* tgentransfer_new(const gchar* idStr, gsize count, TGenStreamOptions* options,
+TGenTransfer* tgentransfer_new(const gchar* idStr, TGenStreamOptions* options,
         TGenMarkovModel* mmodel, TGenTransport* transport,
         TGenTransfer_notifyCompleteFunc notify,
         gpointer data1, GDestroyNotify destructData1,

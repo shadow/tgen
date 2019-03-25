@@ -1589,7 +1589,7 @@ gboolean tgentransfer_onCheckTimeout(TGenTransfer* transfer, gint descriptor) {
     }
 }
 
-TGenTransfer* tgentransfer_new(const gchar* idStr, gsize count, TGenStreamOptions* options,
+TGenTransfer* tgentransfer_new(const gchar* idStr, TGenStreamOptions* options,
         TGenMarkovModel* mmodel, TGenTransport* transport,
         TGenTransfer_notifyCompleteFunc notify,
         gpointer data1, GDestroyNotify destructData1,
@@ -1615,7 +1615,6 @@ TGenTransfer* tgentransfer_new(const gchar* idStr, gsize count, TGenStreamOption
     if(idStr) {
         transfer->id = g_strdup(idStr);
     }
-    transfer->count = count;
 
     /* the timeout after which we abandon this transfer */
     guint64 timeoutNanos = (options && options->timeoutNanos.isSet) ?

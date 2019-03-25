@@ -28,9 +28,6 @@ struct _TGenDriver {
      * and notifies them of I/O events on the underlying transports */
     TGenIO* io;
 
-    /* each transfer has a unique id */
-    gsize globalTransferCounter;
-
     /* traffic statistics */
     guint64 heartbeatTransfersCompleted;
     guint64 heartbeatTransferErrors;
@@ -48,7 +45,6 @@ struct _TGenDriver {
 /* forward declaration */
 static gboolean _tgendriver_onStartClientTimerExpired(TGenDriver* driver, gpointer nullData);
 static gboolean _tgendriver_onPauseTimerExpired(TGenDriver* driver, gpointer actionIDPtr);
-static gboolean _tgendriver_onGeneratorTimerExpired(TGenDriver* driver, TGenGenerator* generator);
 static void _tgendriver_continueNextActions(TGenDriver* driver, TGenActionID actionID);
 
 static void _tgendriver_onTransferComplete(TGenDriver* driver, gpointer actionIDPtr, gboolean wasSuccess) {
@@ -72,16 +68,20 @@ static void _tgendriver_onTransferComplete(TGenDriver* driver, gpointer actionID
     }
 }
 
-static void _tgendriver_onGeneratorTransferComplete(TGenDriver* driver, TGenGenerator* generator, gboolean wasSuccess) {
+static void _tgendriver_onFlowComplete(TGenDriver* driver, TGenActionID actionID, TGenFlowFlags flags) {
     TGEN_ASSERT(driver);
 
-    _tgendriver_onTransferComplete(driver, GINT_TO_POINTER(-1), wasSuccess);
-    tgengenerator_onTransferCompleted(generator);
+    if(flags & TGEN_FLOW_STREAM_COMPLETE) {
+        if(flags & TGEN_FLOW_STREAM_SUCCESS) {
+            driver->heartbeatTransfersCompleted++;
+            driver->totalTransfersCompleted++;
+        } else {
+            driver->heartbeatTransferErrors++;
+            driver->totalTransferErrors++;
+        }
+    }
 
-    if(tgengenerator_isDoneGenerating(generator) &&
-            tgengenerator_getNumOutstandingTransfers(generator) <= 0) {
-        tgen_info("Model action complete, continue to next action");
-        TGenActionID actionID = tgengenerator_getModelActionID(generator);
+    if(flags & TGEN_FLOW_COMPLETE) {
         _tgendriver_continueNextActions(driver, actionID);
     }
 }
@@ -141,13 +141,10 @@ static void _tgendriver_onNewPeer(TGenDriver* driver, gint socketD, gint64 start
     /* ref++ the driver for the transport notify func */
     tgendriver_ref(driver);
 
-    /* a new transfer will be coming in on this transport */
-    gsize count = ++(driver->globalTransferCounter);
-
     TGenStreamOptions* options = &driver->startOptions->defaultStreamOpts;
 
     /* don't send a Markov model on passive streams */
-    TGenTransfer* transfer = tgentransfer_new("passive-stream", count, options, NULL,
+    TGenTransfer* transfer = tgentransfer_new("passive-stream", options, NULL,
             transport, (TGenTransfer_notifyCompleteFunc)_tgendriver_onTransferComplete,
             driver, (GDestroyNotify)tgendriver_unref, GINT_TO_POINTER(-1), NULL);
 
@@ -172,237 +169,79 @@ static void _tgendriver_onNewPeer(TGenDriver* driver, gint socketD, gint64 start
     tgentransport_unref(transport);
 }
 
-static gboolean _tgendriver_createNewActiveTransfer(TGenDriver* driver,
-        TGenActionID actionID, TGenStreamOptions* options,
-        TGenTransfer_notifyCompleteFunc onComplete,
-        gpointer callbackArg1, GDestroyNotify arg1Destroy,
-        gpointer callbackArg2, GDestroyNotify arg2Destroy) {
+static gboolean _tgendriver_startFlow(TGenDriver* driver, TGenMarkovModel* streamModel,
+        TGenStreamOptions* options, TGenActionID actionID) {
     TGEN_ASSERT(driver);
 
-    /* active streams need markov models */
-    TGenMarkovModel* mmodel = NULL;
-    guint32 seed = options->packetModelSeed.isSet ? options->packetModelSeed.value : g_random_int();
-    if(options->packetModelPath.isSet) {
-        gchar* path = options->packetModelPath.value;
-        gchar* name = g_path_get_basename(path);
-        mmodel = tgenmarkovmodel_newFromPath(name, seed, path);
-        g_free(name);
-        /* we should have already validated this when we parsed the config graph */
-        if(!mmodel) {
-            tgen_error("A previously validated Markov model should be valid");
-            return FALSE;
-        }
-    } else {
-        const gchar* modelGraphml = tgenconfig_getDefaultPacketMarkovModelString();
-        GString* graphmlBuffer = g_string_new(modelGraphml);
-        mmodel = tgenmarkovmodel_newFromString("internal-nonstop-model", seed, graphmlBuffer);
-        g_string_free(graphmlBuffer, TRUE);
-        if(!mmodel) {
-            tgen_error("The internal nonstop Markov model format is incorrect, check the syntax");
-            return FALSE;
-        }
-    }
-
-    /* create the transport connection over which we can start a transfer */
-    TGenTransport* transport = tgentransport_newActive(options,
-            (TGenTransport_notifyBytesFunc) _tgendriver_onBytesTransferred,
-            driver, (GDestroyNotify)tgendriver_unref);
-
-    if(transport) {
-        /* ref++ the driver because the transport object is holding a ref to it
-         * as a generic callback parameter for the notify function callback */
-        tgendriver_ref(driver);
-    } else {
-        tgen_warning("failed to initialize transport for active transfer");
-        return FALSE;
-    }
-
-    /* get transfer counter id */
     const gchar* actionIDStr = tgengraph_getActionName(driver->actionGraph, actionID);
-    gsize count = ++(driver->globalTransferCounter);
 
-    /* a new transfer will be coming in on this transport. the transfer
-     * takes control of the transport pointer reference. */
-    TGenTransfer* transfer = tgentransfer_new(actionIDStr, count, options, mmodel,
-            transport, onComplete,
-            callbackArg1, arg1Destroy, callbackArg2, arg2Destroy);
+    TGenFlow* flow = tgenflow_new(streamModel, options, actionID, actionIDStr, driver->io,
+            (TGenTransport_notifyBytesFunc) _tgendriver_onBytesTransferred,
+            (TGenFlow_notifyCompleteFunc)_tgendriver_onFlowComplete,
+            driver, (GDestroyNotify)tgendriver_ref, (GDestroyNotify)tgendriver_unref);
 
-    if(!transfer) {
-        /* the transport was created, but we failed to create the transfer.
-         * so we should clean up the transport since we no longer need it.
-         * The transport unref should call the driver unref function that we passed
-         * as the destroy function, so we don't need to unref driver again. */
-        tgentransport_unref(transport);
-
-        tgen_warning("failed to initialize active transfer");
+    /* the flow will unref itself when it finishes generating new streams and
+     * all of its previously generated streams are complete. */
+    if(flow) {
+        tgenflow_start(flow);
+        return TRUE;
+    } else {
         return FALSE;
     }
-
-    /* now let the IO handler manage the transfer. our transfer pointer reference
-     * will be held by the IO object */
-    tgenio_register(driver->io, tgentransport_getDescriptor(transport),
-            (TGenIO_notifyEventFunc)tgentransfer_onEvent,
-            (TGenIO_notifyCheckTimeoutFunc) tgentransfer_onCheckTimeout,
-            transfer, (GDestroyNotify)tgentransfer_unref);
-
-    /* release our local transport pointer ref (from when we initialized the new transport)
-     * because the transfer now owns it and holds the ref */
-    tgentransport_unref(transport);
-
-    return TRUE;
 }
 
-static void _tgendriver_initiateTransfer(TGenDriver* driver, TGenActionID actionID) {
+static void _tgendriver_initiateStream(TGenDriver* driver, TGenActionID actionID) {
     TGEN_ASSERT(driver);
 
-    TGenStreamOptions* options = tgengraph_getStreamOptions(driver->actionGraph, actionID);
+    TGenStreamOptions* streamOpts = tgengraph_getStreamOptions(driver->actionGraph, actionID);
 
-    gboolean isSuccess = _tgendriver_createNewActiveTransfer(driver, actionID, options,
-            (TGenTransfer_notifyCompleteFunc)_tgendriver_onTransferComplete,
-            driver, (GDestroyNotify)tgendriver_unref, GINT_TO_POINTER(actionID), NULL);
-
-    if(isSuccess) {
-        /* ref++ the driver because the transfer object is holding refs as
-         * a generic callback parameter for the notify function callback.
-         * it will get unref'd when the transfer finishes. */
-        tgendriver_ref(driver);
-    } else {
-       tgen_warning("skipping failed transfer action and continuing to the next action");
-       _tgendriver_continueNextActions(driver, actionID);
+    /* a NULL stream model means create just one stream */
+    if(!_tgendriver_startFlow(driver, NULL, streamOpts, actionID)) {
+        tgen_warning("skipping failed stream action and continuing to the next action");
+        _tgendriver_continueNextActions(driver, actionID);
     }
 }
 
-static gboolean _tgendriver_setGeneratorDelayTimer(TGenDriver* driver, TGenGenerator* generator,
-        guint64 delayTimeUSec) {
+static void _tgendriver_initiateFlow(TGenDriver* driver, TGenActionID actionID) {
     TGEN_ASSERT(driver);
 
-    /* create a timer to handle so we can delay before starting the next transfer */
-    TGenTimer* generatorTimer = tgentimer_new(delayTimeUSec, FALSE,
-            (TGenTimer_notifyExpiredFunc)_tgendriver_onGeneratorTimerExpired, driver, generator,
-            (GDestroyNotify)tgendriver_unref, (GDestroyNotify)tgengenerator_unref);
+    const gchar* actionIDStr = tgengraph_getActionName(driver->actionGraph, actionID);
+    TGenFlowOptions* flowOpts = tgengraph_getFlowOptions(driver->actionGraph, actionID);
 
-    if(!generatorTimer) {
-        tgen_warning("failed to initialize timer for model action");
-        return FALSE;
-    }
+    /* get the markov model to generate streams */
+    TGenMarkovModel* streamModel = NULL;
 
-    tgen_info("set generator delay timer for %"G_GUINT64_FORMAT" microseconds", delayTimeUSec);
+    guint32 seed = flowOpts->streamModelSeed.isSet ? flowOpts->streamModelSeed.value : g_random_int();
 
-    /* ref++ the driver and generator for the refs held in the timer */
-    tgendriver_ref(driver);
-    tgengenerator_ref(generator);
+    if(flowOpts->streamModelPath.isSet) {
+        gchar* path = flowOpts->streamModelPath.value;
+        gchar* name = g_path_get_basename(path);
+        streamModel = tgenmarkovmodel_newFromPath(name, seed, path);
+        g_free(name);
 
-    /* let the IO module handle timer reads, transfer the timer pointer reference */
-    tgenio_register(driver->io, tgentimer_getDescriptor(generatorTimer),
-            (TGenIO_notifyEventFunc)tgentimer_onEvent, NULL, generatorTimer,
-            (GDestroyNotify)tgentimer_unref);
-
-    return TRUE;
-}
-
-static void _tgendriver_generateNextTransfer(TGenDriver* driver, TGenGenerator* generator) {
-    TGEN_ASSERT(driver);
-
-    TGenActionID actionID = tgengenerator_getModelActionID(generator);
-
-    /* if these strings are non-null following this call, we own and must free them */
-    gchar* localSchedule = NULL;
-    gchar* remoteSchedule = NULL;
-    guint64 delayTimeUSec = 0;
-    gboolean shouldCreateStream = tgengenerator_generateStream(generator,
-            &localSchedule, &remoteSchedule, &delayTimeUSec);
-
-    if(!shouldCreateStream) {
-       /* the generator reached the end of the streams for this flow,
-        * so the action is now complete. */
-        tgen_info("Generator reached end state after generating %u streams and %u packets",
-                tgengenerator_getNumStreamsGenerated(generator),
-                tgengenerator_getNumPacketsGenerated(generator));
-
-        guint numOutstanding = tgengenerator_getNumOutstandingTransfers(generator);
-        tgen_info("Generator has %u outstanding transfers", numOutstanding);
-
-        if(tgengenerator_isDoneGenerating(generator) && numOutstanding <= 0) {
-            tgen_info("Model action complete, continue to next action");
-            _tgendriver_continueNextActions(driver, actionID);
-        } else {
-            tgen_info("Model action will be complete once all outstanding transfers finish");
+        /* we should have already validated this when we parsed the config graph */
+        if(!streamModel) {
+            tgen_error("A previously validated stream Markov model should be valid");
         }
-
-        tgengenerator_unref(generator);
-        return;
-    }
-
-    /* we need to create a new transfer according to the schedules from the generator */
-    TGenFlowOptions* flowOptions = tgengraph_getFlowOptions(driver->actionGraph, actionID);
-    TGenStreamOptions* streamOptions = &flowOptions->streamOpts;
-
-    /* Create the schedule type transfer. The sizes will be computed from the
-     * schedules, and timeout and stallout will be taken from the default start vertex.
-     * We pass a NULL action, because we don't want to continue in the action graph
-     * when this transfer completes (we continue when the generator is done). */
-    gboolean isSuccess = _tgendriver_createNewActiveTransfer(driver, actionID, streamOptions,
-            (TGenTransfer_notifyCompleteFunc)_tgendriver_onGeneratorTransferComplete,
-            driver, (GDestroyNotify)tgendriver_unref,
-            generator, (GDestroyNotify)tgengenerator_unref);
-
-    if(isSuccess) {
-        /* ref++ the driver and generator because the transfer object is holding refs
-         * as generic callback parameters for the notify function callback.
-         * these will get unref'd when the transfer finishes. */
-        tgendriver_ref(driver);
-        tgengenerator_ref(generator);
-        tgengenerator_onTransferCreated(generator);
     } else {
-       tgen_warning("we failed to create a transfer in model action, "
-               "delaying %"G_GUINT64_FORMAT" microseconds before the next try",
-               delayTimeUSec);
-    }
+        const gchar* modelGraphml = tgenconfig_getDefaultStreamMarkovModelString();
+        GString* graphmlBuffer = g_string_new(modelGraphml);
+        streamModel = tgenmarkovmodel_newFromString("internal-stream-model", seed, graphmlBuffer);
+        g_string_free(graphmlBuffer, TRUE);
 
-    isSuccess = _tgendriver_setGeneratorDelayTimer(driver, generator, delayTimeUSec);
-
-    if(!isSuccess) {
-        tgen_warning("Failed to set generator delay timer for %"G_GUINT64_FORMAT" "
-                "microseconds. Stopping generator now and skipping to next action.",
-                delayTimeUSec);
-        if(tgengenerator_isDoneGenerating(generator) &&
-                tgengenerator_getNumOutstandingTransfers(generator) <= 0) {
-            tgen_info("Model action complete, continue to next action");
-            _tgendriver_continueNextActions(driver, actionID);
+        /* the internal model should be correct */
+        if(!streamModel) {
+            tgen_error("The internal stream Markov model format is incorrect, check the syntax");
         }
-        tgengenerator_unref(generator);
     }
 
-    tgen_info("successfully generated new transfer");
+    g_assert(streamModel);
 
-    if(localSchedule) {
-        g_free(localSchedule);
+    /* we will create streams according to the stream model */
+    if(!_tgendriver_startFlow(driver, streamModel, &flowOpts->streamOpts, actionID)) {
+        tgen_warning("skipping failed flow action and continuing to the next action");
+        _tgendriver_continueNextActions(driver, actionID);
     }
-    if(remoteSchedule) {
-        g_free(remoteSchedule);
-    }
-}
-
-static void _tgendriver_initiateGenerator(TGenDriver* driver, TGenActionID actionID) {
-    TGEN_ASSERT(driver);
-
-//    TGenPeer* proxy = tgenaction_getSocksProxy(driver->startAction);
-
-    /* these strings are owned by the action and we should not free them */
-    gchar* streamModelPath = NULL;
-    gchar* packetModelPath = NULL;
-//    tgenaction_getModelPaths(action, &streamModelPath, &packetModelPath);
-
-    TGenGenerator* generator = tgengenerator_new(streamModelPath, packetModelPath, actionID);
-
-    if(!generator) {
-        tgen_warning("failed to initialize generator for model action, skipping");
-//        _tgendriver_continueNextActions(driver, action);
-        return;
-    }
-
-    /* start generating transfers! */
-    _tgendriver_generateNextTransfer(driver, generator);
 }
 
 static gboolean _tgendriver_initiatePause(TGenDriver* driver,
@@ -532,13 +371,11 @@ static void _tgendriver_processAction(TGenDriver* driver, TGenActionID actionID)
             break;
         }
         case TGEN_ACTION_STREAM: {
-            _tgendriver_initiateTransfer(driver, actionID);
+            _tgendriver_initiateStream(driver, actionID);
             break;
         }
         case TGEN_ACTION_FLOW: {
-            tgen_warning("TGen is degraded, flow actions are not supported at the moment");
-//            _tgendriver_initiateGenerator(driver, actionID); TODO XXX
-            _tgendriver_continueNextActions(driver, actionID);
+            _tgendriver_initiateFlow(driver, actionID);
             break;
         }
         case TGEN_ACTION_END: {
@@ -564,6 +401,9 @@ static void _tgendriver_continueNextActions(TGenDriver* driver, TGenActionID act
     if(driver->clientHasEnded) {
         return;
     }
+
+    const gchar* actionIDStr = tgengraph_getActionName(driver->actionGraph, actionID);
+    tgen_info("Continuing to action following action ID %i (%s)", (gint)actionID, actionIDStr);
 
     GQueue* nextActions = tgengraph_getNextActionIDs(driver->actionGraph, actionID);
     g_assert(nextActions);
@@ -816,14 +656,3 @@ static gboolean _tgendriver_onPauseTimerExpired(TGenDriver* driver, gpointer act
     /* timer was a one time event, so it can be canceled and freed */
     return TRUE;
 }
-
-static gboolean _tgendriver_onGeneratorTimerExpired(TGenDriver* driver, TGenGenerator* generator) {
-    TGEN_ASSERT(driver);
-
-    tgen_info("generator timer expired");
-    _tgendriver_generateNextTransfer(driver, generator);
-
-    /* timer was a one time event, so it can be canceled and freed */
-    return TRUE;
-}
-
