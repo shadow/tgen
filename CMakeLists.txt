@@ -42,8 +42,8 @@ set(tgen_sources
     src/tgen-peer.c
     src/tgen-pool.c
     src/tgen-server.c
+    src/tgen-stream.c
     src/tgen-timer.c
-    src/tgen-transfer.c
     src/tgen-transport.c
 )
 

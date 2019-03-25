@@ -156,7 +156,7 @@ static gboolean _tgenflow_createStream(TGenFlow* flow) {
         }
     }
 
-    /* create the transport connection over which we can start a transfer */
+    /* create the transport connection over which we can start a stream */
     TGenTransport* transport = tgentransport_newActive(flow->streamOptions,
             flow->onBytes, flow->arg, flow->argUnref);
 
@@ -169,17 +169,17 @@ static gboolean _tgenflow_createStream(TGenFlow* flow) {
         return FALSE;
     }
 
-    /* a new transfer will be coming in on this transport. the transfer
+    /* a new stream will be coming in on this transport. the stream
      * takes control of the transport pointer reference. */
-    TGenTransfer* transfer = tgentransfer_new(flow->actionIDStr, flow->streamOptions, packetModel,
-            transport, (TGenTransfer_notifyCompleteFunc)_tgenflow_onStreamComplete,
+    TGenStream* stream = tgenstream_new(flow->actionIDStr, flow->streamOptions, packetModel,
+            transport, (TGenStream_notifyCompleteFunc)_tgenflow_onStreamComplete,
             flow, (GDestroyNotify) _tgenflow_unref, NULL, NULL);
 
-    if(transfer) {
-        /* the transfer is holding a ref to the flow */
+    if(stream) {
+        /* the stream is holding a ref to the flow */
         _tgenflow_ref(flow);
     } else {
-        /* the transport was created, but we failed to create the transfer.
+        /* the transport was created, but we failed to create the stream.
          * so we should clean up the transport since we no longer need it.
          * The transport unref should call the arg unref function that we passed
          * as the destroy function, so we don't need to unref the arg again. */
@@ -189,15 +189,15 @@ static gboolean _tgenflow_createStream(TGenFlow* flow) {
         return FALSE;
     }
 
-    /* now let the IO handler manage the transfer. our transfer pointer reference
+    /* now let the IO handler manage the stream. our stream pointer reference
      * will be held by the IO object */
     tgenio_register(flow->io, tgentransport_getDescriptor(transport),
-            (TGenIO_notifyEventFunc)tgentransfer_onEvent,
-            (TGenIO_notifyCheckTimeoutFunc) tgentransfer_onCheckTimeout,
-            transfer, (GDestroyNotify)tgentransfer_unref);
+            (TGenIO_notifyEventFunc)tgenstream_onEvent,
+            (TGenIO_notifyCheckTimeoutFunc) tgenstream_onCheckTimeout,
+            stream, (GDestroyNotify)tgenstream_unref);
 
     /* release our local transport pointer ref (from when we initialized the new transport)
-     * because the transfer now owns it and holds the ref */
+     * because the stream now owns it and holds the ref */
     tgentransport_unref(transport);
 
     /* increment our stream counter */
@@ -219,7 +219,7 @@ static gboolean _tgenflow_onTimerExpired(TGenFlow* flow, gpointer none) {
 static gboolean _tgenflow_setTimer(TGenFlow* flow, guint64 delayTimeUSec) {
     TGEN_ASSERT(flow);
 
-    /* create a timer to handle so we can delay before starting the next transfer */
+    /* create a timer to handle so we can delay before starting the next stream */
     TGenTimer* flowTimer = tgentimer_new(delayTimeUSec, FALSE,
             (TGenTimer_notifyExpiredFunc)_tgenflow_onTimerExpired, flow, NULL,
             (GDestroyNotify)_tgenflow_unref, NULL);
@@ -235,7 +235,7 @@ static gboolean _tgenflow_setTimer(TGenFlow* flow, guint64 delayTimeUSec) {
     /* ref++ the flow for the ref held in the timer */
     _tgenflow_ref(flow);
 
-    /* let the IO module handle timer reads, transfer the timer pointer reference */
+    /* let the IO module handle timer reads, stream the timer pointer reference */
     tgenio_register(flow->io, tgentimer_getDescriptor(flowTimer),
             (TGenIO_notifyEventFunc)tgentimer_onEvent, NULL, flowTimer,
             (GDestroyNotify)tgentimer_unref);
