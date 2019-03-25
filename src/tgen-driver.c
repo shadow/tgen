@@ -24,7 +24,7 @@ struct _TGenDriver {
     /* the server only ends if an end time is specified */
     gboolean serverHasEnded;
 
-    /* our I/O event manager. this holds refs to all of the transfers
+    /* our I/O event manager. this holds refs to all of the streams
      * and notifies them of I/O events on the underlying transports */
     TGenIO* io;
 
@@ -52,7 +52,7 @@ static void _tgendriver_onTransferComplete(TGenDriver* driver, gpointer actionID
 
     TGenActionID actionID = GPOINTER_TO_INT(actionIDPtr);
 
-    /* our transfer finished, close the socket */
+    /* our stream finished, close the socket */
     if(wasSuccess) {
         driver->heartbeatTransfersCompleted++;
         driver->totalTransfersCompleted++;
@@ -61,7 +61,7 @@ static void _tgendriver_onTransferComplete(TGenDriver* driver, gpointer actionID
         driver->totalTransferErrors++;
     }
 
-    /* We set the action ID to negative if the transfer was not started as part of
+    /* We set the action ID to negative if the stream was not started as part of
      * walking the action graph (we don't use 0 because that is a valid vertex id). */
     if(actionID >= 0) {
         _tgendriver_continueNextActions(driver, actionID);
@@ -99,8 +99,8 @@ static gboolean _tgendriver_onHeartbeat(TGenDriver* driver, gpointer nullData) {
     TGEN_ASSERT(driver);
 
     tgen_message("[driver-heartbeat] bytes-read=%"G_GSIZE_FORMAT" bytes-written=%"G_GSIZE_FORMAT
-            " current-transfers-succeeded=%"G_GUINT64_FORMAT" current-transfers-failed=%"G_GUINT64_FORMAT
-            " total-transfers-succeeded=%"G_GUINT64_FORMAT" total-transfers-failed=%"G_GUINT64_FORMAT,
+            " current-streams-succeeded=%"G_GUINT64_FORMAT" current-streams-failed=%"G_GUINT64_FORMAT
+            " total-streams-succeeded=%"G_GUINT64_FORMAT" total-streams-failed=%"G_GUINT64_FORMAT,
             driver->heartbeatBytesRead, driver->heartbeatBytesWritten,
             driver->heartbeatTransfersCompleted, driver->heartbeatTransferErrors,
             driver->totalTransfersCompleted, driver->totalTransferErrors);
@@ -128,7 +128,7 @@ static void _tgendriver_onNewPeer(TGenDriver* driver, gint socketD, gint64 start
     }
 
     /* this connect was initiated by the other end.
-     * transfer information will be sent to us later. */
+     * stream information will be sent to us later. */
     TGenTransport* transport = tgentransport_newPassive(socketD, started, created, peer,
             (TGenTransport_notifyBytesFunc) _tgendriver_onBytesTransferred, driver,
             (GDestroyNotify)tgendriver_unref);
@@ -144,28 +144,28 @@ static void _tgendriver_onNewPeer(TGenDriver* driver, gint socketD, gint64 start
     TGenStreamOptions* options = &driver->startOptions->defaultStreamOpts;
 
     /* don't send a Markov model on passive streams */
-    TGenTransfer* transfer = tgentransfer_new("passive-stream", options, NULL,
-            transport, (TGenTransfer_notifyCompleteFunc)_tgendriver_onTransferComplete,
+    TGenStream* stream = tgenstream_new("passive-stream", options, NULL,
+            transport, (TGenStream_notifyCompleteFunc)_tgendriver_onTransferComplete,
             driver, (GDestroyNotify)tgendriver_unref, GINT_TO_POINTER(-1), NULL);
 
-    if(!transfer) {
+    if(!stream) {
         tgentransport_unref(transport);
         tgendriver_unref(driver);
-        tgen_warning("failed to initialize transfer for incoming peer, skipping");
+        tgen_warning("failed to initialize stream for incoming peer, skipping");
         return;
     }
 
-    /* ref++ the driver for the transfer notify func */
+    /* ref++ the driver for the stream notify func */
     tgendriver_ref(driver);
 
-    /* now let the IO handler manage the transfer. our transfer pointer reference
+    /* now let the IO handler manage the stream. our stream pointer reference
      * will be held by the IO object */
     tgenio_register(driver->io, tgentransport_getDescriptor(transport),
-            (TGenIO_notifyEventFunc)tgentransfer_onEvent,
-            (TGenIO_notifyCheckTimeoutFunc) tgentransfer_onCheckTimeout,
-            transfer, (GDestroyNotify)tgentransfer_unref);
+            (TGenIO_notifyEventFunc)tgenstream_onEvent,
+            (TGenIO_notifyCheckTimeoutFunc) tgenstream_onCheckTimeout,
+            stream, (GDestroyNotify)tgenstream_unref);
 
-    /* release our transport pointer reference, the transfer should hold one */
+    /* release our transport pointer reference, the stream should hold one */
     tgentransport_unref(transport);
 }
 
@@ -279,7 +279,7 @@ static gboolean _tgendriver_initiatePause(TGenDriver* driver,
     /* ref++ the driver and action for the pause timer */
     tgendriver_ref(driver);
 
-    /* let the IO module handle timer reads, transfer the timer pointer reference */
+    /* let the IO module handle timer reads, stream the timer pointer reference */
     tgenio_register(driver->io, tgentimer_getDescriptor(pauseTimer),
             (TGenIO_notifyEventFunc)tgentimer_onEvent, NULL, pauseTimer,
             (GDestroyNotify)tgentimer_unref);
@@ -337,8 +337,8 @@ static void _tgendriver_checkEndConditions(TGenDriver* driver, TGenActionID acti
 
     if(options->count.isSet) {
         if(driver->totalTransfersCompleted >= options->count.value) {
-            tgen_message("TGen will end because we completed %"G_GUINT64_FORMAT" transfers "
-                    "and we met or exceeded the configured limit of %"G_GUINT64_FORMAT" transfers",
+            tgen_message("TGen will end because we completed %"G_GUINT64_FORMAT" streams "
+                    "and we met or exceeded the configured limit of %"G_GUINT64_FORMAT" streams",
                     driver->totalTransfersCompleted, options->count.value);
             driver->clientHasEnded = TRUE;
             driver->serverHasEnded = TRUE;
@@ -494,7 +494,7 @@ static gboolean _tgendriver_startServerHelper(TGenDriver* driver, in_port_t serv
         /* the server is holding a ref to driver */
         tgendriver_ref(driver);
 
-        /* now let the IO handler manage the server. transfer our server pointer reference
+        /* now let the IO handler manage the server. stream our server pointer reference
          * because it will be stored as a param in the IO object */
         gint socketD = tgenserver_getDescriptor(server);
         tgenio_register(driver->io, socketD, (TGenIO_notifyEventFunc)tgenserver_onEvent, NULL,
@@ -526,7 +526,7 @@ static gboolean _tgendriver_setStartClientTimerHelper(TGenDriver* driver) {
         /* ref++ the driver since the timer is now holding a reference */
         tgendriver_ref(driver);
 
-        /* let the IO module handle timer reads, transfer the timer pointer reference */
+        /* let the IO module handle timer reads, stream the timer pointer reference */
         gint timerD = tgentimer_getDescriptor(startTimer);
         tgenio_register(driver->io, timerD, (TGenIO_notifyEventFunc)tgentimer_onEvent, NULL,
                 startTimer, (GDestroyNotify)tgentimer_unref);
@@ -563,7 +563,7 @@ static gboolean _tgendriver_setHeartbeatTimerHelper(TGenDriver* driver) {
         /* ref++ the driver since the timer is now holding a reference */
         tgendriver_ref(driver);
 
-        /* let the IO module handle timer reads, transfer the timer pointer reference */
+        /* let the IO module handle timer reads, stream the timer pointer reference */
         gint timerD = tgentimer_getDescriptor(heartbeatTimer);
         tgenio_register(driver->io, timerD, (TGenIO_notifyEventFunc)tgentimer_onEvent, NULL,
                 heartbeatTimer, (GDestroyNotify)tgentimer_unref);
@@ -608,7 +608,7 @@ TGenDriver* tgendriver_new(TGenGraph* graph) {
 
     /* only run the client if we have (non-start) actions we need to process */
     if(tgengraph_hasEdges(driver->actionGraph)) {
-        /* the client-side transfers start as specified in the graph.
+        /* the client-side streams start as specified in the graph.
          * start our client after a timeout */
         if(!_tgendriver_setStartClientTimerHelper(driver)) {
             tgendriver_unref(driver);

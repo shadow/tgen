@@ -37,7 +37,7 @@
 #include "tgen-markovmodel.h"
 #include "tgen-graph.h"
 #include "tgen-transport.h"
-#include "tgen-transfer.h"
+#include "tgen-stream.h"
 #include "tgen-flow.h"
 #include "tgen-driver.h"
 
