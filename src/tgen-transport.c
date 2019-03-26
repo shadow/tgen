@@ -1013,10 +1013,65 @@ static TGenEvent _tgentransport_receiveSocksResponseA(TGenTransport* transport) 
             _tgentransport_changeState(transport, TGEN_XPORT_PROXY_RESPONSEB);
             return _tgentransport_receiveSocksResponseB(transport);
         } else {
-            tgen_warning("connection from %s through socks proxy %s to %s failed: unsupported %s 0x%X",
-                    tgenpeer_toString(transport->local), tgenpeer_toString(transport->proxy), tgenpeer_toString(transport->remote),
-                    (version != 0x05) ? "version" : "status",
-                    (version != 0x05) ? version : status);
+            GString* messageBuffer = g_string_new(NULL);
+
+            g_string_append_printf(messageBuffer,
+                    "connection from %s through socks proxy %s to %s failed: ",
+                    tgenpeer_toString(transport->local), tgenpeer_toString(transport->proxy),
+                    tgenpeer_toString(transport->remote));
+
+            if(version != 0x05) {
+                /* version failure, version must be 5 */
+                g_string_append_printf(messageBuffer, "we support version 5 but "
+                        "the SOCKS server wants version %X", version);
+            } else {
+                /* status failure, status must be 0 (request granted) */
+                g_string_append_printf(messageBuffer, "our request was not granted by "
+                        "the SOCKS server: error status %X: ", status);
+
+                /* error codes: https://en.wikipedia.org/wiki/SOCKS#SOCKS5 */
+                switch(status) {
+                    case 0x01: {
+                        g_string_append_printf(messageBuffer, "general failure");
+                        break;
+                    }
+                    case 0x02: {
+                        g_string_append_printf(messageBuffer, "connection not allowed by ruleset");
+                        break;
+                    }
+                    case 0x03: {
+                        g_string_append_printf(messageBuffer, "network unreachable");
+                        break;
+                    }
+                    case 0x04: {
+                        g_string_append_printf(messageBuffer, "host unreachable");
+                        break;
+                    }
+                    case 0x05: {
+                        g_string_append_printf(messageBuffer, "connection refused by destination host");
+                        break;
+                    }
+                    case 0x06: {
+                        g_string_append_printf(messageBuffer, "TTL expired");
+                        break;
+                    }
+                    case 0x07: {
+                        g_string_append_printf(messageBuffer, "command not supported / protocol error");
+                        break;
+                    }
+                    case 0x08: {
+                        g_string_append_printf(messageBuffer, "address type not supported");
+                        break;
+                    }
+                    default: {
+                        g_string_append_printf(messageBuffer, "unknown error");
+                        break;
+                    }
+                }
+            }
+
+            tgen_warning("%s", messageBuffer->str);
+            g_string_free(messageBuffer, TRUE);
 
             TGenTransportError error = (version != 0x05) ? TGEN_XPORT_ERR_PROXY_VERSION : TGEN_XPORT_ERR_PROXY_STATUS;
             _tgentransport_changeState(transport, TGEN_XPORT_ERROR);
