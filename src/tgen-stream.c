@@ -52,6 +52,11 @@ typedef enum _TGenStreamErrorType {
     TGEN_STREAM_ERR_NONE,
     TGEN_STREAM_ERR_AUTHENTICATE,
     TGEN_STREAM_ERR_HEADER,
+    TGEN_STREAM_ERR_HEADER_INCOMPLETE,
+    TGEN_STREAM_ERR_HEADER_VERSION,
+    TGEN_STREAM_ERR_HEADER_MODELMODE,
+    TGEN_STREAM_ERR_HEADER_MODELPATH,
+    TGEN_STREAM_ERR_HEADER_MODELSIZE,
     TGEN_STREAM_ERR_MODEL,
     TGEN_STREAM_ERR_CHECKSUM,
     TGEN_STREAM_ERR_READ,
@@ -68,14 +73,15 @@ typedef enum _TGenStreamHeaderFlags {
     TGEN_HEADER_FLAG_NONE = 0,
     TGEN_HEADER_FLAG_PROTOCOL = 1 << 0,
     TGEN_HEADER_FLAG_HOSTNAME = 1 << 1,
-    TGEN_HEADER_FLAG_ID = 1 << 2,
-    TGEN_HEADER_FLAG_SENDSIZE = 1 << 3,
-    TGEN_HEADER_FLAG_RECVSIZE = 1 << 4,
-    TGEN_HEADER_FLAG_MODELNAME = 1 << 5,
-    TGEN_HEADER_FLAG_MODELSEED = 1 << 6,
-    TGEN_HEADER_FLAG_MODELMODE = 1 << 7, /* either 'path' or 'graphml' */
-    TGEN_HEADER_FLAG_MODELPATH = 1 << 8, /* only if mode is 'path' */
-    TGEN_HEADER_FLAG_MODELSIZE = 1 << 9, /* only if mode is 'graphml' */
+    TGEN_HEADER_FLAG_CODE = 1 << 2,
+    TGEN_HEADER_FLAG_ID = 1 << 3,
+    TGEN_HEADER_FLAG_SENDSIZE = 1 << 4,
+    TGEN_HEADER_FLAG_RECVSIZE = 1 << 5,
+    TGEN_HEADER_FLAG_MODELNAME = 1 << 6,
+    TGEN_HEADER_FLAG_MODELSEED = 1 << 7,
+    TGEN_HEADER_FLAG_MODELMODE = 1 << 8, /* either 'path' or 'graphml' */
+    TGEN_HEADER_FLAG_MODELPATH = 1 << 9, /* only if mode is 'path' */
+    TGEN_HEADER_FLAG_MODELSIZE = 1 << 10, /* only if mode is 'graphml' */
 } TGenStreamHeaderFlags;
 
 struct _TGenStream {
@@ -260,6 +266,21 @@ static const gchar* _tgenstream_errorToString(TGenStreamErrorType error) {
         }
         case TGEN_STREAM_ERR_HEADER: {
             return "HEADER";
+        }
+        case TGEN_STREAM_ERR_HEADER_INCOMPLETE: {
+            return "HEADER_INCOMPLETE";
+        }
+        case TGEN_STREAM_ERR_HEADER_VERSION: {
+            return "HEADER_VERSION";
+        }
+        case TGEN_STREAM_ERR_HEADER_MODELMODE: {
+            return "HEADER_MODELMODE";
+        }
+        case TGEN_STREAM_ERR_HEADER_MODELPATH: {
+            return "HEADER_MODELPATH";
+        }
+        case TGEN_STREAM_ERR_HEADER_MODELSIZE: {
+            return "HEADER_MODELSIZE";
         }
         case TGEN_STREAM_ERR_MODEL: {
             return "MODEL";
@@ -560,9 +581,10 @@ static gboolean _tgenstream_readHeader(TGenStream* stream) {
     TGenStreamHeaderFlags parsedKeys = TGEN_HEADER_FLAG_NONE;
 
     /* we have read the entire command header from the other end */
-    gboolean hasError = FALSE;
+    TGenStreamErrorType theError = TGEN_STREAM_ERR_NONE;
     gboolean modeIsPath = FALSE;
     gchar* modelPath = NULL;
+    gchar* errorCode = NULL;
 
     tgen_debug("Parsing header string now: %s", line->str);
 
@@ -570,7 +592,7 @@ static gboolean _tgenstream_readHeader(TGenStream* stream) {
     gchar** parts = g_strsplit(line->str, " ", 0);
 
     /* parse all of the key=value pairs */
-    for(gint i = 0; !hasError && parts != NULL && parts[i] != NULL; i++) {
+    for(gint i = 0; (theError == TGEN_STREAM_ERR_NONE) && parts != NULL && parts[i] != NULL; i++) {
         gchar** pair = g_strsplit(parts[i], "=", 2);
         gchar* key = pair[0];
         gchar* value = pair[1];
@@ -590,7 +612,7 @@ static gboolean _tgenstream_readHeader(TGenStream* stream) {
                         parsedKeys |= TGEN_HEADER_FLAG_PROTOCOL;
                     } else {
                         tgen_info("Client running protocol version %s is unsupported", value);
-                        hasError = TRUE;
+                        theError = TGEN_STREAM_ERR_HEADER_VERSION;
                     }
                 }
 
@@ -603,6 +625,9 @@ static gboolean _tgenstream_readHeader(TGenStream* stream) {
             } else if(!g_ascii_strcasecmp(key, "TRANSFER_ID")) {
                 stream->id = g_strdup(value);
                 parsedKeys |= TGEN_HEADER_FLAG_ID;
+            } else if(!g_ascii_strcasecmp(key, "CODE")) {
+                errorCode = g_strdup(value);
+                parsedKeys |= TGEN_HEADER_FLAG_CODE;
             } else if(!g_ascii_strcasecmp(key, "SEND_SIZE")) {
                 /* the other side's send size is our recv size */
                 if(value[0] == '~') {
@@ -634,6 +659,10 @@ static gboolean _tgenstream_readHeader(TGenStream* stream) {
             } else if(!g_ascii_strcasecmp(key, "MODEL_MODE")) {
                 if(!g_ascii_strncasecmp(value, "path", 4)) {
                     modeIsPath = TRUE;
+                } else if(!g_ascii_strncasecmp(value, "graphml", 4)) {
+                    modeIsPath = FALSE;
+                } else {
+                    theError = TGEN_STREAM_ERR_HEADER_MODELMODE;
                 }
                 parsedKeys |= TGEN_HEADER_FLAG_MODELMODE;
             } else if(!g_ascii_strcasecmp(key, "MODEL_PATH")) {
@@ -651,13 +680,13 @@ static gboolean _tgenstream_readHeader(TGenStream* stream) {
                 } else {
                     tgen_warning("Client requested model size %lli, "
                             "but we only allow: 0 < size <= 10 MiB", modelSize);
-                    hasError = TRUE;
+                    theError = TGEN_STREAM_ERR_HEADER_MODELSIZE;
                 }
             } else {
                 tgen_info("Client sent unrecognized key '%s', ignoring", key);
             }
 
-            if(!hasError) {
+            if(theError == TGEN_STREAM_ERR_NONE) {
                 tgen_debug("successfully parsed key='%s' value='%s'", key, value);
             }
         } else {
@@ -678,51 +707,60 @@ static gboolean _tgenstream_readHeader(TGenStream* stream) {
         g_strfreev(parts);
     }
 
-    if(stream->isCommander) {
-        TGenStreamHeaderFlags required = (TGEN_HEADER_FLAG_PROTOCOL |
-                TGEN_HEADER_FLAG_HOSTNAME);
-        if((parsedKeys & required) != required) {
-            tgen_info("Finished parsing header flags, we did not receive all required flags.");
-            hasError = TRUE;
-        }
-    } else {
-        TGenStreamHeaderFlags required = (TGEN_HEADER_FLAG_PROTOCOL |
-                TGEN_HEADER_FLAG_HOSTNAME | TGEN_HEADER_FLAG_ID |
-                TGEN_HEADER_FLAG_SENDSIZE | TGEN_HEADER_FLAG_RECVSIZE |
-                TGEN_HEADER_FLAG_MODELNAME | TGEN_HEADER_FLAG_MODELSEED |
-                TGEN_HEADER_FLAG_MODELMODE);
+    if(theError == TGEN_STREAM_ERR_NONE) {
+        if(stream->isCommander) {
+            TGenStreamHeaderFlags required = (TGEN_HEADER_FLAG_PROTOCOL |
+                    TGEN_HEADER_FLAG_HOSTNAME | TGEN_HEADER_FLAG_CODE);
+            if((parsedKeys & required) != required) {
+                tgen_info("Finished parsing header flags, we did not receive all required flags.");
+                theError = TGEN_STREAM_ERR_HEADER_INCOMPLETE;
+            }
 
-        if(modeIsPath) {
-            required |= TGEN_HEADER_FLAG_MODELPATH;
+            if(errorCode && g_ascii_strcasecmp(errorCode,
+                    _tgenstream_errorToString(TGEN_STREAM_ERR_NONE))) {
+                tgen_info("Server returned error code %s", errorCode);
+                theError = TGEN_STREAM_ERR_HEADER;
+            }
         } else {
-            required |= TGEN_HEADER_FLAG_MODELSIZE;
-        }
+            TGenStreamHeaderFlags required = (TGEN_HEADER_FLAG_PROTOCOL |
+                    TGEN_HEADER_FLAG_HOSTNAME | TGEN_HEADER_FLAG_ID |
+                    TGEN_HEADER_FLAG_SENDSIZE | TGEN_HEADER_FLAG_RECVSIZE |
+                    TGEN_HEADER_FLAG_MODELNAME | TGEN_HEADER_FLAG_MODELSEED |
+                    TGEN_HEADER_FLAG_MODELMODE);
 
-        if((parsedKeys & required) != required) {
-            tgen_info("Finished parsing header flags, we did not receive all required flags.");
-            hasError = TRUE;
-        }
-
-        if(modeIsPath) {
-            tgen_info("Loading Markov model from the peer-provided path %s", modelPath);
-
-            stream->mmodel = tgenmarkovmodel_newFromPath(stream->peer.modelName,
-                    stream->peer.modelSeed, modelPath);
-
-            if(stream->mmodel) {
-                tgen_info("Success loading Markov model from path %s", modelPath);
+            if(modeIsPath) {
+                required |= TGEN_HEADER_FLAG_MODELPATH;
             } else {
-                tgen_warning("Failure loading Markov model from path %s", modelPath);
-                hasError = TRUE;
+                required |= TGEN_HEADER_FLAG_MODELSIZE;
+            }
+
+            if((parsedKeys & required) != required) {
+                tgen_info("Finished parsing header flags, we did not receive all required flags.");
+                theError = TGEN_STREAM_ERR_HEADER_INCOMPLETE;
+            }
+
+            if(modeIsPath) {
+                tgen_info("Loading Markov model from the peer-provided path %s", modelPath);
+
+                stream->mmodel = tgenmarkovmodel_newFromPath(stream->peer.modelName,
+                        stream->peer.modelSeed, modelPath);
+
+                if(stream->mmodel) {
+                    tgen_info("Success loading Markov model from path %s", modelPath);
+                } else {
+                    tgen_warning("Failure loading Markov model from path %s", modelPath);
+                    theError = TGEN_STREAM_ERR_HEADER_MODELPATH;
+                }
+            } else {
+                if(stream->peer.modelSize <= 0) {
+                    tgen_warning("We need a graphml model, but the peer sent us model size 0");
+                    theError = TGEN_STREAM_ERR_HEADER_MODELSIZE;
+                }
             }
         }
     }
 
-    if(hasError) {
-        _tgenstream_changeRecvState(stream, TGEN_STREAM_RECV_ERROR);
-        _tgenstream_changeError(stream, TGEN_STREAM_ERR_HEADER);
-        return FALSE;
-    } else {
+    if(theError == TGEN_STREAM_ERR_NONE) {
         /* we need to update our string with the new command info */
         _tgenstream_resetString(stream);
         if(stream->isCommander) {
@@ -730,17 +768,25 @@ static gboolean _tgenstream_readHeader(TGenStream* stream) {
             stream->time.response = g_get_monotonic_time();
         }
         return TRUE;
+    } else {
+        /* problem with the header params */
+        _tgenstream_changeRecvState(stream, TGEN_STREAM_RECV_ERROR);
+        _tgenstream_changeError(stream, theError);
+        if(stream->isCommander) {
+            /* we can't send any more, so we are done */
+            _tgenstream_changeSendState(stream, TGEN_STREAM_SEND_SUCCESS);
+        } else {
+            /* send an error code as response */
+            _tgenstream_changeSendState(stream, TGEN_STREAM_SEND_RESPONSE);
+        }
+        return FALSE;
     }
 }
 
 static gboolean _tgenstream_readModel(TGenStream* stream) {
     TGEN_ASSERT(stream);
 
-    if(stream->peer.modelSize == 0) {
-        _tgenstream_changeRecvState(stream, TGEN_STREAM_RECV_ERROR);
-        _tgenstream_changeError(stream, TGEN_STREAM_ERR_MODEL);
-        return FALSE;
-    }
+    g_assert(stream->peer.modelSize > 0);
 
     if(!stream->peer.buffer) {
         stream->peer.buffer = g_string_sized_new(stream->peer.modelSize);
@@ -786,6 +832,8 @@ static gboolean _tgenstream_readModel(TGenStream* stream) {
             /* some problem with the model */
             _tgenstream_changeRecvState(stream, TGEN_STREAM_RECV_ERROR);
             _tgenstream_changeError(stream, TGEN_STREAM_ERR_MODEL);
+            /* send an error code as response */
+            _tgenstream_changeSendState(stream, TGEN_STREAM_SEND_RESPONSE);
 
             tgen_critical("We received model '%s', but could not instantiate it",
                     stream->peer.modelName);
@@ -1122,6 +1170,8 @@ static gboolean _tgenstream_writeResponse(TGenStream* stream) {
                 " PROTOCOL_VERSION=%i.%i", TGEN_PROTO_VERS_MAJ, TGEN_PROTO_VERS_MIN);
         g_string_append_printf(stream->send.buffer,
                 " HOSTNAME=%s", stream->hostname);
+        g_string_append_printf(stream->send.buffer,
+                " CODE=%s", _tgenstream_errorToString(stream->error));
 
         /* close off the tagged data with a newline */
         g_string_append_c(stream->send.buffer, '\n');
@@ -1302,8 +1352,13 @@ static void _tgenstream_onWritable(TGenStream* stream) {
         g_assert(!stream->isCommander);
 
         if(_tgenstream_writeResponse(stream)) {
-            /* start sending the payload */
-            _tgenstream_changeSendState(stream, TGEN_STREAM_SEND_PAYLOAD);
+            if(stream->error == TGEN_STREAM_ERR_NONE) {
+                /* start sending the payload */
+                _tgenstream_changeSendState(stream, TGEN_STREAM_SEND_PAYLOAD);
+            } else {
+                /* we just wrote a response with an error code, sending is done now */
+                _tgenstream_changeSendState(stream, TGEN_STREAM_SEND_SUCCESS);
+            }
         }
     }
 
