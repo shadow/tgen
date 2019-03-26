@@ -24,8 +24,8 @@
     <node id="end">
       <data key="d4">1</data>
     </node>
-    <edge source="start" target="stream" />
+    <edge source="start" target="flow" />
+    <edge source="flow" target="end" />
     <edge source="end" target="start" />
-    <edge source="stream" target="end" />
   </graph>
 </graphml>

@@ -80,9 +80,14 @@ TGenFlow* tgenflow_new(TGenMarkovModel* streamModel, TGenStreamOptions* streamOp
 
     flow->onBytes = onBytes;
     flow->onComplete = onComplete;
+
     flow->arg = arg;
     flow->argRef = argRef;
     flow->argUnref = argUnref;
+
+    if(flow->arg && flow->argRef) {
+        flow->argRef(flow->arg);
+    }
 
     return flow;
 }
@@ -175,6 +180,9 @@ static gboolean _tgenflow_createStream(TGenFlow* flow) {
             transport, (TGenStream_notifyCompleteFunc)_tgenflow_onStreamComplete,
             flow, (GDestroyNotify) _tgenflow_unref, NULL, NULL);
 
+    /* release our ref to the model, the stream holds its own ref */
+    tgenmarkovmodel_unref(packetModel);
+
     if(stream) {
         /* the stream is holding a ref to the flow */
         _tgenflow_ref(flow);
@@ -235,7 +243,7 @@ static gboolean _tgenflow_setTimer(TGenFlow* flow, guint64 delayTimeUSec) {
     /* ref++ the flow for the ref held in the timer */
     _tgenflow_ref(flow);
 
-    /* let the IO module handle timer reads, stream the timer pointer reference */
+    /* let the IO module handle timer reads, the io now holds the timer reference */
     tgenio_register(flow->io, tgentimer_getDescriptor(flowTimer),
             (TGenIO_notifyEventFunc)tgentimer_onEvent, NULL, flowTimer,
             (GDestroyNotify)tgentimer_unref);

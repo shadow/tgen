@@ -14,7 +14,7 @@
       <data key="d2">localhost:8888</data>
     </node>
     <node id="stream">
-      <data key="d5">60 seconds</data>
+      <data key="d5">0 seconds</data>
       <data key="d6">12345</data>
       <data key="d7">nonstop.packetmodel.graphml</data>
     </node>
