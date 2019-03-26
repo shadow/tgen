@@ -73,7 +73,9 @@ typedef enum _TGenStreamHeaderFlags {
     TGEN_HEADER_FLAG_RECVSIZE = 1 << 4,
     TGEN_HEADER_FLAG_MODELNAME = 1 << 5,
     TGEN_HEADER_FLAG_MODELSEED = 1 << 6,
-    TGEN_HEADER_FLAG_MODELSIZE = 1 << 7,
+    TGEN_HEADER_FLAG_MODELMODE = 1 << 7, /* either 'path' or 'graphml' */
+    TGEN_HEADER_FLAG_MODELPATH = 1 << 8, /* only if mode is 'path' */
+    TGEN_HEADER_FLAG_MODELSIZE = 1 << 9, /* only if mode is 'graphml' */
 } TGenStreamHeaderFlags;
 
 struct _TGenStream {
@@ -97,6 +99,7 @@ struct _TGenStream {
 
     /* describes how this stream generates packets */
     TGenMarkovModel* mmodel;
+    gboolean mmodelSendPath;
 
     /* information about the reading side of the connection */
     struct {
@@ -153,8 +156,8 @@ struct _TGenStream {
         gchar* hostname;
         GString* buffer;
         gchar* modelName;
-        gsize modelSize;
         guint32 modelSeed;
+        gsize modelSize;
     } peer;
 
     /* track timings for time reporting, using g_get_monotonic_time in usec granularity */
@@ -558,6 +561,8 @@ static gboolean _tgenstream_readHeader(TGenStream* stream) {
 
     /* we have read the entire command header from the other end */
     gboolean hasError = FALSE;
+    gboolean modeIsPath = FALSE;
+    gchar* modelPath = NULL;
 
     tgen_debug("Parsing header string now: %s", line->str);
 
@@ -626,6 +631,14 @@ static gboolean _tgenstream_readHeader(TGenStream* stream) {
             } else if(!g_ascii_strcasecmp(key, "MODEL_SEED")) {
                 stream->peer.modelSeed = (guint32)atol(value);
                 parsedKeys |= TGEN_HEADER_FLAG_MODELSEED;
+            } else if(!g_ascii_strcasecmp(key, "MODEL_MODE")) {
+                if(!g_ascii_strncasecmp(value, "path", 4)) {
+                    modeIsPath = TRUE;
+                }
+                parsedKeys |= TGEN_HEADER_FLAG_MODELMODE;
+            } else if(!g_ascii_strcasecmp(key, "MODEL_PATH")) {
+                modelPath = g_strdup(value);
+                parsedKeys |= TGEN_HEADER_FLAG_MODELPATH;
             } else if(!g_ascii_strcasecmp(key, "MODEL_SIZE")) {
                 long long int modelSize = atoll(value);
 
@@ -636,7 +649,8 @@ static gboolean _tgenstream_readHeader(TGenStream* stream) {
                     stream->peer.modelSize = (gsize)modelSize;
                     parsedKeys |= TGEN_HEADER_FLAG_MODELSIZE;
                 } else {
-                    tgen_info("Client requested model size %lli is out of bounds", modelSize);
+                    tgen_warning("Client requested model size %lli, "
+                            "but we only allow: 0 < size <= 10 MiB", modelSize);
                     hasError = TRUE;
                 }
             } else {
@@ -676,10 +690,31 @@ static gboolean _tgenstream_readHeader(TGenStream* stream) {
                 TGEN_HEADER_FLAG_HOSTNAME | TGEN_HEADER_FLAG_ID |
                 TGEN_HEADER_FLAG_SENDSIZE | TGEN_HEADER_FLAG_RECVSIZE |
                 TGEN_HEADER_FLAG_MODELNAME | TGEN_HEADER_FLAG_MODELSEED |
-                TGEN_HEADER_FLAG_MODELSIZE);
+                TGEN_HEADER_FLAG_MODELMODE);
+
+        if(modeIsPath) {
+            required |= TGEN_HEADER_FLAG_MODELPATH;
+        } else {
+            required |= TGEN_HEADER_FLAG_MODELSIZE;
+        }
+
         if((parsedKeys & required) != required) {
             tgen_info("Finished parsing header flags, we did not receive all required flags.");
             hasError = TRUE;
+        }
+
+        if(modeIsPath) {
+            tgen_info("Loading Markov model from the peer-provided path %s", modelPath);
+
+            stream->mmodel = tgenmarkovmodel_newFromPath(stream->peer.modelName,
+                    stream->peer.modelSeed, modelPath);
+
+            if(stream->mmodel) {
+                tgen_info("Success loading Markov model from path %s", modelPath);
+            } else {
+                tgen_warning("Failure loading Markov model from path %s", modelPath);
+                hasError = TRUE;
+            }
         }
     }
 
@@ -904,7 +939,8 @@ static void _tgenstream_onReadable(TGenStream* stream) {
     /* only the non-commander */
     if(stream->recv.state == TGEN_STREAM_RECV_MODEL) {
         g_assert(!stream->isCommander);
-        if(_tgenstream_readModel(stream)) {
+        /* if we already have the mmodel (loaded from a path), then don't read any graphml */
+        if(stream->mmodel || _tgenstream_readModel(stream)) {
             /* now we send the response */
             _tgenstream_changeSendState(stream, TGEN_STREAM_SEND_RESPONSE);
 
@@ -1000,9 +1036,8 @@ static gboolean _tgenstream_writeCommand(TGenStream* stream) {
     if(!stream->send.buffer) {
         stream->send.buffer = g_string_new(NULL);
 
-        /* we will send the model as a string */
-        GString* modelGraphml = tgenmarkovmodel_toGraphmlString(stream->mmodel);
-        g_assert(modelGraphml);
+        /* we may send the model as a string */
+        GString* modelGraphml = NULL;
 
         /* Send useful information about the stream. All but the PW are tagged
          * to make it easier to extend in the future. */
@@ -1032,17 +1067,35 @@ static gboolean _tgenstream_writeCommand(TGenStream* stream) {
                 " MODEL_NAME=%s", tgenmarkovmodel_getName(stream->mmodel));
         g_string_append_printf(stream->send.buffer,
                 " MODEL_SEED=%"G_GUINT32_FORMAT, tgenmarkovmodel_getSeed(stream->mmodel));
-        g_string_append_printf(stream->send.buffer,
-                " MODEL_SIZE=%"G_GSIZE_FORMAT, modelGraphml->len);
+
+        if(stream->mmodelSendPath) {
+            const gchar* path = tgenmarkovmodel_getPath(stream->mmodel);
+            g_assert(path);
+
+            g_string_append_printf(stream->send.buffer,
+                    " MODEL_MODE=path");
+            g_string_append_printf(stream->send.buffer,
+                    " MODEL_PATH=%s", path);
+        } else {
+            modelGraphml = tgenmarkovmodel_toGraphmlString(stream->mmodel);
+            g_assert(modelGraphml);
+
+            g_string_append_printf(stream->send.buffer,
+                    " MODEL_MODE=graphml");
+            g_string_append_printf(stream->send.buffer,
+                    " MODEL_SIZE=%"G_GSIZE_FORMAT, modelGraphml->len);
+        }
 
         /* close off the tagged data with a newline */
         g_string_append_c(stream->send.buffer, '\n');
 
-        /* then we write the graphml string of the specified size */
-        g_string_append_printf(stream->send.buffer, "%s", modelGraphml->str);
+        if(modelGraphml) {
+            /* then we write the graphml string of the specified size */
+            g_string_append_printf(stream->send.buffer, "%s", modelGraphml->str);
 
-        /* clean up */
-        g_string_free(modelGraphml, TRUE);
+            /* clean up */
+            g_string_free(modelGraphml, TRUE);
+        }
     }
 
     _tgenstream_flushOut(stream);
@@ -1647,6 +1700,14 @@ TGenStream* tgenstream_new(const gchar* idStr, TGenStreamOptions* options,
     if(mmodel) {
         tgenmarkovmodel_ref(mmodel);
         stream->mmodel = mmodel;
+
+        /* send the path instead of the full graphml to the server if configured,
+         * but only if the mmodel was initiated from a path rather than a string */
+        if(options->packetModelMode.isSet &&
+                !g_ascii_strcasecmp(options->packetModelMode.value, "path") &&
+                tgenmarkovmodel_getPath(mmodel) != NULL) {
+            stream->mmodelSendPath = TRUE;
+        }
 
         /* the commander first sends the command */
         stream->isCommander = TRUE;

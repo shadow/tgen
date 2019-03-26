@@ -7,41 +7,47 @@
   <key attr.name="count" attr.type="string" for="node" id="d1" />
   <key attr.name="time" attr.type="string" for="node" id="d0" />
   <graph edgedefault="directed">
-    <node id="pause">
-      <data key="d0">1,2,3,4,5,6,7,8,9,10</data>
-    </node>
-    <node id="end">
-      <data key="d1">30</data>
-      <data key="d2">10 GiB</data>
-      <data key="d3">10 GiB</data>
-      <data key="d0">1 minute</data>
-    </node>
-    <node id="streamA">
-      <data key="d2">10 kib</data>
-      <data key="d3">1 kib</data>
-    </node>
-    <node id="pause_sync" />
     <node id="start">
       <data key="d4">message</data>
       <data key="d5">1 second</data>
       <data key="d6">localhost:8888</data>
       <data key="d0">1 second</data>
     </node>
-    <node id="streamB2">
-      <data key="d2">100 mib</data>
-      <data key="d3">100 kib</data>
+    <node id="streamA">
+      <data key="d2">100 kib</data>
+      <data key="d3">1 kib</data>
     </node>
     <node id="streamB1">
       <data key="d2">10 mib</data>
       <data key="d3">10 kib</data>
     </node>
-    <edge source="pause" target="start" />
-    <edge source="end" target="pause" />
-    <edge source="streamA" target="streamB2" />
-    <edge source="streamA" target="streamB1" />
-    <edge source="pause_sync" target="end" />
+    <node id="streamB2">
+      <data key="d2">1 mib</data>
+      <data key="d3">100 kib</data>
+    </node>
+    <node id="streamB3">
+      <data key="d2">50 kib</data>
+      <data key="d3">5 kib</data>
+    </node>
+    <node id="pause_sync" />
+    <node id="end">
+      <data key="d1">40</data>
+      <data key="d2">10 GiB</data>
+      <data key="d3">10 GiB</data>
+      <data key="d0">1 minute</data>
+    </node>
+    <node id="pause">
+      <data key="d0">1,2,3,4,5,6,7,8,9,10</data>
+    </node>
     <edge source="start" target="streamA" />
-    <edge source="streamB2" target="pause_sync" />
+    <edge source="streamA" target="streamB1" />
+    <edge source="streamA" target="streamB2" />
+    <edge source="streamA" target="streamB3" />
     <edge source="streamB1" target="pause_sync" />
+    <edge source="streamB2" target="pause_sync" />
+    <edge source="streamB3" target="pause_sync" />
+    <edge source="pause_sync" target="end" />
+    <edge source="end" target="pause" />
+    <edge source="pause" target="start" />
   </graph>
 </graphml>

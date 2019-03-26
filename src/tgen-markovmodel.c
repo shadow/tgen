@@ -74,6 +74,8 @@ struct _TGenMarkovModel {
 
     /* The name of the graphml file that we loaded. */
     gchar* name;
+    /* The path of the graphml file, may be NULL if we initiated from a string */
+    gchar* path;
 
     igraph_t* graph;
     igraph_integer_t startVertexIndex;
@@ -899,6 +901,7 @@ TGenMarkovModel* tgenmarkovmodel_newFromPath(const gchar* name, guint32 seed, co
     fclose(graphFileStream);
 
     TGenMarkovModel* mmodel = graph ? _tgenmarkovmodel_new(graph, name, seed) : NULL;
+    mmodel->path = g_strdup(graphmlFilePath);
     return mmodel;
 }
 
@@ -1334,6 +1337,11 @@ guint32 tgenmarkovmodel_getSeed(TGenMarkovModel* mmodel) {
 const gchar* tgenmarkovmodel_getName(TGenMarkovModel* mmodel) {
     TGEN_MMODEL_ASSERT(mmodel);
     return mmodel->name;
+}
+
+const gchar* tgenmarkovmodel_getPath(TGenMarkovModel* mmodel) {
+    TGEN_MMODEL_ASSERT(mmodel);
+    return mmodel->path;
 }
 
 /* returns a new buffer containing the graph in graphml format. the size of the buffer

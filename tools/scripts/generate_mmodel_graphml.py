@@ -57,7 +57,7 @@ def generate_default_streammodel(filename):
 
     G.add_node('o1', type="observation", name='+')
 
-    G.add_edge('s1', 'o1', type='emission', weight=1.0, distribution='normal', param_location=30000000, param_scale=15000000)
+    G.add_edge('s1', 'o1', type='emission', weight=1.0, distribution='normal', param_location=10000000, param_scale=4000000)
 
     networkx.write_graphml(G, filename)
 

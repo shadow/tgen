@@ -36,6 +36,7 @@ void tgenmarkovmodel_reset(TGenMarkovModel* mmodel);
 
 guint32 tgenmarkovmodel_getSeed(TGenMarkovModel* mmodel);
 const gchar* tgenmarkovmodel_getName(TGenMarkovModel* mmodel);
+const gchar* tgenmarkovmodel_getPath(TGenMarkovModel* mmodel);
 
 GString* tgenmarkovmodel_toGraphmlString(TGenMarkovModel* mmodel);
 

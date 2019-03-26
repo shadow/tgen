@@ -17,17 +17,18 @@ typedef enum {
     TGEN_VA_LOGLEVEL = 1 << 6,
     TGEN_VA_PACKETMODELPATH = 1 << 7,
     TGEN_VA_PACKETMODELSEED = 1 << 8,
-    TGEN_VA_PEERS = 1 << 9,
-    TGEN_VA_SOCKSPROXY = 1 << 10,
-    TGEN_VA_SOCKSUSERNAME = 1 << 11,
-    TGEN_VA_SOCKSPASSWORD = 1 << 12,
-    TGEN_VA_SENDSIZE = 1 << 13,
-    TGEN_VA_RECVSIZE = 1 << 14,
-    TGEN_VA_TIMEOUT = 1 << 15,
-    TGEN_VA_STALLOUT = 1 << 16,
-    TGEN_VA_STREAMMODELPATH = 1 << 17,
-    TGEN_VA_STREAMMODELSEED = 1 << 18,
-    TGEN_VA_COUNT = 1 << 19,
+    TGEN_VA_PACKETMODELMODE = 1 << 9,
+    TGEN_VA_PEERS = 1 << 10,
+    TGEN_VA_SOCKSPROXY = 1 << 11,
+    TGEN_VA_SOCKSUSERNAME = 1 << 12,
+    TGEN_VA_SOCKSPASSWORD = 1 << 13,
+    TGEN_VA_SENDSIZE = 1 << 14,
+    TGEN_VA_RECVSIZE = 1 << 15,
+    TGEN_VA_TIMEOUT = 1 << 16,
+    TGEN_VA_STALLOUT = 1 << 17,
+    TGEN_VA_STREAMMODELPATH = 1 << 18,
+    TGEN_VA_STREAMMODELSEED = 1 << 19,
+    TGEN_VA_COUNT = 1 << 20,
 } AttributeFlags;
 
 typedef struct _TGenAction {
@@ -152,6 +153,9 @@ static const gchar* _tgengraph_attributeToString(AttributeFlags attr) {
         case TGEN_VA_PACKETMODELSEED: {
             return "packetmodelseed";
         }
+        case TGEN_VA_PACKETMODELMODE: {
+            return "packetmodelmode";
+        }
         case TGEN_VA_PEERS: {
             return "peers";
         }
@@ -215,6 +219,9 @@ static AttributeFlags _tgengraph_vertexAttributeToFlag(const gchar* stringAttrib
         } else if(!g_ascii_strcasecmp(stringAttribute,
                 _tgengraph_attributeToString(TGEN_VA_PACKETMODELSEED))) {
             return TGEN_VA_PACKETMODELSEED;
+        } else if(!g_ascii_strcasecmp(stringAttribute,
+                _tgengraph_attributeToString(TGEN_VA_PACKETMODELMODE))) {
+            return TGEN_VA_PACKETMODELMODE;
         } else if(!g_ascii_strcasecmp(stringAttribute,
                 _tgengraph_attributeToString(TGEN_VA_PEERS))) {
             return TGEN_VA_PEERS;
@@ -482,6 +489,15 @@ static GError* _tgengraph_parseStreamAttributesHelper(TGenGraph* g, const gchar*
         }
     }
 
+    if(g->knownAttributes & TGEN_VA_PACKETMODELMODE) {
+        const gchar* name = _tgengraph_attributeToString(TGEN_VA_PACKETMODELMODE);
+        const gchar* valueStr = VAS(g->graph, name, vertexIndex);
+        error = tgenoptionparser_parseString(name, valueStr, &options->packetModelMode);
+        if(error) {
+            return error;
+        }
+    }
+
     if(g->knownAttributes & TGEN_VA_PEERS) {
         const gchar* name = _tgengraph_attributeToString(TGEN_VA_PEERS);
         const gchar* valueStr = VAS(g->graph, name, vertexIndex);
@@ -559,6 +575,19 @@ static GError* _tgengraph_parseStreamAttributesHelper(TGenGraph* g, const gchar*
         gchar* path = options->packetModelPath.value;
         guint32 seed = options->packetModelSeed.isSet ? options->packetModelSeed.value : 1;
         error = _tgengraph_validateMarkovModel(g, path, seed);
+    }
+
+    if(options->packetModelMode.isSet) {
+        const gchar* name = _tgengraph_attributeToString(TGEN_VA_PACKETMODELMODE);
+        gchar* mode = options->packetModelMode.value;
+
+        /* if its not 'path' AND its not 'graphml', then its an error */
+        if(g_ascii_strcasecmp(mode, "path") && g_ascii_strcasecmp(mode, "graphml")) {
+            error = g_error_new(G_MARKUP_ERROR, G_MARKUP_ERROR_INVALID_CONTENT,
+                                "The value of the '%s' attribute must be either 'path' or "
+                                "'graphml', we got '%s'; please update your config and try again",
+                                name, mode);
+        }
     }
 
     return error;
@@ -1331,6 +1360,11 @@ static void _tgengraph_copyDefaultStreamOptions(TGenGraph* g, TGenStreamOptions*
     if(!options->packetModelSeed.isSet && defaults->packetModelSeed.isSet) {
         options->packetModelSeed.isSet = TRUE;
         options->packetModelSeed.value = defaults->packetModelSeed.value;
+    }
+
+    if(!options->packetModelMode.isSet && defaults->packetModelMode.isSet) {
+        options->packetModelMode.isSet = TRUE;
+        options->packetModelMode.value = g_strdup(defaults->packetModelMode.value);
     }
 
     if(!options->peers.isSet && defaults->peers.isSet) {
