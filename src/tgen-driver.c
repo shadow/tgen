@@ -149,8 +149,8 @@ static void _tgendriver_onNewPeer(TGenDriver* driver, gint socketD, gint64 start
             driver, (GDestroyNotify)tgendriver_unref, GINT_TO_POINTER(-1), NULL);
 
     if(!stream) {
+        /* the transport will unref its reference to driver */
         tgentransport_unref(transport);
-        tgendriver_unref(driver);
         tgen_warning("failed to initialize stream for incoming peer, skipping");
         return;
     }
@@ -421,7 +421,7 @@ static void _tgendriver_continueNextActions(TGenDriver* driver, TGenActionID act
     g_queue_free(nextActions);
 }
 
-void tgendriver_activate(TGenDriver* driver) {
+void tgendriver_activateIO(TGenDriver* driver) {
     TGEN_ASSERT(driver);
 
     tgen_debug("activating tgenio loop");
@@ -440,7 +440,7 @@ static void _tgendriver_free(TGenDriver* driver) {
     TGEN_ASSERT(driver);
     g_assert(driver->refcount <= 0);
 
-    tgen_info("freeing driver state");
+    tgen_message("Freeing TGen driver state");
 
     if(driver->io) {
         tgenio_unref(driver->io);
@@ -633,6 +633,14 @@ gint tgendriver_getEpollDescriptor(TGenDriver* driver) {
 gboolean tgendriver_hasEnded(TGenDriver* driver) {
     TGEN_ASSERT(driver);
     return (driver->clientHasEnded && driver->serverHasEnded) ? TRUE : FALSE;
+}
+
+void tgendriver_shutdownIO(TGenDriver* driver) {
+    TGEN_ASSERT(driver);
+    if(driver->io) {
+        tgenio_unref(driver->io);
+        driver->io = NULL;
+    }
 }
 
 static gboolean _tgendriver_onStartClientTimerExpired(TGenDriver* driver, gpointer nullData) {

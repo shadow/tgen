@@ -95,6 +95,9 @@ static void _tgengraph_freeActionHelper(TGenActionType type, gpointer optionsptr
             if(options->packetModelPath.value) {
                 g_free(options->packetModelPath.value);
             }
+            if(options->packetModelMode.value) {
+                g_free(options->packetModelMode.value);
+            }
             if(options->peers.value) {
                 tgenpool_unref(options->peers.value);
             }
@@ -124,6 +127,9 @@ static void _tgengraph_freeAction(TGenAction* action) {
     /* free all the internal options that we allocated */
     _tgengraph_freeActionHelper(action->type, action->options);
     action->magic = 0;
+    if(action->options) {
+        g_free(action->options);
+    }
     g_free(action);
 }
 

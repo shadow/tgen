@@ -1397,13 +1397,13 @@ static gchar* _tgenstream_getTimeStatusReport(TGenStream* stream) {
     gint64 checksum = (stream->time.checksum > 0 && stream->time.start > 0) ?
             (stream->time.checksum - stream->time.start) : -1;
 
-    GString* buffer = g_string_new(NULL);
+    GString* buffer = g_string_new(proxyTimeStr);
 
     /* print the times in milliseconds */
-    g_string_printf(buffer,
-            "%s usecs-to-command=%"G_GINT64_FORMAT" usecs-to-response=%"G_GINT64_FORMAT" "
+    g_string_append_printf(buffer,
+            " usecs-to-command=%"G_GINT64_FORMAT" usecs-to-response=%"G_GINT64_FORMAT" "
             "usecs-to-first-byte=%"G_GINT64_FORMAT" usecs-to-last-byte=%"G_GINT64_FORMAT" "
-            "usecs-to-checksum=%"G_GINT64_FORMAT, proxyTimeStr,
+            "usecs-to-checksum=%"G_GINT64_FORMAT,
             command, response, firstPayloadByte, lastPayloadByte, checksum);
 
     g_free(proxyTimeStr);
@@ -1429,6 +1429,7 @@ static void _tgenstream_log(TGenStream* stream, gboolean wasActive) {
             stream->time.lastBytesStatusReport = now;
             stream->time.lastTimeErrorReport = now;
             g_free(bytesMessage);
+            g_free(timeMessage);
         }
     } else if(stream->recv.state == TGEN_STREAM_RECV_SUCCESS &&
             stream->send.state == TGEN_STREAM_SEND_SUCCESS) {

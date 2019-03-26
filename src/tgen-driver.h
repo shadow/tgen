@@ -14,7 +14,8 @@ TGenDriver* tgendriver_new(TGenGraph* graph);
 void tgendriver_ref(TGenDriver* driver);
 void tgendriver_unref(TGenDriver* driver);
 
-void tgendriver_activate(TGenDriver* driver);
+void tgendriver_activateIO(TGenDriver* driver);
+void tgendriver_shutdownIO(TGenDriver* driver);
 
 gboolean tgendriver_hasEnded(TGenDriver* driver);
 gint tgendriver_getEpollDescriptor(TGenDriver* driver);

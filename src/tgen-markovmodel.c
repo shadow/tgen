@@ -807,6 +807,10 @@ static void _tgenmarkovmodel_free(TGenMarkovModel* mmodel) {
         g_free(mmodel->name);
     }
 
+    if(mmodel->path) {
+        g_free(mmodel->path);
+    }
+
     mmodel->magic = 0;
     g_free(mmodel);
 }
@@ -1390,7 +1394,9 @@ GString* tgenmarkovmodel_toGraphmlString(TGenMarkovModel* mmodel) {
 
     tgen_info("Successfully wrote graph to buffer of size %"G_GSIZE_FORMAT, (gsize)bufferSize);
 
+    g_assert(bufferLocation);
     GString* graphString = g_string_new(bufferLocation);
+    g_free(bufferLocation);
 
     g_assert(graphString);
     g_assert(graphString->len == (gsize)bufferSize);

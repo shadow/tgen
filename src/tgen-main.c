@@ -136,7 +136,7 @@ static gint _tgenmain_run(gint argc, gchar *argv[]) {
         /* activate if something is ready */
         if(nReadyFDs > 0) {
             tgen_debug("processing event");
-            tgendriver_activate(tgen);
+            tgendriver_activateIO(tgen);
         }
 
         /* break out if trafficgen is done */
@@ -150,6 +150,7 @@ static gint _tgenmain_run(gint argc, gchar *argv[]) {
     /* de-register the tgen epoll descriptor and close */
     epoll_ctl(mainepolld, EPOLL_CTL_DEL, tgenepolld, NULL);
     close(mainepolld);
+    tgendriver_shutdownIO(tgen);
 
     tgen_message("returning 0 from main");
 
