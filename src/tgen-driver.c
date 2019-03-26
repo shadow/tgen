@@ -29,12 +29,12 @@ struct _TGenDriver {
     TGenIO* io;
 
     /* traffic statistics */
-    guint64 heartbeatTransfersCompleted;
-    guint64 heartbeatTransferErrors;
+    guint64 heartbeatStreamSuccess;
+    guint64 heartbeatStreamError;
     gsize heartbeatBytesRead;
     gsize heartbeatBytesWritten;
-    guint64 totalTransfersCompleted;
-    guint64 totalTransferErrors;
+    guint64 totalStreamSuccess;
+    guint64 totalStreamError;
     gsize totalBytesRead;
     gsize totalBytesWritten;
 
@@ -54,11 +54,11 @@ static void _tgendriver_onTransferComplete(TGenDriver* driver, gpointer actionID
 
     /* our stream finished, close the socket */
     if(wasSuccess) {
-        driver->heartbeatTransfersCompleted++;
-        driver->totalTransfersCompleted++;
+        driver->heartbeatStreamSuccess++;
+        driver->totalStreamSuccess++;
     } else {
-        driver->heartbeatTransferErrors++;
-        driver->totalTransferErrors++;
+        driver->heartbeatStreamError++;
+        driver->totalStreamError++;
     }
 
     /* We set the action ID to negative if the stream was not started as part of
@@ -73,11 +73,11 @@ static void _tgendriver_onFlowComplete(TGenDriver* driver, TGenActionID actionID
 
     if(flags & TGEN_FLOW_STREAM_COMPLETE) {
         if(flags & TGEN_FLOW_STREAM_SUCCESS) {
-            driver->heartbeatTransfersCompleted++;
-            driver->totalTransfersCompleted++;
+            driver->heartbeatStreamSuccess++;
+            driver->totalStreamSuccess++;
         } else {
-            driver->heartbeatTransferErrors++;
-            driver->totalTransferErrors++;
+            driver->heartbeatStreamError++;
+            driver->totalStreamError++;
         }
     }
 
@@ -102,11 +102,11 @@ static gboolean _tgendriver_onHeartbeat(TGenDriver* driver, gpointer nullData) {
             " current-streams-succeeded=%"G_GUINT64_FORMAT" current-streams-failed=%"G_GUINT64_FORMAT
             " total-streams-succeeded=%"G_GUINT64_FORMAT" total-streams-failed=%"G_GUINT64_FORMAT,
             driver->heartbeatBytesRead, driver->heartbeatBytesWritten,
-            driver->heartbeatTransfersCompleted, driver->heartbeatTransferErrors,
-            driver->totalTransfersCompleted, driver->totalTransferErrors);
+            driver->heartbeatStreamSuccess, driver->heartbeatStreamError,
+            driver->totalStreamSuccess, driver->totalStreamError);
 
-    driver->heartbeatTransfersCompleted = 0;
-    driver->heartbeatTransferErrors = 0;
+    driver->heartbeatStreamSuccess = 0;
+    driver->heartbeatStreamError = 0;
     driver->heartbeatBytesRead = 0;
     driver->heartbeatBytesWritten = 0;
 
@@ -336,10 +336,11 @@ static void _tgendriver_checkEndConditions(TGenDriver* driver, TGenActionID acti
     }
 
     if(options->count.isSet) {
-        if(driver->totalTransfersCompleted >= options->count.value) {
+        guint64 numStreamsCompleted = driver->totalStreamSuccess + driver->totalStreamError;
+        if(numStreamsCompleted >= options->count.value) {
             tgen_message("TGen will end because we completed %"G_GUINT64_FORMAT" streams "
                     "and we met or exceeded the configured limit of %"G_GUINT64_FORMAT" streams",
-                    driver->totalTransfersCompleted, options->count.value);
+                    numStreamsCompleted, options->count.value);
             driver->clientHasEnded = TRUE;
             driver->serverHasEnded = TRUE;
         }
@@ -358,6 +359,10 @@ static void _tgendriver_checkEndConditions(TGenDriver* driver, TGenActionID acti
             driver->clientHasEnded = TRUE;
             driver->serverHasEnded = TRUE;
         }
+    }
+
+    if(!driver->clientHasEnded) {
+        _tgendriver_continueNextActions(driver, actionID);
     }
 }
 
@@ -380,7 +385,6 @@ static void _tgendriver_processAction(TGenDriver* driver, TGenActionID actionID)
         }
         case TGEN_ACTION_END: {
             _tgendriver_checkEndConditions(driver, actionID);
-            _tgendriver_continueNextActions(driver, actionID);
             break;
         }
         case TGEN_ACTION_PAUSE: {
