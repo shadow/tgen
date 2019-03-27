@@ -18,7 +18,7 @@ typedef enum _TGenFlowFlags {
 
 typedef void (*TGenFlow_notifyCompleteFunc)(gpointer data1, TGenActionID actionID, TGenFlowFlags flags);
 
-TGenFlow* tgenflow_new(TGenMarkovModel* streamModel, TGenStreamOptions* streamOptions,
+TGenFlow* tgenflow_new(TGenFlowOptions* flowOptions, TGenStreamOptions* streamOptions,
         TGenActionID actionID, const gchar* actionIDStr, TGenIO* io,
         TGenTransport_notifyBytesFunc onBytes,
         TGenFlow_notifyCompleteFunc onComplete,

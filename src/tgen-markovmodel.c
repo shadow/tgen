@@ -842,7 +842,7 @@ static TGenMarkovModel* _tgenmarkovmodel_new(igraph_t* graph, const gchar* name,
     mmodel->graph = graph;
     mmodel->name = g_strdup(name);
 
-    tgen_info("Starting graph validation on markov model name '%s'", name);
+    tgen_info("Validating graph for markov model name '%s' seed %"G_GUINT32_FORMAT, name, seed);
 
     gboolean verticesPassed = _tgenmarkovmodel_validateVertices(mmodel, &(mmodel->startVertexIndex));
     if(verticesPassed) {
@@ -866,8 +866,8 @@ static TGenMarkovModel* _tgenmarkovmodel_new(igraph_t* graph, const gchar* name,
 
     mmodel->currentStateVertexIndex = mmodel->startVertexIndex;
 
-    tgen_info("Successfully validated markov model name '%s', "
-            "found start vertex at index %i", name, (int)mmodel->startVertexIndex);
+    tgen_info("Successfully validated markov model name '%s' seed %"G_GUINT32_FORMAT", "
+            "found start vertex at index %i", name, seed, (int)mmodel->startVertexIndex);
 
     return mmodel;
 }
@@ -1222,14 +1222,11 @@ static Observation _tgenmarkovmodel_vertexToObservation(TGenMarkovModel* mmodel,
     g_assert(isSuccess);
 
     if(_tgenmarkovmodel_vertexIDIsEqual(vidStr, VERTEX_ID_TO_ORIGIN)) {
-        tgen_debug("Returning OBSERVATION_PACKET_TO_ORIGIN");
         return OBSERVATION_TO_ORIGIN;
     } else if(_tgenmarkovmodel_vertexIDIsEqual(vidStr, VERTEX_ID_TO_SERVER)) {
-        tgen_debug("Returning OBSERVATION_PACKET_TO_SERVER");
         return OBSERVATION_TO_SERVER;
     } else {
         mmodel->foundEndState = TRUE;
-        tgen_debug("Returning OBSERVATION_END");
         return OBSERVATION_END;
     }
 }
@@ -1308,6 +1305,8 @@ Observation tgenmarkovmodel_getNextObservation(TGenMarkovModel* mmodel, guint64*
             (glong)emissionObservationVertexIndex, to);
 #endif
 
+    Observation obs = _tgenmarkovmodel_vertexToObservation(mmodel, emissionObservationVertexIndex);
+
     if(delay) {
         *delay = _tgenmarkovmodel_generateDelay(mmodel, emissionEdgeIndex);
         if(*delay > 60000000){
@@ -1315,7 +1314,23 @@ Observation tgenmarkovmodel_getNextObservation(TGenMarkovModel* mmodel, guint64*
         }
     }
 
-    return _tgenmarkovmodel_vertexToObservation(mmodel, emissionObservationVertexIndex);
+    if(obs == OBSERVATION_TO_SERVER) {
+        tgen_debug("Markov model '%s' seed %"G_GUINT32_FORMAT" found OBSERVATION_TO_SERVER "
+                "with delay of %"G_GUINT64_FORMAT" microseconds",
+                mmodel->name, mmodel->prngSeed, delay ? *delay : 0);
+    } else if(obs == OBSERVATION_TO_ORIGIN) {
+        tgen_debug("Markov model '%s' seed %"G_GUINT32_FORMAT" found OBSERVATION_TO_ORIGIN "
+                "with delay of %"G_GUINT64_FORMAT" microseconds",
+                mmodel->name, mmodel->prngSeed, delay ? *delay : 0);
+    } else {
+        g_assert(obs == OBSERVATION_END);
+        mmodel->foundEndState = TRUE;
+        tgen_debug("Markov model '%s' seed %"G_GUINT32_FORMAT" found OBSERVATION_END "
+                "with delay of %"G_GUINT64_FORMAT" microseconds",
+                mmodel->name, mmodel->prngSeed, delay ? *delay : 0);
+    }
+
+    return obs;
 }
 
 void tgenmarkovmodel_reset(TGenMarkovModel* mmodel) {

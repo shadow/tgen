@@ -12,8 +12,6 @@ static void generate(TGenMarkovModel* mmodel) {
 
     guint numServerPackets = 0;
     guint numOriginPackets = 0;
-    guint numStreams = 0;
-
 
     while(numObservations < NUM_OBS) {
         gint32 nextServerPacketDelay = 0;
@@ -69,9 +67,6 @@ static void generate(TGenMarkovModel* mmodel) {
                         delay, nextOriginpacketDelay);
 
                 nextOriginpacketDelay = 0;
-            } else if(obs == OBSERVATION_STREAM) {
-                numStreams++;
-                tgen_info("Found stream observation with stream delay %"G_GUINT64_FORMAT, delay);
             } else {
                 /* we observed an end state, so the packet stream is done. */
                 tgen_info("Found end observation");

@@ -169,13 +169,13 @@ static void _tgendriver_onNewPeer(TGenDriver* driver, gint socketD, gint64 start
     tgentransport_unref(transport);
 }
 
-static gboolean _tgendriver_startFlow(TGenDriver* driver, TGenMarkovModel* streamModel,
-        TGenStreamOptions* options, TGenActionID actionID) {
+static gboolean _tgendriver_startFlow(TGenDriver* driver, TGenFlowOptions* flowOpts,
+        TGenStreamOptions* streamOpts, TGenActionID actionID) {
     TGEN_ASSERT(driver);
 
     const gchar* actionIDStr = tgengraph_getActionName(driver->actionGraph, actionID);
 
-    TGenFlow* flow = tgenflow_new(streamModel, options, actionID, actionIDStr, driver->io,
+    TGenFlow* flow = tgenflow_new(flowOpts, streamOpts, actionID, actionIDStr, driver->io,
             (TGenTransport_notifyBytesFunc) _tgendriver_onBytesTransferred,
             (TGenFlow_notifyCompleteFunc)_tgendriver_onFlowComplete,
             driver, (GDestroyNotify)tgendriver_ref, (GDestroyNotify)tgendriver_unref);
@@ -195,7 +195,7 @@ static void _tgendriver_initiateStream(TGenDriver* driver, TGenActionID actionID
 
     TGenStreamOptions* streamOpts = tgengraph_getStreamOptions(driver->actionGraph, actionID);
 
-    /* a NULL stream model means create just one stream */
+    /* NULL flow options means create just one stream */
     if(!_tgendriver_startFlow(driver, NULL, streamOpts, actionID)) {
         tgen_warning("skipping failed stream action and continuing to the next action");
         _tgendriver_continueNextActions(driver, actionID);
@@ -208,37 +208,8 @@ static void _tgendriver_initiateFlow(TGenDriver* driver, TGenActionID actionID) 
     const gchar* actionIDStr = tgengraph_getActionName(driver->actionGraph, actionID);
     TGenFlowOptions* flowOpts = tgengraph_getFlowOptions(driver->actionGraph, actionID);
 
-    /* get the markov model to generate streams */
-    TGenMarkovModel* streamModel = NULL;
-
-    guint32 seed = flowOpts->streamModelSeed.isSet ? flowOpts->streamModelSeed.value : g_random_int();
-
-    if(flowOpts->streamModelPath.isSet) {
-        gchar* path = flowOpts->streamModelPath.value;
-        gchar* name = g_path_get_basename(path);
-        streamModel = tgenmarkovmodel_newFromPath(name, seed, path);
-        g_free(name);
-
-        /* we should have already validated this when we parsed the config graph */
-        if(!streamModel) {
-            tgen_error("A previously validated stream Markov model should be valid");
-        }
-    } else {
-        const gchar* modelGraphml = tgenconfig_getDefaultStreamMarkovModelString();
-        GString* graphmlBuffer = g_string_new(modelGraphml);
-        streamModel = tgenmarkovmodel_newFromString("internal-stream-model", seed, graphmlBuffer);
-        g_string_free(graphmlBuffer, TRUE);
-
-        /* the internal model should be correct */
-        if(!streamModel) {
-            tgen_error("The internal stream Markov model format is incorrect, check the syntax");
-        }
-    }
-
-    g_assert(streamModel);
-
-    /* we will create streams according to the stream model */
-    if(!_tgendriver_startFlow(driver, streamModel, &flowOpts->streamOpts, actionID)) {
+    /* we will create a stream model from the flow options and generate streams with it */
+    if(!_tgendriver_startFlow(driver, flowOpts, &flowOpts->streamOpts, actionID)) {
         tgen_warning("skipping failed flow action and continuing to the next action");
         _tgendriver_continueNextActions(driver, actionID);
     }

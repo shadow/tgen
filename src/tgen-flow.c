@@ -61,11 +61,72 @@ static void _tgenflow_unref(TGenFlow* flow) {
     }
 }
 
-TGenFlow* tgenflow_new(TGenMarkovModel* streamModel, TGenStreamOptions* streamOptions,
+static TGenMarkovModel* _tgenflow_createMarkovModel(TGenOptionPool* seedGeneratorOpt,
+        TGenOptionString* modelPathOpt, const gchar* internalGraphml, const gchar* internalName) {
+    g_assert(seedGeneratorOpt);
+    g_assert(modelPathOpt);
+    g_assert(internalGraphml);
+    g_assert(internalName);
+
+    /* get the markov model to generate streams or packets */
+    TGenMarkovModel* mmodel = NULL;
+
+    /* calculate the seed for the model */
+    guint32 seed = 0;
+
+    if(seedGeneratorOpt->isSet) {
+       /* this means either the flow action had a seed, or the start action did,
+        * and we used it to seed a prng that we can use for the markov models. */
+       g_assert(seedGeneratorOpt->value);
+       GRand* prng = tgenpool_getRandom(seedGeneratorOpt->value);
+       g_assert(prng);
+       seed = g_rand_int(prng);
+    } else {
+        /* just use the GLib-global prng */
+       seed = g_random_int();
+    }
+
+    if(modelPathOpt->isSet) {
+       gchar* path = modelPathOpt->value;
+       gchar* name = g_path_get_basename(path);
+       mmodel = tgenmarkovmodel_newFromPath(name, seed, path);
+       g_free(name);
+
+       /* we should have already validated this when we parsed the config graph */
+       if(!mmodel) {
+           tgen_error("A previously validated Markov model '%s' should be valid", path);
+       }
+    } else {
+       GString* graphmlBuffer = g_string_new(internalGraphml);
+       mmodel = tgenmarkovmodel_newFromString(internalName, seed, graphmlBuffer);
+       g_string_free(graphmlBuffer, TRUE);
+
+       /* the internal model should be correct */
+       if(!mmodel) {
+           tgen_error("The internal stream Markov model '%s' format is incorrect, "
+                   "check the syntax", internalName);
+       }
+    }
+
+    return mmodel;
+}
+
+TGenFlow* tgenflow_new(TGenFlowOptions* flowOptions, TGenStreamOptions* streamOptions,
         TGenActionID actionID, const gchar* actionIDStr, TGenIO* io,
         TGenTransport_notifyBytesFunc onBytes,
         TGenFlow_notifyCompleteFunc onComplete,
         gpointer arg, GDestroyNotify argRef, GDestroyNotify argUnref) {
+    /* see if we need a stream model */
+    TGenMarkovModel* streamModel = NULL;
+
+    /* if there are no flow options, then this flow contains a single stream and
+     * we do not need a model for generating streams. */
+    if(flowOptions) {
+        const gchar* internalModelGraphml = tgenconfig_getDefaultStreamMarkovModelString();
+        streamModel = _tgenflow_createMarkovModel(&flowOptions->streamOpts.seedGenerator,
+                &flowOptions->streamModelPath, internalModelGraphml, "internal-stream-model");
+    }
+
     TGenFlow* flow = g_new0(TGenFlow, 1);
     flow->magic = TGEN_MAGIC;
     flow->refcount = 1;
@@ -129,37 +190,10 @@ static void _tgenflow_onStreamComplete(TGenFlow* flow, gpointer none, gboolean w
 static gboolean _tgenflow_createStream(TGenFlow* flow) {
     TGEN_ASSERT(flow);
 
-    /* streams need packet Markov models */
-    TGenMarkovModel* packetModel = NULL;
-
-    /* get the seed if one was configured, otherwise generate a random seed */
-    guint32 seed = flow->streamOptions->packetModelSeed.isSet ?
-            flow->streamOptions->packetModelSeed.value : g_random_int();
-
-    /* make sure we have a valid packet model for the stream */
-    if(flow->streamOptions->packetModelPath.isSet) {
-        gchar* path = flow->streamOptions->packetModelPath.value;
-        gchar* name = g_path_get_basename(path);
-        packetModel = tgenmarkovmodel_newFromPath(name, seed, path);
-        g_free(name);
-
-        /* we should have already validated this when we parsed the config graph */
-        if(!packetModel) {
-            tgen_error("A previously validated packet Markov model should be valid");
-            return FALSE;
-        }
-    } else {
-        const gchar* modelGraphml = tgenconfig_getDefaultPacketMarkovModelString();
-        GString* graphmlBuffer = g_string_new(modelGraphml);
-        packetModel = tgenmarkovmodel_newFromString("internal-packet-model", seed, graphmlBuffer);
-        g_string_free(graphmlBuffer, TRUE);
-
-        /* the internal model should be correct */
-        if(!packetModel) {
-            tgen_error("The internal packet Markov model format is incorrect, check the syntax");
-            return FALSE;
-        }
-    }
+    const gchar* internalModelGraphml = tgenconfig_getDefaultPacketMarkovModelString();
+    TGenMarkovModel* packetModel = _tgenflow_createMarkovModel(
+            &flow->streamOptions->seedGenerator, &flow->streamOptions->packetModelPath,
+            internalModelGraphml, "internal-packet-model");
 
     /* create the transport connection over which we can start a stream */
     TGenTransport* transport = tgentransport_newActive(flow->streamOptions,
