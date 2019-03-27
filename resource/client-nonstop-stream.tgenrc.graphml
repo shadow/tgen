@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?><graphml xmlns="http://graphml.graphdrawing.org/xmlns" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://graphml.graphdrawing.org/xmlns http://graphml.graphdrawing.org/xmlns/1.0/graphml.xsd">
   <key attr.name="packetmodelmode" attr.type="string" for="node" id="d8" />
   <key attr.name="packetmodelpath" attr.type="string" for="node" id="d7" />
-  <key attr.name="packetmodelseed" attr.type="string" for="node" id="d6" />
+  <key attr.name="markovmodelseed" attr.type="string" for="node" id="d6" />
   <key attr.name="timeout" attr.type="string" for="node" id="d5" />
   <key attr.name="count" attr.type="string" for="node" id="d4" />
   <key attr.name="time" attr.type="string" for="node" id="d3" />

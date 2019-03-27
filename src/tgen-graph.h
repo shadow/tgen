@@ -22,8 +22,9 @@ typedef enum _TGenActionType {
 
 typedef struct _TGenStreamOptions {
     TGenOptionString packetModelPath;
-    TGenOptionUInt32 packetModelSeed;
     TGenOptionString packetModelMode;
+    TGenOptionUInt32 markovModelSeed;
+    TGenOptionPool seedGenerator; /* using pool as a ref-counted container */
     TGenOptionPool peers;
     TGenOptionPeer socksProxy;
     TGenOptionString socksUsername;
@@ -36,7 +37,6 @@ typedef struct _TGenStreamOptions {
 
 typedef struct _TGenFlowOptions {
     TGenOptionString streamModelPath;
-    TGenOptionUInt32 streamModelSeed;
     TGenStreamOptions streamOpts;
 } TGenFlowOptions;
 

@@ -16,8 +16,8 @@ typedef enum {
     TGEN_VA_HEARTBEAT = 1 << 5,
     TGEN_VA_LOGLEVEL = 1 << 6,
     TGEN_VA_PACKETMODELPATH = 1 << 7,
-    TGEN_VA_PACKETMODELSEED = 1 << 8,
-    TGEN_VA_PACKETMODELMODE = 1 << 9,
+    TGEN_VA_PACKETMODELMODE = 1 << 8,
+    TGEN_VA_MARKOVMODELSEED = 1 << 9,
     TGEN_VA_PEERS = 1 << 10,
     TGEN_VA_SOCKSPROXY = 1 << 11,
     TGEN_VA_SOCKSUSERNAME = 1 << 12,
@@ -27,8 +27,7 @@ typedef enum {
     TGEN_VA_TIMEOUT = 1 << 16,
     TGEN_VA_STALLOUT = 1 << 17,
     TGEN_VA_STREAMMODELPATH = 1 << 18,
-    TGEN_VA_STREAMMODELSEED = 1 << 19,
-    TGEN_VA_COUNT = 1 << 20,
+    TGEN_VA_COUNT = 1 << 19,
 } AttributeFlags;
 
 typedef struct _TGenAction {
@@ -98,6 +97,9 @@ static void _tgengraph_freeActionHelper(TGenActionType type, gpointer optionsptr
             if(options->packetModelMode.value) {
                 g_free(options->packetModelMode.value);
             }
+            if(options->seedGenerator.value) {
+                tgenpool_unref(options->seedGenerator.value);
+            }
             if(options->peers.value) {
                 tgenpool_unref(options->peers.value);
             }
@@ -156,11 +158,11 @@ static const gchar* _tgengraph_attributeToString(AttributeFlags attr) {
         case TGEN_VA_PACKETMODELPATH: {
             return "packetmodelpath";
         }
-        case TGEN_VA_PACKETMODELSEED: {
-            return "packetmodelseed";
-        }
         case TGEN_VA_PACKETMODELMODE: {
             return "packetmodelmode";
+        }
+        case TGEN_VA_MARKOVMODELSEED: {
+            return "markovmodelseed";
         }
         case TGEN_VA_PEERS: {
             return "peers";
@@ -188,9 +190,6 @@ static const gchar* _tgengraph_attributeToString(AttributeFlags attr) {
         }
         case TGEN_VA_STREAMMODELPATH: {
             return "streammodelpath";
-        }
-        case TGEN_VA_STREAMMODELSEED: {
-            return "streammodelseed";
         }
         case TGEN_VA_COUNT: {
             return "count";
@@ -223,11 +222,11 @@ static AttributeFlags _tgengraph_vertexAttributeToFlag(const gchar* stringAttrib
                 _tgengraph_attributeToString(TGEN_VA_PACKETMODELPATH))) {
             return TGEN_VA_PACKETMODELPATH;
         } else if(!g_ascii_strcasecmp(stringAttribute,
-                _tgengraph_attributeToString(TGEN_VA_PACKETMODELSEED))) {
-            return TGEN_VA_PACKETMODELSEED;
-        } else if(!g_ascii_strcasecmp(stringAttribute,
                 _tgengraph_attributeToString(TGEN_VA_PACKETMODELMODE))) {
             return TGEN_VA_PACKETMODELMODE;
+        } else if(!g_ascii_strcasecmp(stringAttribute,
+                _tgengraph_attributeToString(TGEN_VA_MARKOVMODELSEED))) {
+            return TGEN_VA_MARKOVMODELSEED;
         } else if(!g_ascii_strcasecmp(stringAttribute,
                 _tgengraph_attributeToString(TGEN_VA_PEERS))) {
             return TGEN_VA_PEERS;
@@ -255,9 +254,6 @@ static AttributeFlags _tgengraph_vertexAttributeToFlag(const gchar* stringAttrib
         } else if(!g_ascii_strcasecmp(stringAttribute,
                 _tgengraph_attributeToString(TGEN_VA_STREAMMODELPATH))) {
             return TGEN_VA_STREAMMODELPATH;
-        } else if(!g_ascii_strcasecmp(stringAttribute,
-                _tgengraph_attributeToString(TGEN_VA_STREAMMODELSEED))) {
-            return TGEN_VA_STREAMMODELSEED;
         } else if(!g_ascii_strcasecmp(stringAttribute,
                 _tgengraph_attributeToString(TGEN_VA_COUNT))) {
             return TGEN_VA_COUNT;
@@ -486,19 +482,19 @@ static GError* _tgengraph_parseStreamAttributesHelper(TGenGraph* g, const gchar*
         }
     }
 
-    if(g->knownAttributes & TGEN_VA_PACKETMODELSEED) {
-        const gchar* name = _tgengraph_attributeToString(TGEN_VA_PACKETMODELSEED);
+    if(g->knownAttributes & TGEN_VA_PACKETMODELMODE) {
+        const gchar* name = _tgengraph_attributeToString(TGEN_VA_PACKETMODELMODE);
         const gchar* valueStr = VAS(g->graph, name, vertexIndex);
-        error = tgenoptionparser_parseUInt32(name, valueStr, &options->packetModelSeed);
+        error = tgenoptionparser_parseString(name, valueStr, &options->packetModelMode);
         if(error) {
             return error;
         }
     }
 
-    if(g->knownAttributes & TGEN_VA_PACKETMODELMODE) {
-        const gchar* name = _tgengraph_attributeToString(TGEN_VA_PACKETMODELMODE);
+    if(g->knownAttributes & TGEN_VA_MARKOVMODELSEED) {
+        const gchar* name = _tgengraph_attributeToString(TGEN_VA_MARKOVMODELSEED);
         const gchar* valueStr = VAS(g->graph, name, vertexIndex);
-        error = tgenoptionparser_parseString(name, valueStr, &options->packetModelMode);
+        error = tgenoptionparser_parseUInt32(name, valueStr, &options->markovModelSeed);
         if(error) {
             return error;
         }
@@ -579,8 +575,11 @@ static GError* _tgengraph_parseStreamAttributesHelper(TGenGraph* g, const gchar*
     /* validate the packet markov model */
     if(options->packetModelPath.isSet) {
         gchar* path = options->packetModelPath.value;
-        guint32 seed = options->packetModelSeed.isSet ? options->packetModelSeed.value : 1;
+        guint32 seed = 12345;
         error = _tgengraph_validateMarkovModel(g, path, seed);
+        if(error) {
+            return error;
+        }
     }
 
     if(options->packetModelMode.isSet) {
@@ -594,6 +593,19 @@ static GError* _tgengraph_parseStreamAttributesHelper(TGenGraph* g, const gchar*
                                 "'graphml', we got '%s'; please update your config and try again",
                                 name, mode);
         }
+
+        if(error) {
+            return error;
+        }
+    }
+
+    if(options->markovModelSeed.isSet) {
+        GRand* seedPrng = g_rand_new_with_seed(options->markovModelSeed.value);
+        TGenPool* seedPrngContainer = tgenpool_new((GDestroyNotify)g_rand_free);
+        tgenpool_add(seedPrngContainer, seedPrng);
+
+        options->seedGenerator.isSet = TRUE;
+        options->seedGenerator.value = seedPrngContainer;
     }
 
     return error;
@@ -615,15 +627,6 @@ static GError* _tgengraph_parseFlowAttributesHelper(TGenGraph* g, const gchar* i
         }
     }
 
-    if(g->knownAttributes & TGEN_VA_STREAMMODELSEED) {
-        const gchar* name = _tgengraph_attributeToString(TGEN_VA_STREAMMODELSEED);
-        const gchar* valueStr = VAS(g->graph, name, vertexIndex);
-        error = tgenoptionparser_parseUInt32(name, valueStr, &options->streamModelSeed);
-        if(error) {
-            return error;
-        }
-    }
-
     error = _tgengraph_parseStreamAttributesHelper(g, idStr, vertexIndex, &options->streamOpts);
     if(error) {
         return error;
@@ -632,8 +635,11 @@ static GError* _tgengraph_parseFlowAttributesHelper(TGenGraph* g, const gchar* i
     /* validate the stream markov model */
     if(options->streamModelPath.isSet) {
         gchar* path = options->streamModelPath.value;
-        guint32 seed = options->streamModelSeed.isSet ? options->streamModelSeed.value : 1;
+        guint32 seed = 12345;
         error = _tgengraph_validateMarkovModel(g, path, seed);
+        if(error) {
+            return error;
+        }
     }
 
     return NULL;
@@ -1322,7 +1328,7 @@ static gpointer _tgengraph_getOptionsHelper(TGenGraph* g, TGenActionID actionID,
     }
 
     /* get the options, which must be non-null in a valid graph */
-    TGenPauseOptions* options = action->options;
+    gpointer options = action->options;
     if(!options) {
         tgen_error("The %s options object is NULL for vertex %i", name, (gint) actionID);
     }
@@ -1363,14 +1369,20 @@ static void _tgengraph_copyDefaultStreamOptions(TGenGraph* g, TGenStreamOptions*
         options->packetModelPath.value = g_strdup(defaults->packetModelPath.value);
     }
 
-    if(!options->packetModelSeed.isSet && defaults->packetModelSeed.isSet) {
-        options->packetModelSeed.isSet = TRUE;
-        options->packetModelSeed.value = defaults->packetModelSeed.value;
-    }
-
     if(!options->packetModelMode.isSet && defaults->packetModelMode.isSet) {
         options->packetModelMode.isSet = TRUE;
         options->packetModelMode.value = g_strdup(defaults->packetModelMode.value);
+    }
+
+    if(!options->markovModelSeed.isSet && defaults->markovModelSeed.isSet) {
+        options->markovModelSeed.isSet = TRUE;
+        options->markovModelSeed.value = defaults->markovModelSeed.value;
+    }
+
+    if(!options->seedGenerator.isSet && defaults->seedGenerator.isSet) {
+        options->seedGenerator.isSet = TRUE;
+        options->seedGenerator.value = defaults->seedGenerator.value;
+        tgenpool_ref(defaults->seedGenerator.value);
     }
 
     if(!options->peers.isSet && defaults->peers.isSet) {

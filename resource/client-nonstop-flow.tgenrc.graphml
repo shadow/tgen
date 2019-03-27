@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?><graphml xmlns="http://graphml.graphdrawing.org/xmlns" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://graphml.graphdrawing.org/xmlns http://graphml.graphdrawing.org/xmlns/1.0/graphml.xsd">
   <key attr.name="streammodelpath" attr.type="string" for="node" id="d9" />
-  <key attr.name="streammodelseed" attr.type="string" for="node" id="d8" />
+  <key attr.name="markovmodelseed" attr.type="string" for="node" id="d8" />
   <key attr.name="sendsize" attr.type="string" for="node" id="d7" />
   <key attr.name="recvsize" attr.type="string" for="node" id="d6" />
   <key attr.name="timeout" attr.type="string" for="node" id="d5" />
