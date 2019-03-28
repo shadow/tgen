@@ -1,4 +1,5 @@
 <?xml version="1.0" encoding="utf-8"?><graphml xmlns="http://graphml.graphdrawing.org/xmlns" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://graphml.graphdrawing.org/xmlns http://graphml.graphdrawing.org/xmlns/1.0/graphml.xsd">
+  <key attr.name="packetmodelpath" attr.type="string" for="node" id="d10" />
   <key attr.name="streammodelpath" attr.type="string" for="node" id="d9" />
   <key attr.name="markovmodelseed" attr.type="string" for="node" id="d8" />
   <key attr.name="sendsize" attr.type="string" for="node" id="d7" />
@@ -20,6 +21,7 @@
       <data key="d7">1 kib</data>
       <data key="d8">12345</data>
       <data key="d9">nonstop.streammodel.graphml</data>
+      <data key="d10">nonstop.packetmodel.graphml</data>
     </node>
     <node id="end">
       <data key="d4">1</data>
