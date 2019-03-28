@@ -623,7 +623,16 @@ static gboolean _tgenstream_readHeader(TGenStream* stream) {
                 stream->peer.hostname = g_strdup(value);
                 parsedKeys |= TGEN_HEADER_FLAG_HOSTNAME;
             } else if(!g_ascii_strcasecmp(key, "TRANSFER_ID")) {
-                stream->id = g_strdup(value);
+                if(!stream->isCommander) {
+                    if(stream->id) {
+                        GString* idBuffer = g_string_new(stream->id);
+                        g_string_append_printf(idBuffer, ":%s", value);
+                        g_free(stream->id);
+                        stream->id = g_string_free(idBuffer, FALSE);
+                    } else {
+                        stream->id = g_strdup(value);
+                    }
+                }
                 parsedKeys |= TGEN_HEADER_FLAG_ID;
             } else if(!g_ascii_strcasecmp(key, "CODE")) {
                 errorCode = g_strdup(value);
@@ -758,6 +767,14 @@ static gboolean _tgenstream_readHeader(TGenStream* stream) {
                 }
             }
         }
+    }
+
+    /* cleanup */
+    if(modelPath) {
+        g_free(modelPath);
+    }
+    if(errorCode) {
+        g_free(errorCode);
     }
 
     if(theError == TGEN_STREAM_ERR_NONE) {
