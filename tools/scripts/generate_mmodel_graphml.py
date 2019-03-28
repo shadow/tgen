@@ -79,8 +79,8 @@ def generate_delayed_packetmodel(filename):
     G.add_node('o2', type="observation", name='-')
     G.add_node('o3', type="observation", name='F')
 
-    G.add_edge('s1', 'o1', type='emission', weight=0.4999, distribution='normal', param_location=1000.0, param_scale=10000.0)
-    G.add_edge('s1', 'o2', type='emission', weight=0.4999, distribution='normal', param_location=1000.0, param_scale=10000.0)
+    G.add_edge('s1', 'o1', type='emission', weight=0.4999, distribution='exponential', param_rate=0.00035)
+    G.add_edge('s1', 'o2', type='emission', weight=0.4999, distribution='exponential', param_rate=0.00035)
     G.add_edge('s1', 'o3', type='emission', weight=0.0002, distribution='normal', param_location=1000000.0, param_scale=1.0)
 
     networkx.write_graphml(G, filename)
