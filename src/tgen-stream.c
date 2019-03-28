@@ -325,7 +325,7 @@ static const gchar* _tgenstream_toString(TGenStream* stream) {
 
     stream->stringBuffer = g_string_new(NULL);
 
-    g_string_printf(stream->stringBuffer, "id=%s", stream->id);
+    g_string_printf(stream->stringBuffer, "[id=%s", stream->id);
 
     g_string_append_printf(stream->stringBuffer,
             ",name=%s", stream->hostname);
@@ -343,7 +343,7 @@ static const gchar* _tgenstream_toString(TGenStream* stream) {
             ",recvstate=%s", _tgenstream_recvStateToString(stream->recv.state));
 
     g_string_append_printf(stream->stringBuffer,
-            ",error=%s", _tgenstream_errorToString(stream->error));
+            ",error=%s]", _tgenstream_errorToString(stream->error));
 
     return stream->stringBuffer->str;
 }

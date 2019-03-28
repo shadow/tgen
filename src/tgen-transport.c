@@ -160,8 +160,8 @@ const gchar* tgentransport_toString(TGenTransport* transport) {
 
         GString* buffer = g_string_new(NULL);
 
-        g_string_printf(buffer, "TCP,%i,%s,%s,%s,state=%s,error=%s", transport->socketD,
-                localStr, proxyStr, remoteStr, stateStr, errorStr);
+        g_string_printf(buffer, "[fd=%i,local=%s,proxy=%s,remote=%s,state=%s,error=%s]",
+                transport->socketD, localStr, proxyStr, remoteStr, stateStr, errorStr);
 
         transport->string = g_string_free(buffer, FALSE);
     }
