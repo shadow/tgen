@@ -342,6 +342,10 @@ gint tgenio_loopOnce(TGenIO* io, gint maxEvents) {
     gint nfds = epoll_wait(io->epollD, epevs, maxEvents, 0);
 
     if(nfds < 0) {
+        /* if the user paused with ctl-z, we get EINTR and can just try again */
+        if(errno == EINTR) {
+            return tgenio_loopOnce(io, maxEvents);
+        }
         tgen_critical("epoll_wait(): epoll %i returned %i error %i: %s",
                 io->epollD, nfds, errno, g_strerror(errno));
         g_free(epevs);

@@ -129,7 +129,11 @@ static gint _tgenmain_run(gint argc, gchar *argv[]) {
         gint nReadyFDs = epoll_wait(mainepolld, &mainevent, 1, -1);
 
         if(nReadyFDs == -1) {
-            tgen_critical("error in client epoll_wait");
+            /* if the user paused with ctl-z, we get EINTR and can just try again */
+            if(errno == EINTR) {
+                continue;
+            }
+            tgen_critical("error %i in client epoll_wait:, %s", errno, g_strerror(errno));
             return -1;
         }
 
