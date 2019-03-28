@@ -19,6 +19,7 @@ typedef struct _TGenIOChild {
     uint32_t currentEvents;
     TGenTimer* deferWriteTimer;
     gint refcount;
+    guint magic;
 
     TGenIO_notifyEventFunc notify;
     TGenIO_notifyCheckTimeoutFunc checkTimeout;
@@ -36,36 +37,47 @@ typedef struct _TGenIOChild {
 static TGenIOChild* _tgeniochild_new(TGenIO* io, gint descriptor, uint32_t events,
         TGenIO_notifyEventFunc notify, TGenIO_notifyCheckTimeoutFunc checkTimeout,
         gpointer data, GDestroyNotify destructData) {
+    TGENIO_ASSERT(io);
+
     TGenIOChild* child = g_new0(TGenIOChild, 1);
+
     child->io = io;
     child->descriptor = descriptor;
     child->currentEvents = events;
+
     child->notify = notify;
     child->checkTimeout = checkTimeout;
     child->data = data;
     child->destructData = destructData;
+
+    child->magic = TGENIOCHILD_MAGIC;
+
     return child;
 }
 
 static void _tgeniochild_free(TGenIOChild* child) {
-    g_assert(child);
+    TGENIOCHILD_ASSERT(child);
+
     if(child->destructData && child->data) {
         child->destructData(child->data);
     }
+
     if(child->deferWriteTimer) {
         tgentimer_unref(child->deferWriteTimer);
     }
+
     memset(child, 0, sizeof(TGenIOChild));
     g_free(child);
 }
 
 static void _tgeniochild_ref(TGenIOChild* child) {
-    g_assert(child);
+    TGENIOCHILD_ASSERT(child);
     child->refcount++;
 }
 
 static void _tgeniochild_unref(TGenIOChild* child) {
-    g_assert(child);
+    TGENIOCHILD_ASSERT(child);
+
     if(--(child->refcount) <= 0) {
         _tgeniochild_free(child);
     }
@@ -74,7 +86,8 @@ static void _tgeniochild_unref(TGenIOChild* child) {
 /* this function is needed because the child and timer hold refs to each other.
  * to ensure it is freed correctly, we need to remove one ref. */
 static void _tgeniochild_hashTableDestroy(TGenIOChild* child) {
-    g_assert(child);
+    TGENIOCHILD_ASSERT(child);
+
     if(child->deferWriteTimer) {
         /* tell the timer that we don't want it to fire anymore */
         tgentimer_cancel(child->deferWriteTimer);
@@ -83,6 +96,7 @@ static void _tgeniochild_hashTableDestroy(TGenIOChild* child) {
         tgentimer_unref(child->deferWriteTimer);
         child->deferWriteTimer = NULL;
     }
+
     _tgeniochild_unref(child);
 }
 
@@ -96,7 +110,7 @@ TGenIO* tgenio_new() {
 
     /* allocate the new server object and return it */
     TGenIO* io = g_new0(TGenIO, 1);
-    io->magic = TGEN_MAGIC;
+    io->magic = TGENIO_MAGIC;
     io->refcount = 1;
 
     io->children = g_hash_table_new_full(g_direct_hash, g_direct_equal,
@@ -108,7 +122,7 @@ TGenIO* tgenio_new() {
 }
 
 static void _tgenio_free(TGenIO* io) {
-    TGEN_ASSERT(io);
+    TGENIO_ASSERT(io);
     g_assert(io->refcount == 0);
 
     if(io->children) {
@@ -120,19 +134,19 @@ static void _tgenio_free(TGenIO* io) {
 }
 
 void tgenio_ref(TGenIO* io) {
-    TGEN_ASSERT(io);
+    TGENIO_ASSERT(io);
     io->refcount++;
 }
 
 void tgenio_unref(TGenIO* io) {
-    TGEN_ASSERT(io);
+    TGENIO_ASSERT(io);
     if(--(io->refcount) <= 0) {
         _tgenio_free(io);
     }
 }
 
 static void _tgenio_deregister(TGenIO* io, gint descriptor) {
-    TGEN_ASSERT(io);
+    TGENIO_ASSERT(io);
 
     /* don't watch events for the descriptor anymore */
     gint result = epoll_ctl(io->epollD, EPOLL_CTL_DEL, descriptor, NULL);
@@ -165,7 +179,7 @@ static void _tgenio_deregister(TGenIO* io, gint descriptor) {
 
 gboolean tgenio_register(TGenIO* io, gint descriptor, TGenIO_notifyEventFunc notify,
         TGenIO_notifyCheckTimeoutFunc checkTimeout, gpointer data, GDestroyNotify destructData) {
-    TGEN_ASSERT(io);
+    TGENIO_ASSERT(io);
 
     TGenIOChild* oldchild = g_hash_table_lookup(io->children, GINT_TO_POINTER(descriptor));
 
@@ -198,8 +212,8 @@ gboolean tgenio_register(TGenIO* io, gint descriptor, TGenIO_notifyEventFunc not
 }
 
 static void _tgenio_syncEpollEvents(TGenIO* io, TGenIOChild* child, uint32_t newEvents) {
-    TGEN_ASSERT(io);
-    g_assert(child);
+    TGENIO_ASSERT(io);
+    TGENIOCHILD_ASSERT(child);
 
     /* only modify the epoll if the events we are watching should change.
      * note that the ready events may only be a subset of the events we are watching.*/
@@ -220,9 +234,9 @@ static void _tgenio_syncEpollEvents(TGenIO* io, TGenIOChild* child, uint32_t new
 }
 
 static gboolean _tgenio_onDeferTimerExpired(TGenIOChild* child, gpointer none) {
-    g_assert(child);
+    TGENIOCHILD_ASSERT(child);
     TGenIO* io = child->io;
-    TGEN_ASSERT(io);
+    TGENIO_ASSERT(io);
 
     tgen_debug("Defer timer expired on descriptor %i. Asking for write events again.",
             child->descriptor);
@@ -245,8 +259,8 @@ static gboolean _tgenio_onDeferTimerExpired(TGenIOChild* child, gpointer none) {
 }
 
 static void _tgenio_setDeferTimer(TGenIO* io, TGenIOChild* child, gint64 microsecondsPause) {
-    TGEN_ASSERT(io);
-    g_assert(child);
+    TGENIO_ASSERT(io);
+    TGENIOCHILD_ASSERT(child);
     g_assert(microsecondsPause > 0);
 
     tgen_debug("Deferring write events on descriptor %i by %"G_GINT64_FORMAT" "
@@ -284,8 +298,8 @@ static void _tgenio_setDeferTimer(TGenIO* io, TGenIOChild* child, gint64 microse
 }
 
 static void _tgenio_helper(TGenIO* io, TGenIOChild* child, gboolean in, gboolean out, gboolean done) {
-    TGEN_ASSERT(io);
-    g_assert(child);
+    TGENIO_ASSERT(io);
+    TGENIOCHILD_ASSERT(child);
 
     TGenEvent readyEvents = TGEN_EVENT_NONE;
 
@@ -343,7 +357,7 @@ static void _tgenio_helper(TGenIO* io, TGenIOChild* child, gboolean in, gboolean
 }
 
 gint tgenio_loopOnce(TGenIO* io, gint maxEvents) {
-    TGEN_ASSERT(io);
+    TGENIO_ASSERT(io);
 
     /* storage for collecting events from our epoll descriptor */
     struct epoll_event* epevs = g_new(struct epoll_event, maxEvents);
@@ -395,7 +409,7 @@ gint tgenio_loopOnce(TGenIO* io, gint maxEvents) {
 }
 
 void tgenio_checkTimeouts(TGenIO* io) {
-    TGEN_ASSERT(io);
+    TGENIO_ASSERT(io);
 
     /* TODO this was a quick polling approach to checking for timeouts, which
      * could be more efficient if replaced with an asynchronous notify design. */
@@ -420,6 +434,6 @@ void tgenio_checkTimeouts(TGenIO* io) {
 }
 
 gint tgenio_getEpollDescriptor(TGenIO* io) {
-    TGEN_ASSERT(io);
+    TGENIO_ASSERT(io);
     return io->epollD;
 }

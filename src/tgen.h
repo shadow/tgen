@@ -20,10 +20,18 @@
 
 #if 1 /* #ifdef DEBUG */
 #define TGEN_MAGIC 0xABBABAAB
+#define TGENIO_MAGIC 0xDCBAABCD
+#define TGENIOCHILD_MAGIC 0xABCDDCBA
 #define TGEN_ASSERT(obj) g_assert(obj && (obj->magic == TGEN_MAGIC))
+#define TGENIO_ASSERT(obj) g_assert(obj && (obj->magic == TGENIO_MAGIC))
+#define TGENIOCHILD_ASSERT(obj) g_assert(obj && (obj->magic == TGENIOCHILD_MAGIC))
 #else
 #define TGEN_MAGIC 0
+#define TGENIO_MAGIC 0
+#define TGENIOCHILD_MAGIC 0
 #define TGEN_ASSERT(obj)
+#define TGENIO_ASSERT(obj)
+#define TGENIOCHILD_ASSERT(obj)
 #endif
 
 #include "tgen-config.h"
