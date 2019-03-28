@@ -1519,6 +1519,16 @@ static void _tgenstream_log(TGenStream* stream, gboolean wasActive) {
     }
 }
 
+static void _tgenstream_callNotify(TGenStream* stream) {
+    if(stream->notify) {
+        /* execute the callback to notify that we are complete */
+        gboolean wasSuccess = stream->error == TGEN_STREAM_ERR_NONE ? TRUE : FALSE;
+        stream->notify(stream->data1, stream->data2, wasSuccess);
+        /* make sure we only do the notification once */
+        stream->notify = NULL;
+    }
+}
+
 static TGenIOResponse _tgenstream_runTransportEventLoop(TGenStream* stream, TGenEvent events) {
     TGenIOResponse response;
     memset(&response, 0, sizeof(TGenIOResponse));
@@ -1526,10 +1536,12 @@ static TGenIOResponse _tgenstream_runTransportEventLoop(TGenStream* stream, TGen
     TGenEvent retEvents = tgentransport_onEvent(stream->transport, events);
     if(retEvents == TGEN_EVENT_NONE) {
         /* proxy failed */
-        tgen_critical("proxy connection failed, stream cannot begin");
+        tgen_critical("transport connection or proxy handshake failed, stream cannot begin");
         _tgenstream_changeSendState(stream, TGEN_STREAM_SEND_ERROR);
+        _tgenstream_changeRecvState(stream, TGEN_STREAM_RECV_ERROR);
         _tgenstream_changeError(stream, TGEN_STREAM_ERR_PROXY);
         _tgenstream_log(stream, FALSE);
+        _tgenstream_callNotify(stream);
 
         /* return DONE to the io module so it does deregistration */
         response.events = TGEN_EVENT_DONE;
@@ -1554,11 +1566,26 @@ static TGenEvent _tgenstream_computeWantedEvents(TGenStream* stream) {
     TGenEvent wantedEvents = TGEN_EVENT_NONE;
 
     /* each part of the conn is done if we have reached success or error */
-    gboolean recvDone = (stream->recv.state == TGEN_STREAM_RECV_SUCCESS ||
-            stream->recv.state == TGEN_STREAM_RECV_ERROR) ? TRUE : FALSE;
+    gboolean recvDone = FALSE;
+    if(stream->recv.state == TGEN_STREAM_RECV_SUCCESS) {
+        recvDone = TRUE;
+    } else if(stream->recv.state == TGEN_STREAM_RECV_ERROR) {
+        recvDone = TRUE;
+    } else if(stream->recv.state == TGEN_STREAM_RECV_NONE &&
+            stream->send.state == TGEN_STREAM_SEND_ERROR) {
+        recvDone = TRUE;
+    }
+
     /* for sending, we also need to make sure we flush the outbuf after success */
-    gboolean sendDone = (stream->send.state == TGEN_STREAM_SEND_SUCCESS ||
-            stream->send.state == TGEN_STREAM_SEND_ERROR) ? TRUE : FALSE;
+    gboolean sendDone = FALSE;
+    if(stream->send.state == TGEN_STREAM_SEND_SUCCESS) {
+        sendDone = TRUE;
+    } else if(stream->send.state == TGEN_STREAM_SEND_ERROR) {
+        sendDone = TRUE;
+    } else if(stream->send.state == TGEN_STREAM_SEND_NONE &&
+            stream->recv.state == TGEN_STREAM_RECV_ERROR) {
+        sendDone = TRUE;
+    }
 
     /* the stream is done if both sending and receiving states are done,
      * and we have flushed our entire send buffer */
@@ -1568,7 +1595,6 @@ static TGenEvent _tgenstream_computeWantedEvents(TGenStream* stream) {
         if(!recvDone && stream->recv.state != TGEN_STREAM_RECV_NONE) {
             wantedEvents |= TGEN_EVENT_READ;
         }
-
         if(!sendDone && stream->send.state != TGEN_STREAM_SEND_NONE) {
             /* check if we should defer writes */
             if(stream->send.deferBarrierMicros > 0) {
@@ -1608,15 +1634,9 @@ static TGenIOResponse _tgenstream_runStreamEventLoop(TGenStream* stream, TGenEve
     memset(&response, 0, sizeof(TGenIOResponse));
     response.events = _tgenstream_computeWantedEvents(stream);
 
-    /* if the stream is done, notify the driver */
-    if(response.events & TGEN_EVENT_DONE) {
-        if(stream->notify) {
-            /* execute the callback to notify that we are complete */
-            gboolean wasSuccess = stream->error == TGEN_STREAM_ERR_NONE ? TRUE : FALSE;
-            stream->notify(stream->data1, stream->data2, wasSuccess);
-            /* make sure we only do the notification once */
-            stream->notify = NULL;
-        }
+    /* if io said we are done, or the stream thinks its done, notify the driver */
+    if((events & TGEN_EVENT_DONE) || (response.events & TGEN_EVENT_DONE)) {
+        _tgenstream_callNotify(stream);
     } else if(response.events & TGEN_EVENT_WRITE_DEFERRED) {
         g_assert(stream->send.deferBarrierMicros > 0);
         response.deferUntilUSec = stream->send.deferBarrierMicros;

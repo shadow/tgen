@@ -17,8 +17,8 @@ typedef enum {
 } TGenTransportState;
 
 typedef enum {
-    TGEN_XPORT_ERR_NONE, TGEN_XPORT_ERR_PROXY_CHOICE,
-    TGEN_XPORT_ERR_PROXY_AUTH,
+    TGEN_XPORT_ERR_NONE, TGEN_XPORT_ERR_CONNECT,
+    TGEN_XPORT_ERR_PROXY_CHOICE, TGEN_XPORT_ERR_PROXY_AUTH,
     TGEN_XPORT_ERR_PROXY_RECONN, TGEN_XPORT_ERR_PROXY_ADDR,
     TGEN_XPORT_ERR_PROXY_VERSION, TGEN_XPORT_ERR_PROXY_STATUS,
     TGEN_XPORT_ERR_WRITE, TGEN_XPORT_ERR_READ, TGEN_XPORT_ERR_MISC
@@ -114,6 +114,9 @@ static const gchar* _tgentransport_errorToString(TGenTransportError error) {
     switch(error) {
         case TGEN_XPORT_ERR_NONE: {
             return "NONE";
+        }
+        case TGEN_XPORT_ERR_CONNECT: {
+            return "CONNECT";
         }
         case TGEN_XPORT_ERR_PROXY_CHOICE: {
             return "CHOICE";
@@ -327,10 +330,10 @@ static void _tgentransport_free(TGenTransport* transport) {
 
     if(transport->socketD > 0) {
         if(transport->error == TGEN_XPORT_ERR_NONE) {
-            tgen_info("Calling shutdown() on transport %s", tgentransport_toString(transport));
+            tgen_debug("Calling shutdown() on transport %s", tgentransport_toString(transport));
             shutdown(transport->socketD, SHUT_RDWR);
         } else {
-            tgen_info("Calling close() on transport %s", tgentransport_toString(transport));
+            tgen_debug("Calling close() on transport %s", tgentransport_toString(transport));
             close(transport->socketD);
         }
     }
@@ -1094,6 +1097,15 @@ static TGenEvent _tgentransport_receiveSocksResponseA(TGenTransport* transport) 
 
 TGenEvent tgentransport_onEvent(TGenTransport* transport, TGenEvent events) {
     TGEN_ASSERT(transport);
+
+    /* When we first connected, we got EINPROGRESS. If that connected then failed,
+     * epoll will tell us by setting TGEN_EVENT_DONE */
+    if(events & TGEN_EVENT_DONE) {
+        if(transport->state == TGEN_XPORT_CONNECT) {
+            _tgentransport_changeState(transport, TGEN_XPORT_ERROR);
+            _tgentransport_changeError(transport, TGEN_XPORT_ERR_CONNECT);
+        }
+    }
 
     /* return TGEN_EVENT_NONE to indicate an error, or TGEN_EVENT_DONE to indicate that the socket
      * is ready for a transfer to start (SOCKS is connected, if necessary) */

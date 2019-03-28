@@ -159,6 +159,8 @@ static void _tgenio_deregister(TGenIO* io, gint descriptor) {
     }
 
     g_hash_table_remove(io->children, GINT_TO_POINTER(descriptor));
+
+    tgen_debug("Deregistered listener on epoll fd %i for child fd %i", io->epollD, descriptor);
 }
 
 gboolean tgenio_register(TGenIO* io, gint descriptor, TGenIO_notifyEventFunc notify,
@@ -189,6 +191,8 @@ gboolean tgenio_register(TGenIO* io, gint descriptor, TGenIO_notifyEventFunc not
 
     TGenIOChild* newchild = _tgeniochild_new(io, descriptor, ev, notify, checkTimeout, data, destructData);
     g_hash_table_replace(io->children, GINT_TO_POINTER(newchild->descriptor), newchild);
+
+    tgen_debug("Registered listener on epoll fd %i for child fd %i", io->epollD, descriptor);
 
     return TRUE;
 }
@@ -279,7 +283,7 @@ static void _tgenio_setDeferTimer(TGenIO* io, TGenIOChild* child, gint64 microse
     }
 }
 
-static void _tgenio_helper(TGenIO* io, TGenIOChild* child, gboolean in, gboolean out) {
+static void _tgenio_helper(TGenIO* io, TGenIOChild* child, gboolean in, gboolean out, gboolean done) {
     TGEN_ASSERT(io);
     g_assert(child);
 
@@ -287,21 +291,27 @@ static void _tgenio_helper(TGenIO* io, TGenIOChild* child, gboolean in, gboolean
 
     /* check if we need read flag */
     if(in) {
-        tgen_debug("descriptor %i is readable", child->descriptor);
+        tgen_debug("descriptor %i is readable (EPOLLIN)", child->descriptor);
         readyEvents |= TGEN_EVENT_READ;
     }
 
     /* check if we need write flag */
     if(out) {
-        tgen_debug("descriptor %i is writable", child->descriptor);
+        tgen_debug("descriptor %i is writable (EPOLLOUT)", child->descriptor);
         readyEvents |= TGEN_EVENT_WRITE;
+    }
+
+    /* check if we need done flag */
+    if(done) {
+        tgen_debug("descriptor %i is done (EPOLLERR || EPOLLHUP)", child->descriptor);
+        readyEvents |= TGEN_EVENT_DONE;
     }
 
     /* activate the transfer */
     TGenIOResponse response = child->notify(child->data, child->descriptor, readyEvents);
 
     /* if done, we can clean up the child now and exit */
-    if(response.events & TGEN_EVENT_DONE) {
+    if(done || (response.events & TGEN_EVENT_DONE)) {
         _tgenio_deregister(io, child->descriptor);
         return;
     }
@@ -356,21 +366,26 @@ gint tgenio_loopOnce(TGenIO* io, gint maxEvents) {
 
     /* activate correct component for every descriptor that's ready. */
     for (gint i = 0; i < nfds; i++) {
+        /* are we readable or writable? */
         gboolean in = (epevs[i].events & EPOLLIN) ? TRUE : FALSE;
         gboolean out = (epevs[i].events & EPOLLOUT) ? TRUE : FALSE;
+
+        /* Error (EPOLLERR) or hangup (EPOLLHUP) occurred. Epoll always listens to these events
+         * even though we don't set them, so we must handle them gracefully. */
+        gboolean done = ((epevs[i].events & EPOLLERR) || (epevs[i].events & EPOLLHUP)) ? TRUE : FALSE;
 
         gint eventDescriptor = epevs[i].data.fd;
         TGenIOChild* child = g_hash_table_lookup(io->children, GINT_TO_POINTER(eventDescriptor));
 
         if(child) {
-            _tgenio_helper(io, child, in, out);
+            _tgenio_helper(io, child, in, out, done);
         } else {
             /* we don't currently have a child for the event descriptor.
              * it may have been deleted by a previous event in this event loop: e.g.,
              * at i=0 a transfer closed and that caused its timer to dereg, then at i=1
-             * the timer would have expired but it was just dereged. just log the valid case.
+             * the timer would have expired but it was just deregged. just log the valid case.
              * make sure we stop paying attention to it. */
-            tgen_info("can't find child for descriptor %i, canceling event now", eventDescriptor);
+            tgen_warning("can't find child for descriptor %i, canceling event now", eventDescriptor);
             _tgenio_deregister(io, eventDescriptor);
         }
     }
