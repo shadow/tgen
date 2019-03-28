@@ -50,6 +50,7 @@ static TGenIOChild* _tgeniochild_new(TGenIO* io, gint descriptor, uint32_t event
     child->data = data;
     child->destructData = destructData;
 
+    child->refcount = 1;
     child->magic = TGENIOCHILD_MAGIC;
 
     return child;
