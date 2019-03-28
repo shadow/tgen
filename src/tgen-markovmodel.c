@@ -4,6 +4,7 @@
 
 #include <stdint.h>
 #include <stdio.h>
+#include <string.h>
 #include <math.h>
 #include <errno.h>
 
@@ -896,7 +897,7 @@ TGenMarkovModel* tgenmarkovmodel_newFromPath(const gchar* name, guint32 seed, co
     if (!graphFileStream) {
         tgen_warning("Unable to open markov model graph file at "
                 "path '%s', fopen returned NULL with errno %i: %s",
-                graphmlFilePath, errno, strerror(errno));
+                graphmlFilePath, errno, g_strerror(errno));
         return NULL;
     }
 

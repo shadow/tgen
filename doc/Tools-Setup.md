@@ -7,11 +7,11 @@ not required to run `tgen`, but may be helpful to understand its output.
 
 Dependencies in Fedora/RedHat:
 
-    sudo yum install python python-devel python-pip libxml2 libxml2-devel libxslt libxslt-devel libpng libpng-devel freetype freetype-devel
+    sudo yum install python python-devel python-pip python-virtualenv libxml2 libxml2-devel libxslt libxslt-devel libpng libpng-devel freetype freetype-devel blas blas-devel lapack lapack-devel
 
 Dependencies in Ubuntu/Debian:
 
-    sudo apt-get install python python-dev python-pip libxml2 libxml2-dev libxslt1.1 libxslt1-dev libpng12-0 libpng12-dev libfreetype6 libfreetype6-dev
+    sudo apt-get install python python-dev python-pip python-virtualenv libxml2 libxml2-dev libxslt1.1 libxslt1-dev libpng12-0 libpng12-dev libfreetype6 libfreetype6-dev libblas-dev liblapack-dev
 
 ## Install TGenTools Python modules
 
@@ -20,7 +20,6 @@ use your OS package manager). We recommend using virtual environments to
 keep all of the dependencies self-contained and to avoid conflicts with
 your other python projects.
 
-    pip install virtualenv
     virtualenv --no-site-packages tgenenv
     source tgenenv/bin/activate
     pip install -r path/to/tgen/tools/requirements.txt
