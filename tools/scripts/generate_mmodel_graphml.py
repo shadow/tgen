@@ -37,12 +37,13 @@ def generate_default_packetmodel(filename):
     G.add_node('o2', type="observation", name='-')
 
     # 'distribution' is required
+    # all parameters should be type double
     # if 'exponential', then 'param_rate' is required
     # if 'lognormal', ' then 'param_location' and 'param_scale' are required
     # if 'normal', ' then 'param_location' and 'param_scale' are required
     # if 'pareto', ' then 'param_scale' and 'param_shape' are required
-    G.add_edge('s1', 'o1', type='emission', weight=0.5, distribution='exponential', param_rate=4294967295)
-    G.add_edge('s1', 'o2', type='emission', weight=0.5, distribution='exponential', param_rate=4294967295)
+    G.add_edge('s1', 'o1', type='emission', weight=0.5, distribution='exponential', param_rate=100.0)
+    G.add_edge('s1', 'o2', type='emission', weight=0.5, distribution='exponential', param_rate=100.0)
 
     networkx.write_graphml(G, filename)
 
@@ -57,7 +58,7 @@ def generate_default_streammodel(filename):
 
     G.add_node('o1', type="observation", name='+')
 
-    G.add_edge('s1', 'o1', type='emission', weight=1.0, distribution='normal', param_location=10000000, param_scale=4000000)
+    G.add_edge('s1', 'o1', type='emission', weight=1.0, distribution='normal', param_location=10000000.0, param_scale=4000000.0)
 
     networkx.write_graphml(G, filename)
 
