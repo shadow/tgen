@@ -86,7 +86,7 @@ TGenIOResponse tgentimer_onEvent(TGenTimer* timer, gint descriptor, TGenEvent ev
 
     if(result < 0 && (errno == EAGAIN || errno == EWOULDBLOCK)) {
     	/* the timer actually wasn't ready to read yet */
-    	tgen_info("We thought timer fd %i was ready, but it returned EAGAIN", timer->timerD);
+    	tgen_debug("We thought timer fd %i was ready, but it returned EAGAIN", timer->timerD);
     	/* keep waiting for read */
     	response.events = TGEN_EVENT_READ;
     	return response;
