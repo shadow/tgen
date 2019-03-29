@@ -171,9 +171,12 @@ struct _TGenStream {
         gint64 start;
         gint64 command;
         gint64 response;
-        gint64 firstPayloadByte;
-        gint64 lastPayloadByte;
-        gint64 checksum;
+        gint64 firstPayloadByteRecv;
+        gint64 lastPayloadByteRecv;
+        gint64 checksumRecv;
+        gint64 firstPayloadByteSend;
+        gint64 lastPayloadByteSend;
+        gint64 checksumSend;
         gint64 lastBytesStatusReport;
         gint64 lastTimeStatusReport;
         gint64 lastTimeErrorReport;
@@ -886,7 +889,7 @@ static gboolean _tgenstream_readPayload(TGenStream* stream) {
     if(bytes == 0 && stream->recv.requestedBytes == 0) {
         /* its possible they didnt send us anything */
         if(stream->recv.payloadBytes > 0) {
-            stream->time.lastPayloadByte = g_get_monotonic_time();
+            stream->time.lastPayloadByteRecv = g_get_monotonic_time();
         }
 
         return TRUE;
@@ -898,7 +901,7 @@ static gboolean _tgenstream_readPayload(TGenStream* stream) {
     }
 
     if(stream->recv.payloadBytes == 0) {
-        stream->time.firstPayloadByte = g_get_monotonic_time();
+        stream->time.firstPayloadByteRecv = g_get_monotonic_time();
     }
 
     stream->recv.payloadBytes += bytes;
@@ -914,7 +917,7 @@ static gboolean _tgenstream_readPayload(TGenStream* stream) {
             stream->recv.payloadBytes >= stream->recv.requestedBytes) {
         tgen_debug("Finished reading %"G_GSIZE_FORMAT
                 " requested payload bytes", stream->recv.payloadBytes);
-        stream->time.lastPayloadByte = g_get_monotonic_time();
+        stream->time.lastPayloadByteRecv = g_get_monotonic_time();
         return TRUE;
     }
 
@@ -938,7 +941,7 @@ static gboolean _tgenstream_readChecksum(TGenStream* stream) {
     }
 
     /* we have read the entire checksum from the other end */
-    stream->time.checksum = g_get_monotonic_time();
+    stream->time.checksumRecv = g_get_monotonic_time();
 
     gchar** parts = g_strsplit(line->str, " ", 0);
     const gchar* receivedSum = parts[1];
@@ -1217,7 +1220,13 @@ static gboolean _tgenstream_writePayload(TGenStream* stream) {
     }
 
     /* try to flush any leftover bytes */
-    stream->send.payloadBytes += _tgenstream_flushOut(stream);
+    gsize bytes = _tgenstream_flushOut(stream);
+
+    if(stream->send.payloadBytes == 0 && bytes > 0) {
+        stream->time.firstPayloadByteSend = g_get_monotonic_time();
+    }
+
+    stream->send.payloadBytes += bytes;
 
     if (stream->send.buffer) {
         /* still need to write it next time */
@@ -1226,18 +1235,24 @@ static gboolean _tgenstream_writePayload(TGenStream* stream) {
 
     /* we are done if we sent the total requested bytes or have no requested
      * bytes but reached the end of the model */
+    gboolean doneSending = FALSE;
     if(stream->send.requestedBytes > 0) {
         if(stream->send.payloadBytes >= stream->send.requestedBytes) {
-            return TRUE;
+            doneSending = TRUE;
         }
     } else {
         if(stream->send.requestedZero) {
             /* we should not send anything */
-            return TRUE;
+            doneSending = TRUE;
         } else if(tgenmarkovmodel_isInEndState(stream->mmodel)) {
             /* they didn't request 0, so we end when the model ends */
-            return TRUE;
+            doneSending = TRUE;
         }
+    }
+
+    if(doneSending) {
+        stream->time.lastPayloadByteSend = g_get_monotonic_time();
+        return TRUE;
     }
 
     /* We limit our write buffer size in order to give other sockets a chance for i/o.
@@ -1307,7 +1322,13 @@ static gboolean _tgenstream_writePayload(TGenStream* stream) {
                     (gssize)stream->send.buffer->len);
         }
 
-        stream->send.payloadBytes += _tgenstream_flushOut(stream);
+        bytes = _tgenstream_flushOut(stream);
+
+        if(stream->send.payloadBytes == 0 && bytes > 0) {
+            stream->time.firstPayloadByteSend = g_get_monotonic_time();
+        }
+
+        stream->send.payloadBytes += bytes;
     }
 
     /* return false so we stay in the payload state so we can flush and
@@ -1331,7 +1352,7 @@ static gboolean _tgenstream_writeChecksum(TGenStream* stream) {
 
     if(!stream->send.buffer) {
         /* we were able to send all of the checksum */
-        stream->time.checksum = g_get_monotonic_time();
+        stream->time.checksumSend = g_get_monotonic_time();
         return TRUE;
     } else {
         /* unable to send entire checksum, wait for next chance to write */
@@ -1417,40 +1438,46 @@ static void _tgenstream_onWritable(TGenStream* stream) {
 static gchar* _tgenstream_getBytesStatusReport(TGenStream* stream) {
     TGEN_ASSERT(stream);
 
-    GString* buffer = g_string_new(NULL);
+    GString* buffer = g_string_new("[");
 
-    g_string_printf(buffer,
+    g_string_append_printf(buffer,
             "total-bytes-recv=%"G_GSIZE_FORMAT, stream->recv.totalBytes);
     g_string_append_printf(buffer,
-            " total-bytes-send=%"G_GSIZE_FORMAT, stream->send.totalBytes);
+            ",total-bytes-send=%"G_GSIZE_FORMAT, stream->send.totalBytes);
     g_string_append_printf(buffer,
-            " payload-bytes-recv=%"G_GSIZE_FORMAT, stream->recv.payloadBytes);
+            ",payload-bytes-recv=%"G_GSIZE_FORMAT, stream->recv.payloadBytes);
     g_string_append_printf(buffer,
-            " payload-bytes-send=%"G_GSIZE_FORMAT, stream->send.payloadBytes);
+            ",payload-bytes-send=%"G_GSIZE_FORMAT, stream->send.payloadBytes);
 
     if(stream->recv.requestedBytes > 0) {
         gdouble progress = (gdouble)stream->recv.payloadBytes /
                 (gdouble)stream->recv.requestedBytes * 100.0f;
-        g_string_append_printf(buffer, " payload-progress-recv=%.2f%%", progress);
+        g_string_append_printf(buffer, ",payload-progress-recv=%.2f%%", progress);
     } else if(stream->recv.state == TGEN_STREAM_RECV_SUCCESS ||
             (stream->recv.requestedBytes == 0 && stream->recv.requestedZero)) {
-        g_string_append_printf(buffer, " payload-progress-recv=%.2f%%", 100.0f);
+        g_string_append_printf(buffer, ",payload-progress-recv=%.2f%%", 100.0f);
     } else {
-        g_string_append_printf(buffer, " payload-progress-recv=?");
+        g_string_append_printf(buffer, ",payload-progress-recv=?");
     }
 
     if(stream->send.requestedBytes > 0) {
         gdouble progress = (gdouble)stream->send.payloadBytes /
                 (gdouble)stream->send.requestedBytes * 100.0f;
-        g_string_append_printf(buffer, " payload-progress-send=%.2f%%", progress);
+        g_string_append_printf(buffer, ",payload-progress-send=%.2f%%", progress);
     } else if(stream->send.state == TGEN_STREAM_SEND_SUCCESS ||
             (stream->send.requestedBytes == 0 && stream->send.requestedZero)) {
-        g_string_append_printf(buffer, " payload-progress-send=%.2f%%", 100.0f);
+        g_string_append_printf(buffer, ",payload-progress-send=%.2f%%", 100.0f);
     } else {
-        g_string_append_printf(buffer, " payload-progress-send=?");
+        g_string_append_printf(buffer, ",payload-progress-send=?");
     }
 
+    g_string_append_printf(buffer, "]");
+
     return g_string_free(buffer, FALSE);
+}
+
+static inline gint64 _tgenstream_computeTimeHelper(TGenStream* stream, gint64 end) {
+    return (end > 0 && stream->time.start > 0) ? (end - stream->time.start) : -1;
 }
 
 static gchar* _tgenstream_getTimeStatusReport(TGenStream* stream) {
@@ -1462,21 +1489,29 @@ static gchar* _tgenstream_getTimeStatusReport(TGenStream* stream) {
             (stream->time.command - stream->time.start) : -1;
     gint64 response = (stream->time.response > 0 && stream->time.start > 0) ?
             (stream->time.response - stream->time.start) : -1;
-    gint64 firstPayloadByte = (stream->time.firstPayloadByte > 0 && stream->time.start > 0) ?
-            (stream->time.firstPayloadByte - stream->time.start) : -1;
-    gint64 lastPayloadByte = (stream->time.lastPayloadByte > 0 && stream->time.start > 0) ?
-            (stream->time.lastPayloadByte - stream->time.start) : -1;
-    gint64 checksum = (stream->time.checksum > 0 && stream->time.start > 0) ?
-            (stream->time.checksum - stream->time.start) : -1;
 
-    GString* buffer = g_string_new(proxyTimeStr);
+    gint64 fbyteRecv = _tgenstream_computeTimeHelper(stream, stream->time.firstPayloadByteRecv);
+    gint64 lbyteRecv = _tgenstream_computeTimeHelper(stream, stream->time.lastPayloadByteRecv);
+    gint64 cksumRecv = _tgenstream_computeTimeHelper(stream, stream->time.checksumRecv);
+
+    gint64 fbyteSend = _tgenstream_computeTimeHelper(stream, stream->time.firstPayloadByteSend);
+    gint64 lbyteSend = _tgenstream_computeTimeHelper(stream, stream->time.lastPayloadByteSend);
+    gint64 cksumSend = _tgenstream_computeTimeHelper(stream, stream->time.checksumSend);
+
+    GString* buffer = g_string_new("[");
+
+    g_string_append_printf(buffer, "%s", proxyTimeStr);
 
     /* print the times in milliseconds */
     g_string_append_printf(buffer,
-            " usecs-to-command=%"G_GINT64_FORMAT" usecs-to-response=%"G_GINT64_FORMAT" "
-            "usecs-to-first-byte=%"G_GINT64_FORMAT" usecs-to-last-byte=%"G_GINT64_FORMAT" "
-            "usecs-to-checksum=%"G_GINT64_FORMAT,
-            command, response, firstPayloadByte, lastPayloadByte, checksum);
+            ",usecs-to-command=%"G_GINT64_FORMAT",usecs-to-response=%"G_GINT64_FORMAT","
+            "usecs-to-first-byte-recv=%"G_GINT64_FORMAT",usecs-to-last-byte-recv=%"G_GINT64_FORMAT","
+            "usecs-to-checksum-recv=%"G_GINT64_FORMAT","
+            "usecs-to-first-byte-send=%"G_GINT64_FORMAT",usecs-to-last-byte-send=%"G_GINT64_FORMAT","
+            "usecs-to-checksum-send=%"G_GINT64_FORMAT,
+            command, response, fbyteRecv, lbyteRecv, cksumRecv, fbyteSend, lbyteSend, cksumSend);
+
+    g_string_append_printf(buffer, "]");
 
     g_free(proxyTimeStr);
     return g_string_free(buffer, FALSE);
@@ -1493,7 +1528,7 @@ static void _tgenstream_log(TGenStream* stream, gboolean wasActive) {
             gchar* bytesMessage = _tgenstream_getBytesStatusReport(stream);
             gchar* timeMessage = _tgenstream_getTimeStatusReport(stream);
 
-            tgen_message("[stream-error] transport %s stream %s %s %s",
+            tgen_message("[stream-error] transport %s stream %s bytes %s times %s",
                     tgentransport_toString(stream->transport),
                     _tgenstream_toString(stream), bytesMessage, timeMessage);
 
@@ -1510,7 +1545,7 @@ static void _tgenstream_log(TGenStream* stream, gboolean wasActive) {
             gchar* bytesMessage = _tgenstream_getBytesStatusReport(stream);
             gchar* timeMessage = _tgenstream_getTimeStatusReport(stream);
 
-            tgen_message("[stream-complete] transport %s stream %s %s %s",
+            tgen_message("[stream-complete] transport %s stream %s bytes %s times %s",
                     tgentransport_toString(stream->transport),
                     _tgenstream_toString(stream), bytesMessage, timeMessage);
 
@@ -1526,7 +1561,7 @@ static void _tgenstream_log(TGenStream* stream, gboolean wasActive) {
             gchar* bytesMessage = _tgenstream_getBytesStatusReport(stream);
 
             /* TODO should this be logged at debug? */
-            tgen_info("[stream-status] transport %s stream %s %s",
+            tgen_info("[stream-status] transport %s stream %s bytes %s",
                     tgentransport_toString(stream->transport),
                     _tgenstream_toString(stream), bytesMessage);
 

@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 
 '''
-  TGenTools
+  tgentools
   Authored by Rob Jansen, 2015
   See LICENSE for licensing information
 '''
@@ -50,7 +50,7 @@ Visualize TGen analysis results
 
 DESC_EDIT = """
 Edit TGen configuration files in place to change or add options (i.e.,
-set the values of graphml attributes) on the specified graphml nodes
+set the values of graphml attributes) on the specified graphml vertices
 or edges. Be careful not to set unsupported attribute names or values!
 """
 HELP_EDIT = """
@@ -110,7 +110,7 @@ to use the number of available processor cores""",
 
     analyze_parser.add_argument('-c', '--complete',
         help="""Parse and export a more complete set of statistics that is more computationally expensive to obtain""",
-        action="store_false", dest="do_complete",
+        action="store_true", dest="do_complete",
         default=False)
 
     analyze_parser.add_argument('-a', '--address',
@@ -176,9 +176,9 @@ will override the default pattern 'tgen.*\.log'.""",
         action="store", dest="config_path")
 
     edit_parser.add_argument('-a', '--action',
-        help="""Set the regex PATTERN that will be used to match actions (nodes)
-        for which the given attribute and value will be set. Examples include
-        ('start', 'transfer', 'pause', 'end')""",
+        help="""Set the regex PATTERN that will be used to match actions (vertices)
+        for which the given attribute and value will be set. Examples include:
+        'start', 'stream', 'flow', 'pause', 'end'.""",
         metavar="PATTERN", type=str,
         action="store", dest="action_pattern",
         default=None)
@@ -200,13 +200,13 @@ will override the default pattern 'tgen.*\.log'.""",
         default=None)
 
     edit_parser.add_argument('-n', '--name',
-        help="A STRING name for the attribute that we set on matched nodes/edges.",
+        help="A STRING name for the attribute that we set on matched vertices/edges.",
         metavar="STRING", type=str,
         action="store", dest="name",
         default=None)
 
     edit_parser.add_argument('-v', '--value',
-        help="A STRING value for the attribute that we set on matched nodes/edges.",
+        help="A STRING value for the attribute that we set on matched vertices/edges.",
         metavar="STRING", type=str,
         action="store", dest="value",
         default=None)
@@ -241,11 +241,11 @@ def analyze(args):
     analysis = None
     if args.nprocesses > 1:
         analysis = ParallelAnalysis(nickname=args.nickname, ip_address=args.ip_address)
-        analysis.analyze(paths, do_simple=not args.do_complete, date_filter=args.date_filter,
+        analysis.analyze(paths, do_complete=args.do_complete, date_filter=args.date_filter,
             num_subprocs=min(args.nprocesses, len(paths)))
     else:
         analysis = SerialAnalysis(nickname=args.nickname, ip_address=args.ip_address)
-        analysis.analyze(paths, do_simple=not args.do_complete, date_filter=args.date_filter)
+        analysis.analyze(paths, do_complete=args.do_complete, date_filter=args.date_filter)
 
     analysis.save(output_prefix=args.prefix)
 

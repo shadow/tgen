@@ -40,7 +40,7 @@ class TGenVisualization(Visualization):
             logging.info("Plotting first byte CDF")
             self.__plot_firstbyte()
             logging.info("Plotting first byte time series")
-            self.__plot_byte_timeseries("time_to_first_byte")
+            self.__plot_byte_timeseries("time_to_first_byte_recv")
             logging.info("Plotting last byte for all transfers")
             self.__plot_lastbyte_all()
             logging.info("Plotting median last byte per client")
@@ -50,7 +50,7 @@ class TGenVisualization(Visualization):
             logging.info("Plotting median last byte per client")
             self.__plot_lastbyte_max()
             logging.info("Plotting last byte time series")
-            self.__plot_byte_timeseries("time_to_last_byte")
+            self.__plot_byte_timeseries("time_to_last_byte_recv")
             logging.info("Plotting number of downloads CDF")
             self.__plot_downloads()
             logging.info("Plotting number of downloads time series")
@@ -74,12 +74,12 @@ class TGenVisualization(Visualization):
         for (anal, label, lineformat) in self.datasets:
             fb = []
             for client in anal.get_nodes():
-                d = anal.get_tgen_transfers_summary(client)
+                d = anal.get_tgen_stream_summary(client)
                 if d is None: continue
-                if "time_to_first_byte" in d:
-                    for b in d["time_to_first_byte"]:
+                if "time_to_first_byte_recv" in d:
+                    for b in d["time_to_first_byte_recv"]:
                         if f is None: f = pyplot.figure()
-                        for sec in d["time_to_first_byte"][b]: fb.extend(d["time_to_first_byte"][b][sec])
+                        for sec in d["time_to_first_byte_recv"][b]: fb.extend(d["time_to_first_byte_recv"][b][sec])
             if f is not None and len(fb) > 0:
                 x, y = getcdf(fb)
                 pyplot.plot(x, y, lineformat, label=label)
@@ -99,14 +99,14 @@ class TGenVisualization(Visualization):
         for (anal, label, lineformat) in self.datasets:
             lb = {}
             for client in anal.get_nodes():
-                d = anal.get_tgen_transfers_summary(client)
+                d = anal.get_tgen_stream_summary(client)
                 if d is None: continue
-                if "time_to_last_byte" in d:
-                    for b in d["time_to_last_byte"]:
+                if "time_to_last_byte_recv" in d:
+                    for b in d["time_to_last_byte_recv"]:
                         bytes = int(b)
                         if bytes not in figs: figs[bytes] = pyplot.figure()
                         if bytes not in lb: lb[bytes] = []
-                        for sec in d["time_to_last_byte"][b]: lb[bytes].extend(d["time_to_last_byte"][b][sec])
+                        for sec in d["time_to_last_byte_recv"][b]: lb[bytes].extend(d["time_to_last_byte_recv"][b][sec])
             for bytes in lb:
                 x, y = getcdf(lb[bytes])
                 pyplot.figure(figs[bytes].number)
@@ -128,15 +128,15 @@ class TGenVisualization(Visualization):
         for (anal, label, lineformat) in self.datasets:
             lb = {}
             for client in anal.get_nodes():
-                d = anal.get_tgen_transfers_summary(client)
+                d = anal.get_tgen_stream_summary(client)
                 if d is None: continue
-                if "time_to_last_byte" in d:
-                    for b in d["time_to_last_byte"]:
+                if "time_to_last_byte_recv" in d:
+                    for b in d["time_to_last_byte_recv"]:
                         bytes = int(b)
                         if bytes not in figs: figs[bytes] = pyplot.figure()
                         if bytes not in lb: lb[bytes] = []
                         client_lb_list = []
-                        for sec in d["time_to_last_byte"][b]: client_lb_list.extend(d["time_to_last_byte"][b][sec])
+                        for sec in d["time_to_last_byte_recv"][b]: client_lb_list.extend(d["time_to_last_byte_recv"][b][sec])
                         lb[bytes].append(numpy.median(client_lb_list))
             for bytes in lb:
                 x, y = getcdf(lb[bytes])
@@ -159,15 +159,15 @@ class TGenVisualization(Visualization):
         for (anal, label, lineformat) in self.datasets:
             lb = {}
             for client in anal.get_nodes():
-                d = anal.get_tgen_transfers_summary(client)
+                d = anal.get_tgen_stream_summary(client)
                 if d is None: continue
-                if "time_to_last_byte" in d:
-                    for b in d["time_to_last_byte"]:
+                if "time_to_last_byte_recv" in d:
+                    for b in d["time_to_last_byte_recv"]:
                         bytes = int(b)
                         if bytes not in figs: figs[bytes] = pyplot.figure()
                         if bytes not in lb: lb[bytes] = []
                         client_lb_list = []
-                        for sec in d["time_to_last_byte"][b]: client_lb_list.extend(d["time_to_last_byte"][b][sec])
+                        for sec in d["time_to_last_byte_recv"][b]: client_lb_list.extend(d["time_to_last_byte_recv"][b][sec])
                         lb[bytes].append(numpy.mean(client_lb_list))
             for bytes in lb:
                 x, y = getcdf(lb[bytes])
@@ -190,15 +190,15 @@ class TGenVisualization(Visualization):
         for (anal, label, lineformat) in self.datasets:
             lb = {}
             for client in anal.get_nodes():
-                d = anal.get_tgen_transfers_summary(client)
+                d = anal.get_tgen_stream_summary(client)
                 if d is None: continue
-                if "time_to_last_byte" in d:
-                    for b in d["time_to_last_byte"]:
+                if "time_to_last_byte_recv" in d:
+                    for b in d["time_to_last_byte_recv"]:
                         bytes = int(b)
                         if bytes not in figs: figs[bytes] = pyplot.figure()
                         if bytes not in lb: lb[bytes] = []
                         client_lb_list = []
-                        for sec in d["time_to_last_byte"][b]: client_lb_list.extend(d["time_to_last_byte"][b][sec])
+                        for sec in d["time_to_last_byte_recv"][b]: client_lb_list.extend(d["time_to_last_byte_recv"][b][sec])
                         lb[bytes].append(numpy.max(client_lb_list))
             for bytes in lb:
                 x, y = getcdf(lb[bytes])
@@ -215,13 +215,13 @@ class TGenVisualization(Visualization):
             self.page.savefig()
             pyplot.close()
 
-    def __plot_byte_timeseries(self, bytekey="time_to_last_byte"):
+    def __plot_byte_timeseries(self, bytekey="time_to_last_byte_recv"):
         figs = {}
 
         for (anal, label, lineformat) in self.datasets:
             lb = {}
             for client in anal.get_nodes():
-                d = anal.get_tgen_transfers_summary(client)
+                d = anal.get_tgen_stream_summary(client)
                 if d is None: continue
                 if bytekey in d:
                     for b in d[bytekey]:
@@ -257,15 +257,15 @@ class TGenVisualization(Visualization):
         for (anal, label, lineformat) in self.datasets:
             dls = {}
             for client in anal.get_nodes():
-                d = anal.get_tgen_transfers_summary(client)
+                d = anal.get_tgen_stream_summary(client)
                 if d is None: continue
-                if "time_to_last_byte" in d:
-                    for b in d["time_to_last_byte"]:
+                if "time_to_last_byte_recv" in d:
+                    for b in d["time_to_last_byte_recv"]:
                         bytes = int(b)
                         if bytes not in figs: figs[bytes] = pyplot.figure()
                         if bytes not in dls: dls[bytes] = {}
                         if client not in dls[bytes]: dls[bytes][client] = 0
-                        for sec in d["time_to_last_byte"][b]: dls[bytes][client] += len(d["time_to_last_byte"][b][sec])
+                        for sec in d["time_to_last_byte_recv"][b]: dls[bytes][client] += len(d["time_to_last_byte_recv"][b][sec])
             for bytes in dls:
                 x, y = getcdf(dls[bytes].values(), shownpercentile=1.0)
                 pyplot.figure(figs[bytes].number)
@@ -287,17 +287,17 @@ class TGenVisualization(Visualization):
         for (anal, label, lineformat) in self.datasets:
             dls = {}
             for client in anal.get_nodes():
-                d = anal.get_tgen_transfers_summary(client)
+                d = anal.get_tgen_stream_summary(client)
                 if d is None: continue
-                if "time_to_last_byte" in d:
-                    for b in d["time_to_last_byte"]:
+                if "time_to_last_byte_recv" in d:
+                    for b in d["time_to_last_byte_recv"]:
                         bytes = int(b)
                         if bytes not in figs: figs[bytes] = pyplot.figure()
                         if bytes not in dls: dls[bytes] = {}
-                        for secstr in d["time_to_last_byte"][b]:
+                        for secstr in d["time_to_last_byte_recv"][b]:
                             sec = int(secstr)
                             if sec not in dls[bytes]: dls[bytes][sec] = 0
-                            dls[bytes][sec] += len(d["time_to_last_byte"][b][secstr])
+                            dls[bytes][sec] += len(d["time_to_last_byte_recv"][b][secstr])
             for bytes in dls:
                 pyplot.figure(figs[bytes].number)
                 x = [sec for sec in dls[bytes]]
@@ -323,7 +323,7 @@ class TGenVisualization(Visualization):
         for (anal, label, lineformat) in self.datasets:
             dls = {}
             for client in anal.get_nodes():
-                d = anal.get_tgen_transfers_summary(client)
+                d = anal.get_tgen_stream_summary(client)
                 if d is None: continue
                 if "errors" in d:
                     for code in d["errors"]:
@@ -352,7 +352,7 @@ class TGenVisualization(Visualization):
         for (anal, label, lineformat) in self.datasets:
             dls = {}
             for client in anal.get_nodes():
-                d = anal.get_tgen_transfers_summary(client)
+                d = anal.get_tgen_stream_summary(client)
                 if d is None: continue
                 if "errors" in d:
                     for code in d["errors"]:
@@ -387,7 +387,7 @@ class TGenVisualization(Visualization):
         for (anal, label, lineformat) in self.datasets:
             err = {}
             for client in anal.get_nodes():
-                d = anal.get_tgen_transfers_summary(client)
+                d = anal.get_tgen_stream_summary(client)
                 if d is None: continue
                 if "errors" in d:
                     for code in d["errors"]:
@@ -395,7 +395,7 @@ class TGenVisualization(Visualization):
                         if code not in err: err[code] = []
                         client_err_list = []
                         for sec in d["errors"][code]: client_err_list.extend(d["errors"][code][sec])
-                        for b in client_err_list: err[code].append(int(b) / 1024.0)
+                        for b in client_err_list: err[code].append(int(b[0]) / 1024.0)
             for code in err:
                 x, y = getcdf(err[code])
                 pyplot.figure(figs[code].number)
@@ -417,14 +417,14 @@ class TGenVisualization(Visualization):
         for (anal, label, lineformat) in self.datasets:
             err = {}
             for client in anal.get_nodes():
-                d = anal.get_tgen_transfers_summary(client)
+                d = anal.get_tgen_stream_summary(client)
                 if d is None: continue
                 if "errors" in d:
                     for code in d["errors"]:
                         if code not in figs: figs[code] = pyplot.figure()
                         if code not in err: err[code] = []
                         client_err_list = []
-                        for sec in d["errors"][code]: client_err_list.extend(d["errors"][code][sec])
+                        for sec in d["errors"][code]: client_err_list.extend(d["errors"][code][sec][0])
                         err[code].append(numpy.median(client_err_list) / 1024.0)
             for code in err:
                 x, y = getcdf(err[code])
@@ -447,14 +447,14 @@ class TGenVisualization(Visualization):
         for (anal, label, lineformat) in self.datasets:
             err = {}
             for client in anal.get_nodes():
-                d = anal.get_tgen_transfers_summary(client)
+                d = anal.get_tgen_stream_summary(client)
                 if d is None: continue
                 if "errors" in d:
                     for code in d["errors"]:
                         if code not in figs: figs[code] = pyplot.figure()
                         if code not in err: err[code] = []
                         client_err_list = []
-                        for sec in d["errors"][code]: client_err_list.extend(d["errors"][code][sec])
+                        for sec in d["errors"][code]: client_err_list.extend(d["errors"][code][sec][0])
                         err[code].append(numpy.mean(client_err_list) / 1024.0)
             for code in err:
                 x, y = getcdf(err[code])

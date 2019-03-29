@@ -12,6 +12,7 @@ from socket import gethostname
 from abc import ABCMeta, abstractmethod
 
 # tgentools imports
+from tgentools._version import __version__
 import tgentools.util as util
 
 class Analysis(object):
@@ -20,7 +21,7 @@ class Analysis(object):
         self.nickname = nickname
         self.measurement_ip = ip_address
         self.hostname = gethostname().split('.')[0]
-        self.json_db = {'type':'tgen', 'version':1.0, 'data':{}}
+        self.json_db = {'type':'tgen', 'version':__version__, 'data':{}}
         self.tgen_filepaths = []
         self.date_filter = None
         self.did_analysis = False
@@ -31,13 +32,13 @@ class Analysis(object):
     def get_nodes(self):
         return self.json_db['data'].keys()
 
-    def get_tgen_transfers_summary(self, node):
+    def get_tgen_stream_summary(self, node):
         try:
-            return self.json_db['data'][node]['tgen']['transfers_summary']
+            return self.json_db['data'][node]['tgen']['stream_summary']
         except:
             return None
 
-    def analyze(self, do_simple=True, date_filter=None):
+    def analyze(self, do_complete=False, date_filter=None):
         if self.did_analysis:
             return
 
@@ -47,8 +48,8 @@ class Analysis(object):
         for (filepaths, parser, json_db_key) in [(self.tgen_filepaths, tgen_parser, 'tgen')]:
             if len(filepaths) > 0:
                 for filepath in filepaths:
-                    logging.info("parsing log file at {0}".format(filepath))
-                    parser.parse(util.DataSource(filepath), do_simple=do_simple)
+                    logging.info("parsing log file at {}".format(filepath))
+                    parser.parse(util.DataSource(filepath), do_complete=do_complete)
 
                 if self.nickname is None:
                     parsed_name = parser.get_name()
@@ -74,90 +75,94 @@ class Analysis(object):
             else:
                 self.json_db['data'][nickname] = analysis.json_db['data'][nickname]
 
-    def save(self, filename=None, output_prefix=os.getcwd(), do_compress=True, version=1.0):
+    def save(self, filename=None, output_prefix=os.getcwd(), do_compress=True):
         if filename is None:
             if self.date_filter is None:
                 filename = "tgen.analysis.json.xz"
             else:
                 filename = "{}.tgen.analysis.json.xz".format(util.date_to_string(self.date_filter))
 
-        filepath = os.path.abspath(os.path.expanduser("{0}/{1}".format(output_prefix, filename)))
+        filepath = os.path.abspath(os.path.expanduser("{}/{}".format(output_prefix, filename)))
         if not os.path.exists(output_prefix):
             os.makedirs(output_prefix)
 
-        logging.info("saving analysis results to {0}".format(filepath))
+        logging.info("saving analysis results to {}".format(filepath))
 
         outf = util.FileWritable(filepath, do_compress=do_compress)
         json.dump(self.json_db, outf, sort_keys=True, separators=(',', ': '), indent=2)
         outf.close()
 
-        logging.info("done!")
+        logging.info("done saving analysis results!")
 
     @classmethod
-    def load(cls, filename="tgen.analysis.json.xz", input_prefix=os.getcwd(), version=1.0):
-        filepath = os.path.abspath(os.path.expanduser("{0}".format(filename)))
+    def load(cls, filename="tgen.analysis.json.xz", input_prefix=os.getcwd()):
+        filepath = os.path.abspath(os.path.expanduser("{}".format(filename)))
         if not os.path.exists(filepath):
-            filepath = os.path.abspath(os.path.expanduser("{0}/{1}".format(input_prefix, filename)))
+            filepath = os.path.abspath(os.path.expanduser("{}/{}".format(input_prefix, filename)))
             if not os.path.exists(filepath):
-                logging.warning("file does not exist at '{0}'".format(filepath))
+                logging.warning("file does not exist at '{}'".format(filepath))
                 return None
 
-        logging.info("loading analysis results from {0}".format(filepath))
+        logging.info("loading analysis results from {}".format(filepath))
 
         inf = util.DataSource(filepath)
         inf.open()
         db = json.load(inf.get_file_handle())
         inf.close()
 
-        logging.info("done!")
+        logging.info("finished loading analysis file, checking type and version")
 
         if 'type' not in db or 'version' not in db:
             logging.warning("'type' or 'version' not present in database")
             return None
-        elif db['type'] != 'tgen' or db['version'] != 1.0:
-            logging.warning("type or version not supported (type={0}, version={1})".format(db['type'], db['version']))
+        elif db['type'] != 'tgen':
+            logging.warning("type '{}' not supported (expected type='tgen')".format(db['type']))
+            return None
+        elif db['version'] != __version__:
+            logging.warning("version '{}' not supported (expected version='{}')".format(db['version'], __version__))
             return None
         else:
+            logging.info("type '{}' and version '{}' is supported".format(db['type'], db['version']))
             analysis_instance = cls()
             analysis_instance.json_db = db
             return analysis_instance
 
 class SerialAnalysis(Analysis):
 
-    def analyze(self, paths, do_simple=True, date_filter=None):
-        logging.info("processing input from {0} paths...".format(len(paths)))
+    def analyze(self, paths, do_complete=False, date_filter=None):
+        logging.info("processing input from {} paths...".format(len(paths)))
 
         analyses = []
         for path in paths:
             a = Analysis()
             a.add_tgen_file(path)
-            a.analyze(do_simple=do_simple, date_filter=date_filter)
+            a.analyze(do_complete=do_complete, date_filter=date_filter)
             analyses.append(a)
 
-        logging.info("merging {0} analysis results now...".format(len(analyses)))
+        logging.info("merging {} analysis results now...".format(len(analyses)))
         while analyses is not None and len(analyses) > 0:
             self.merge(analyses.pop())
-        logging.info("done merging results: {0} total nicknames present in json db".format(len(self.json_db['data'])))
+        logging.info("done merging results: {} total nicknames present in json db".format(len(self.json_db['data'])))
 
 def subproc_analyze_func(analysis_args):
     signal(SIGINT, SIG_IGN)  # ignore interrupts
     a = analysis_args[0]
-    do_simple = analysis_args[1]
+    do_complete = analysis_args[1]
     date_filter = analysis_args[2]
-    a.analyze(do_simple=do_simple, date_filter=date_filter)
+    a.analyze(do_complete=do_complete, date_filter=date_filter)
     return a
 
 class ParallelAnalysis(Analysis):
 
-    def analyze(self, paths, do_simple=True, date_filter=None,
+    def analyze(self, paths, do_complete=False, date_filter=None,
         num_subprocs=cpu_count()):
-        logging.info("processing input from {0} paths...".format(len(paths)))
+        logging.info("processing input from {} paths...".format(len(paths)))
 
         analysis_jobs = []
         for path in paths:
             a = Analysis()
             a.add_tgen_file(path)
-            analysis_args = [a, do_simple, date_filter]
+            analysis_args = [a, do_complete, date_filter]
             analysis_jobs.append(analysis_args)
 
         analyses = None
@@ -173,12 +178,22 @@ class ParallelAnalysis(Analysis):
             pool.join()
             sys.exit()
 
-        logging.info("merging {0} analysis results now...".format(len(analyses)))
+        logging.info("merging {} analysis results now...".format(len(analyses)))
         while analyses is not None and len(analyses) > 0:
             self.merge(analyses.pop())
-        logging.info("done merging results: {0} total nicknames present in json db".format(len(self.json_db['data'])))
+        logging.info("done merging results: {} total nicknames present in json db".format(len(self.json_db['data'])))
 
-class TransferStatusEvent(object):
+def parse_tagged_csv_string(csv_string):
+    d = {}
+    parts = csv_string.strip('[]').split(',')
+    for key_value_pair in parts:
+        pair = key_value_pair.split('=')
+        if len(pair) < 2:
+            continue
+        d[pair[0]] = pair[1]
+    return d
+
+class StreamStatusEvent(object):
 
     def __init__(self, line):
         self.is_success = False
@@ -188,80 +203,57 @@ class TransferStatusEvent(object):
         parts = line.strip().split()
         self.unix_ts_end = util.timestamp_to_seconds(parts[2])
 
-        transport_parts = parts[8].split(',')
-        self.endpoint_local = transport_parts[2]
-        self.endpoint_proxy = transport_parts[3]
-        self.endpoint_remote = transport_parts[4]
+        self.transport_info = None if len(parts) < 9 else parse_tagged_csv_string(parts[8])
+        self.stream_info = None if len(parts) < 11 else parse_tagged_csv_string(parts[10])
+        self.byte_info = None if len(parts) < 13 else parse_tagged_csv_string(parts[12])
+        self.time_info = None if len(parts) < 15 else parse_tagged_csv_string(parts[14])
 
-        transfer_parts = parts[10].split(',')
+        self.stream_id = "{}:{}:{}:{}".format(self.stream_info['id'], self.transport_info['fd'],
+            self.transport_info['local'], self.transport_info['remote'])
 
-        # for id, combine the time with the transfer num; this is unique for each node,
-        # as long as the node was running tgen without restarting for 100 seconds or longer
-        # #self.transfer_id = "{0}-{1}".format(round(self.unix_ts_end, -2), transfer_num)
-        self.transfer_id = "{0}:{1}".format(transfer_parts[0], transfer_parts[1])  # id:count
-
-        self.hostname_local = transfer_parts[2]
-        self.method = transfer_parts[3]  # 'GET' or 'PUT'
-        self.filesize_bytes = int(transfer_parts[4])
-        self.hostname_remote = transfer_parts[5]
-        self.error_code = transfer_parts[8].split('=')[1]
-
-        self.total_bytes_read = int(parts[11].split('=')[1])
-        self.total_bytes_write = int(parts[12].split('=')[1])
-
-        # the commander is the side that sent the command,
-        # i.e., the side that is driving the download, i.e., the client side
-        progress_parts = parts[13].split('=')
-        self.is_commander = (self.method == 'GET' and 'read' in progress_parts[0]) or \
-                            (self.method == 'PUT' and 'write' in progress_parts[0])
-        self.payload_bytes_status = int(progress_parts[1].split('/')[0])
-
-        self.unconsumed_parts = None if len(parts) < 16 else parts[15:]
-        self.elapsed_seconds = {}
-
-class TransferCompleteEvent(TransferStatusEvent):
+class StreamCompleteEvent(StreamStatusEvent):
     def __init__(self, line):
-        super(TransferCompleteEvent, self).__init__(line)
+        super(StreamCompleteEvent, self).__init__(line)
         self.is_complete = True
 
-        i = 0
-        elapsed_seconds = 0.0
-        # match up self.unconsumed_parts[0:11] with the events in the transfer_steps enum
-        for k in ['socket_create', 'socket_connect', 'proxy_init', 'proxy_choice', 'proxy_request',
-                  'proxy_response', 'command', 'response', 'first_byte', 'last_byte', 'checksum']:
-            # parse out the elapsed time value
-            keyval = self.unconsumed_parts[i]
-            i += 1
+        time_usec_max = 0.0
+        for key in self.time_info:
+            val = int(self.time_info[key])
+            time_usec_max = max(time_usec_max, val)
 
-            val = float(int(keyval.split('=')[1]))
-            if val >= 0.0:
-                elapsed_seconds = val / 1000000.0  # usecs to secs
-                self.elapsed_seconds.setdefault(k, elapsed_seconds)
+        self.unix_ts_start = self.unix_ts_end - (time_usec_max / 1000000.0)  # usecs to secs
 
-        self.unix_ts_start = self.unix_ts_end - elapsed_seconds
-        del(self.unconsumed_parts)
-
-class TransferSuccessEvent(TransferCompleteEvent):
+class StreamSuccessEvent(StreamCompleteEvent):
     def __init__(self, line):
-        super(TransferSuccessEvent, self).__init__(line)
+        super(StreamSuccessEvent, self).__init__(line)
         self.is_success = True
 
-class TransferErrorEvent(TransferCompleteEvent):
+class StreamErrorEvent(StreamCompleteEvent):
     def __init__(self, line):
-        super(TransferErrorEvent, self).__init__(line)
+        super(StreamErrorEvent, self).__init__(line)
         self.is_error = True
 
-class Transfer(object):
+class Stream(object):
     def __init__(self, tid):
         self.id = tid
         self.last_event = None
-        self.payload_progress = {decile:None for decile in [0.0, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 1.0]}
+        self.payload_recv_progress = {decile:None for decile in [0.0, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 1.0]}
+        self.payload_send_progress = {decile:None for decile in [0.0, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 1.0]}
+
+    def __set_progress_helper(self, status_event, bytes_key, progress_dict):
+        progress = status_event.byte_info[bytes_key].strip('%')
+        if progress != '?':
+            frac = float(progress)
+            # set only the highest decile that we meet or exceed
+            for decile in sorted(progress_dict.keys(), reverse=True):
+                if frac >= decile:
+                    if progress_dict[decile] is None:
+                        progress_dict[decile] = status_event.unix_ts_end
+                    return
 
     def add_event(self, status_event):
-        progress_frac = float(status_event.payload_bytes_status) / float(status_event.filesize_bytes)
-        for decile in sorted(self.payload_progress.keys()):
-            if progress_frac >= decile and self.payload_progress[decile] is None:
-                self.payload_progress[decile] = status_event.unix_ts_end
+        self.__set_progress_helper(status_event, 'payload-progress-recv', self.payload_recv_progress)
+        self.__set_progress_helper(status_event, 'payload-progress-send', self.payload_send_progress)
         self.last_event = status_event
 
     def get_data(self):
@@ -269,13 +261,15 @@ class Transfer(object):
         if e is None or not e.is_complete:
             return None
         d = e.__dict__
-        d['elapsed_seconds']['payload_progress'] = {decile: self.payload_progress[decile] - e.unix_ts_start for decile in self.payload_progress if self.payload_progress[decile] is not None}
+        d['elapsed_seconds'] = {}
+        d['elapsed_seconds']['payload_progress_recv'] = {decile: self.payload_recv_progress[decile] - e.unix_ts_start for decile in self.payload_recv_progress if self.payload_recv_progress[decile] is not None}
+        d['elapsed_seconds']['payload_progress_send'] = {decile: self.payload_send_progress[decile] - e.unix_ts_start for decile in self.payload_send_progress if self.payload_send_progress[decile] is not None}
         return d
 
 class Parser(object):
     __metaclass__ = ABCMeta
     @abstractmethod
-    def parse(self, source, do_simple):
+    def parse(self, source, do_complete):
         pass
     @abstractmethod
     def get_data(self):
@@ -289,10 +283,12 @@ class TGenParser(Parser):
     def __init__(self, date_filter=None):
         ''' date_filter should be given in UTC '''
         self.state = {}
-        self.transfers = {}
-        self.transfers_summary = {'time_to_first_byte':{}, 'time_to_last_byte':{}, 'errors':{}}
+        self.streams = {}
+        self.stream_summary = {'time_to_first_byte_recv':{}, 'time_to_last_byte_recv':{},
+            'time_to_first_byte_send':{}, 'time_to_last_byte_send':{}, 'errors':{}}
         self.name = None
         self.date_filter = date_filter
+        self.version_mismatch = False
 
     def __is_date_valid(self, date_to_check):
         if self.date_filter is None:
@@ -303,9 +299,23 @@ class TGenParser(Parser):
             # both the filter and the unix timestamp should be in UTC at this point
             return util.do_dates_match(self.date_filter, date_to_check)
 
-    def __parse_line(self, line, do_simple):
+    def __parse_line(self, line, do_complete):
         if self.name is None and re.search("Initializing\sTGen\sv", line) is not None:
-            self.name = line.strip().split()[17]
+            parts = line.strip().split()
+
+            if len(parts) < 9:
+                return True
+
+            version_str = parts[8].strip('v')
+            if version_str != __version__:
+                self.version_mismatch = True
+                logging.warning("Version mismatch: the log file we are parsing was generated using \
+                tgen v{}, but this version of tgentools is v{}".format(version_str, __version__))
+                return True
+
+            if len(parts) < 18:
+                return True
+            self.name = parts[17]
 
         if self.date_filter is not None:
             parts = line.strip().split(' ', 3)
@@ -316,69 +326,81 @@ class TGenParser(Parser):
             if not self.__is_date_valid(line_date):
                 return True
 
-        if not do_simple and re.search("state\sRESPONSE\sto\sstate\sPAYLOAD", line) is not None:
-            # another run of tgen starts the id over counting up from 1
-            # if a prev transfer with the same id did not complete, we can be sure it never will
-            parts = line.strip().split()
-            transfer_parts = parts[7].strip().split(',')
-            transfer_id = "{0}:{1}".format(transfer_parts[0], transfer_parts[1])  # id:count
-            if transfer_id in self.state:
-                self.state.pop(transfer_id)
+        elif do_complete and re.search("stream-status", line) is not None:
+            status = StreamStatusEvent(line)
+            stream = self.state.setdefault(status.stream_id, Stream(status.stream_id))
+            stream.add_event(status)
 
-        elif not do_simple and re.search("transfer-status", line) is not None:
-            status = TransferStatusEvent(line)
-            xfer = self.state.setdefault(status.transfer_id, Transfer(status.transfer_id))
-            xfer.add_event(status)
+        elif re.search("stream-complete", line) is not None:
+            complete = StreamSuccessEvent(line)
 
-        elif re.search("transfer-complete", line) is not None:
-            complete = TransferSuccessEvent(line)
+            if do_complete:
+                stream = self.state.setdefault(complete.stream_id, Stream(complete.stream_id))
+                stream.add_event(complete)
+                self.streams[stream.id] = stream.get_data()
+                self.state.pop(complete.stream_id)
 
-            if not do_simple:
-                xfer = self.state.setdefault(complete.transfer_id, Transfer(complete.transfer_id))
-                xfer.add_event(complete)
-                self.transfers[xfer.id] = xfer.get_data()
-                self.state.pop(complete.transfer_id)
+            second = int(complete.unix_ts_end)
+            recv_size = int(complete.byte_info['payload-bytes-recv'])
 
-            filesize, second = complete.filesize_bytes, int(complete.unix_ts_end)
-            fb_secs = complete.elapsed_seconds['first_byte'] - complete.elapsed_seconds['command']
-            lb_secs = complete.elapsed_seconds['last_byte'] - complete.elapsed_seconds['command']
+            fb_recv_secs = (int(complete.time_info['usecs-to-first-byte-recv']) -
+                int(complete.time_info['usecs-to-command'])) / 1000000.0  # usecs to secs
+            lb_recv_secs = (int(complete.time_info['usecs-to-last-byte-recv']) -
+                int(complete.time_info['usecs-to-command'])) / 1000000.0  # usecs to secs
 
-            fb_list = self.transfers_summary['time_to_first_byte'].setdefault(filesize, {}).setdefault(second, [])
-            fb_list.append(fb_secs)
-            lb_list = self.transfers_summary['time_to_last_byte'].setdefault(filesize, {}).setdefault(second, [])
-            lb_list.append(lb_secs)
+            fb_list = self.stream_summary['time_to_first_byte_recv'].setdefault(recv_size, {}).setdefault(second, [])
+            fb_list.append(fb_recv_secs)
+            lb_list = self.stream_summary['time_to_last_byte_recv'].setdefault(recv_size, {}).setdefault(second, [])
+            lb_list.append(lb_recv_secs)
 
-        elif re.search("transfer-error", line) is not None:
-            error = TransferErrorEvent(line)
+            send_size = int(complete.byte_info['payload-bytes-send'])
 
-            if not do_simple:
-                xfer = self.state.setdefault(error.transfer_id, Transfer(error.transfer_id))
-                xfer.add_event(error)
-                self.transfers[xfer.id] = xfer.get_data()
-                self.state.pop(error.transfer_id)
+            fb_send_secs = (int(complete.time_info['usecs-to-first-byte-send']) -
+                int(complete.time_info['usecs-to-command'])) / 1000000.0  # usecs to secs
+            lb_send_secs = (int(complete.time_info['usecs-to-last-byte-send']) -
+                int(complete.time_info['usecs-to-command'])) / 1000000.0  # usecs to secs
 
-            err_code, filesize, second = error.error_code, error.filesize_bytes, int(error.unix_ts_end)
+            fb_list = self.stream_summary['time_to_first_byte_send'].setdefault(send_size, {}).setdefault(second, [])
+            fb_list.append(fb_send_secs)
+            lb_list = self.stream_summary['time_to_last_byte_send'].setdefault(send_size, {}).setdefault(second, [])
+            lb_list.append(lb_send_secs)
 
-            err_list = self.transfers_summary['errors'].setdefault(err_code, {}).setdefault(second, [])
-            err_list.append(filesize)
+        elif re.search("stream-error", line) is not None:
+            error = StreamErrorEvent(line)
+
+            if do_complete:
+                stream = self.state.setdefault(error.stream_id, Stream(error.stream_id))
+                stream.add_event(error)
+                self.streams[stream.id] = stream.get_data()
+                self.state.pop(error.stream_id)
+
+            err_code = error.stream_info['error']
+            recv_size = int(error.byte_info['payload-bytes-recv'])
+            send_size = int(error.byte_info['payload-bytes-send'])
+            second = int(error.unix_ts_end)
+
+            err_list = self.stream_summary['errors'].setdefault(err_code, {}).setdefault(second, [])
+            err_list.append((send_size,recv_size))
 
         return True
 
-    def parse(self, source, do_simple=True):
+    def parse(self, source, do_complete=False):
         source.open()
         for line in source:
+            if self.version_mismatch:
+                break
             # ignore line parsing errors
             try:
-                if not self.__parse_line(line, do_simple):
+                if not self.__parse_line(line, do_complete):
                     break
             except:
-                logging.warning("TGenParser: skipping line due to parsing error: {0}".format(line))
+                logging.warning("TGenParser: skipping line due to parsing error: {}".format(line))
                 raise
                 continue
         source.close()
 
     def get_data(self):
-        return {'transfers':self.transfers, 'transfers_summary': self.transfers_summary}
+        return {'streams':self.streams, 'stream_summary': self.stream_summary}
 
     def get_name(self):
         return self.name

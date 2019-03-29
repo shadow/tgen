@@ -473,9 +473,9 @@ gchar* tgentransport_getTimeStatusReport(TGenTransport* transport) {
 
     /* print the times in milliseconds */
     g_string_printf(buffer,
-            "usecs-to-socket-create=%"G_GINT64_FORMAT" usecs-to-socket-connect=%"G_GINT64_FORMAT" "
-            "usecs-to-proxy-init=%"G_GINT64_FORMAT" usecs-to-proxy-choice=%"G_GINT64_FORMAT" "
-            "usecs-to-proxy-request=%"G_GINT64_FORMAT" usecs-to-proxy-response=%"G_GINT64_FORMAT,
+            "usecs-to-socket-create=%"G_GINT64_FORMAT",usecs-to-socket-connect=%"G_GINT64_FORMAT","
+            "usecs-to-proxy-init=%"G_GINT64_FORMAT",usecs-to-proxy-choice=%"G_GINT64_FORMAT","
+            "usecs-to-proxy-request=%"G_GINT64_FORMAT",usecs-to-proxy-response=%"G_GINT64_FORMAT,
             create, connect, init, choice, request, response);
 
     return g_string_free(buffer, FALSE);
