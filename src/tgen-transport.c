@@ -250,6 +250,31 @@ static TGenTransport* _tgentransport_newHelper(gint socketD, gint64 startedTime,
     return transport;
 }
 
+static TGenPeer* _tgentransport_getProxyFromEnvHelper(){
+    gchar* socksProxyStr = tgenconfig_getSOCKS();
+
+    if(!socksProxyStr) {
+        return NULL;
+    }
+
+    TGenOptionPeer peerOption;
+    memset(&peerOption, 0, sizeof(TGenOptionPeer));
+
+    GError* error = tgenoptionparser_parsePeer("TGENSOCKS", socksProxyStr, &peerOption);
+    if(error) {
+        tgen_warning("Error while parsing TGENSOCKS string: error %i: %s", error->code, error->message);
+        g_error_free(error);
+        return NULL;
+    }
+
+    if(peerOption.isSet) {
+        /* this peer needs to be freed by the caller */
+        return peerOption.value;
+    } else {
+        return NULL;
+    }
+}
+
 TGenTransport* tgentransport_newActive(TGenStreamOptions* options,
         TGenTransport_notifyBytesFunc notify, gpointer data, GDestroyNotify destructData) {
     /* get the ultimate destination */
@@ -295,7 +320,9 @@ TGenTransport* tgentransport_newActive(TGenStreamOptions* options,
     master.sin_family = AF_INET;
 
     /* if there is a proxy, we connect there; otherwise connect to the peer */
-    TGenPeer* proxy = options->socksProxy.isSet ? options->socksProxy.value : NULL;
+    TGenPeer* optProxy = options->socksProxy.isSet ? options->socksProxy.value : NULL;
+    TGenPeer* envProxy = _tgentransport_getProxyFromEnvHelper();
+    TGenPeer* proxy = envProxy ? envProxy : optProxy;
     TGenPeer* connectee = proxy ? proxy : peer;
 
     /* its safe to do lookups on whoever we are directly connecting to. */
@@ -317,7 +344,14 @@ TGenTransport* tgentransport_newActive(TGenStreamOptions* options,
     gchar* username = (proxy && options->socksUsername.isSet) ? options->socksUsername.value : NULL;
     gchar* password = (proxy && options->socksPassword.isSet) ? options->socksPassword.value : NULL;
 
-    return _tgentransport_newHelper(socketD, started, created, proxy, username, password, peer, notify, data, destructData);
+    TGenTransport* transport = _tgentransport_newHelper(socketD, started, created,
+            proxy, username, password, peer, notify, data, destructData);
+
+    if(envProxy) {
+        tgenpeer_unref(envProxy);
+    }
+
+    return transport;
 }
 
 TGenTransport* tgentransport_newPassive(gint socketD, gint64 started, gint64 created, TGenPeer* peer,
