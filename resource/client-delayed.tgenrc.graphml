@@ -1,10 +1,9 @@
-<?xml version="1.0" encoding="utf-8"?><graphml xmlns="http://graphml.graphdrawing.org/xmlns" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://graphml.graphdrawing.org/xmlns http://graphml.graphdrawing.org/xmlns/1.0/graphml.xsd">
-  <key attr.name="packetmodelpath" attr.type="string" for="node" id="d8" />
-  <key attr.name="streammodelpath" attr.type="string" for="node" id="d7" />
+<?xml version='1.0' encoding='utf-8'?>
+<graphml xmlns="http://graphml.graphdrawing.org/xmlns" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://graphml.graphdrawing.org/xmlns http://graphml.graphdrawing.org/xmlns/1.0/graphml.xsd">
   <key attr.name="markovmodelseed" attr.type="string" for="node" id="d6" />
-  <key attr.name="timeout" attr.type="string" for="node" id="d5" />
-  <key attr.name="count" attr.type="string" for="node" id="d4" />
-  <key attr.name="time" attr.type="string" for="node" id="d3" />
+  <key attr.name="streammodelpath" attr.type="string" for="node" id="d5" />
+  <key attr.name="packetmodelpath" attr.type="string" for="node" id="d4" />
+  <key attr.name="count" attr.type="string" for="node" id="d3" />
   <key attr.name="peers" attr.type="string" for="node" id="d2" />
   <key attr.name="heartbeat" attr.type="string" for="node" id="d1" />
   <key attr.name="loglevel" attr.type="string" for="node" id="d0" />
@@ -14,16 +13,16 @@
       <data key="d1">1 second</data>
       <data key="d2">localhost:8888</data>
     </node>
-    <node id="flow">
-      <data key="d6">12345</data>
-      <data key="d7">delayed.streammodel.graphml</data>
-      <data key="d8">delayed.packetmodel.graphml</data>
-    </node>
     <node id="end">
-      <data key="d4">1</data>
+      <data key="d3">4</data>
+    </node>
+    <node id="flow">
+      <data key="d4">delayed.packetmodel.graphml</data>
+      <data key="d5">delayed.streammodel.graphml</data>
+      <data key="d6">12345</data>
     </node>
     <edge source="start" target="flow" />
-    <edge source="flow" target="end" />
     <edge source="end" target="start" />
+    <edge source="flow" target="end" />
   </graph>
 </graphml>
