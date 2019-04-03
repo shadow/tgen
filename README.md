@@ -1,7 +1,7 @@
 ## TGen
 
 TGen is a C application that generates traffic flows between other
-Tgen instances. The characteristics of the traffic (e.g., size, timing,
+TGen instances. The characteristics of the traffic (e.g., size, timing,
 number of parallel flows, etc.) can be configured by the user.
 
 TGen can generate complex traffic patterns. Users write relatively simple

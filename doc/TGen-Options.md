@@ -57,6 +57,8 @@ Acceptable attributes for the **flow** action:
 |--------|--------|---------|-------------|
 | _streammodelpath_ | \<filepath\> | ~/streams.graphml | The Markov model to use to generate streams. If unspecified, tgen will use a default Markov model that repeatedly generates streams in both directions at a constant rate and with no inter-stream delay. |
 
+NOTE: all options for the **stream** action specified above can also be set in the **flow** action. Any stream options that are specified in the flow action will be passed through to all streams generated with the stream Markov model specified for this flow (and will therefore override options with the same name that were specified in the start action).
+
 ## Pause options
 
 Acceptable attributes for the **pause** action:
