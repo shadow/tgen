@@ -138,7 +138,7 @@ networkx.write_graphml(G, 'sample.mmodel.graphml')
 
 Below is a full example of code provided above. Another example script, which
 we use to generate our internal default packet and stream models, can be found
-in the repository at [tools/scripts/generate_mmodel_graphml.py](tools/scripts/generate_mmodel_graphml.py).
+in the repository at [tools/scripts/generate_mmodel_graphml.py](../tools/scripts/generate_mmodel_graphml.py).
 
 ```python
 G = networkx.DiGraph()
