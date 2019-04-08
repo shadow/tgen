@@ -21,6 +21,9 @@
 #define TGEN_MMODEL_ASSERT(obj)
 #endif
 
+/* we will never generate a delay longer than 10 minutes */
+#define TGEN_MMODEL_DELAY_CEILING (1000*1000*60*10)
+
 typedef enum _VertexAttribute VertexAttribute;
 enum _VertexAttribute {
     VERTEX_ATTR_ID=1,
@@ -1408,8 +1411,9 @@ Observation tgenmarkovmodel_getNextObservation(TGenMarkovModel* mmodel, guint64*
 
     if(delay) {
         *delay = _tgenmarkovmodel_generateDelay(mmodel, emissionEdgeIndex);
-        if(*delay > 60000000){
-            *delay = 60000000; // FIXME isn't a 60 second inter-stream delay reasonable!?
+        /* enforce a ceiling for the generated delay */
+        if(*delay > TGEN_MMODEL_DELAY_CEILING){
+            *delay = TGEN_MMODEL_DELAY_CEILING;
         }
     }
 
