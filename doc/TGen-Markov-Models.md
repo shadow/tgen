@@ -119,6 +119,9 @@ before transitioning to the next state.
 The following delay distributions are currently supported (more can be added
 as the need arises):
 
+  * `uniform`: a uniform distribution requires the attributes
+     `param_low` (a) and `param_high` (b) such that a <= b to generate
+     values uniformly in the range [a, b]
   * `normal`: a normal distribution requires the attributes
      `param_location` (mu) and `param_scale` (sigma)
   * `lognormal`: a lognormal distribution requires the attributes

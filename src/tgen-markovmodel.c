@@ -50,6 +50,8 @@ enum _EdgeAttribute {
     EDGE_ATTR_PARAM_SCALE=13,
     EDGE_ATTR_PARAM_RATE=14,
     EDGE_ATTR_PARAM_SHAPE=15,
+    EDGE_ATTR_PARAM_LOW=16,
+    EDGE_ATTR_PARAM_HIGH=17,
 };
 
 typedef enum _EdgeType EdgeType;
@@ -64,6 +66,7 @@ enum _EdgeDistribution {
     EDGE_DISTRIBUTION_LOGNORMAL=19,
     EDGE_DISTRIBUTION_EXPONENTIAL=20,
     EDGE_DISTRIBUTION_PARETO=21,
+    EDGE_DISTRIBUTION_UNIFORM=22,
 };
 
 struct _TGenMarkovModel {
@@ -111,6 +114,10 @@ static const gchar* _tgenmarkovmodel_edgeAttributeToString(EdgeAttribute attr) {
         return "param_rate";
     } else if(attr == EDGE_ATTR_PARAM_SHAPE) {
         return "param_shape";
+    } else if(attr == EDGE_ATTR_PARAM_LOW) {
+        return "param_low";
+    } else if(attr == EDGE_ATTR_PARAM_HIGH) {
+        return "param_high";
     } else {
         return "unknown";
     }
@@ -165,6 +172,8 @@ static const gchar* _tgenmarkovmodel_edgeDistToString(EdgeDistribution dist) {
         return "exponential";
     } else if(dist == EDGE_DISTRIBUTION_PARETO) {
         return "pareto";
+    } else if(dist == EDGE_DISTRIBUTION_UNIFORM) {
+        return "uniform";
     } else {
         return "unknown";
     }
@@ -463,6 +472,22 @@ gboolean _tgenmarkovmodel_checkEdgeAttributeParamPositive(TGenMarkovModel* mmode
     }
 }
 
+gboolean _tgenmarkovmodel_checkEdgeAttributeParamInfinity(TGenMarkovModel* mmodel,
+        igraph_integer_t edgeIndex, GString* message,
+        const gchar* distStr, const gchar* fromIDStr, const gchar* toIDStr,
+        const gchar* key, gdouble value) {
+    if (value > -INFINITY && value < INFINITY) {
+        g_string_append_printf(message, " %s='%f'", key, value);
+        return TRUE;
+    } else {
+        /* its an error if they gave a value that is incorrect */
+        tgen_warning("required attribute '%s' for distribution '%s' "
+                "on edge %li (from '%s' to '%s') must not be positive or negative infinity",
+                key, distStr, (glong )edgeIndex, fromIDStr, toIDStr);
+        return FALSE;
+    }
+}
+
 gboolean _tgenmarkovmodel_checkEdgeAttributeLocation(TGenMarkovModel* mmodel,
         igraph_integer_t edgeIndex, GString* message, const gchar* distStr,
         const gchar* fromIDStr, const gchar* toIDStr) {
@@ -525,6 +550,49 @@ gboolean _tgenmarkovmodel_checkEdgeAttributeShape(TGenMarkovModel* mmodel,
         if(_tgenmarkovmodel_checkEdgeAttributeParamPositive(mmodel, edgeIndex, message,
                 distStr, fromIDStr, toIDStr, shapeKey, shapeValue)) {
             return TRUE;
+        }
+    }
+
+    return FALSE;
+}
+
+gboolean _tgenmarkovmodel_checkEdgeAttributesUniform(TGenMarkovModel* mmodel,
+        igraph_integer_t edgeIndex, GString* message, const gchar* distStr,
+        const gchar* fromIDStr, const gchar* toIDStr) {
+    const gchar* lowKey = NULL;
+    const gchar* highKey = NULL;
+
+    gdouble lowValue = -INFINITY;
+    gdouble highValue = INFINITY;
+
+    gboolean isSuccessLow = FALSE;
+    gboolean isSuccessHigh = FALSE;
+
+    if(_tgenmarkovmodel_checkEdgeAttributeParamExists(mmodel, edgeIndex, EDGE_ATTR_PARAM_LOW,
+            message, distStr, fromIDStr, toIDStr, &lowKey, &lowValue)) {
+        if(_tgenmarkovmodel_checkEdgeAttributeParamInfinity(mmodel, edgeIndex, message,
+                distStr, fromIDStr, toIDStr, lowKey, lowValue)) {
+            isSuccessLow = TRUE;
+        }
+    }
+
+    if(_tgenmarkovmodel_checkEdgeAttributeParamExists(mmodel, edgeIndex, EDGE_ATTR_PARAM_HIGH,
+            message, distStr, fromIDStr, toIDStr, &highKey, &highValue)) {
+        if(_tgenmarkovmodel_checkEdgeAttributeParamInfinity(mmodel, edgeIndex, message,
+                distStr, fromIDStr, toIDStr, highKey, highValue)) {
+            isSuccessHigh = TRUE;
+        }
+    }
+
+    if(isSuccessLow && isSuccessHigh) {
+        if(lowValue <= highValue) {
+            return TRUE;
+        } else {
+            tgen_warning("distribution '%s' on edge %li (from '%s' to '%s') requires "
+                    "parameters satisfy '%s' <= '%s'",
+                    distStr, (glong )edgeIndex, fromIDStr, toIDStr,
+                    _tgenmarkovmodel_edgeAttributeToString(EDGE_ATTR_PARAM_LOW),
+                    _tgenmarkovmodel_edgeAttributeToString(EDGE_ATTR_PARAM_HIGH));
         }
     }
 
@@ -677,10 +745,17 @@ static gboolean _tgenmarkovmodel_checkEdgeAttributes(TGenMarkovModel* mmodel, ig
                             message, distStr, fromIDStr, toIDStr)) {
                         isSuccess = FALSE;
                     }
+                } else if(_tgenmarkovmodel_edgeDistIsEqual(distStr, EDGE_DISTRIBUTION_UNIFORM)) {
+                    /* uniform requires low (a) and high (b) for range [a, b] where a <= b */
+                    if(!_tgenmarkovmodel_checkEdgeAttributesUniform(mmodel, edgeIndex,
+                            message, distStr, fromIDStr, toIDStr)) {
+                        isSuccess = FALSE;
+                    }
                 } else {
                     tgen_warning("required attribute '%s' value '%s' on edge %li (from '%s' to '%s') is invalid, "
-                            "need one of '%s', '%s', '%s', or '%s'", distKey, distStr,
+                            "need one of '%s', '%s', '%s', '%s', or '%s'", distKey, distStr,
                             (glong)edgeIndex, fromIDStr, toIDStr,
+                            _tgenmarkovmodel_edgeDistToString(EDGE_DISTRIBUTION_UNIFORM),
                             _tgenmarkovmodel_edgeDistToString(EDGE_DISTRIBUTION_NORMAL),
                             _tgenmarkovmodel_edgeDistToString(EDGE_DISTRIBUTION_LOGNORMAL),
                             _tgenmarkovmodel_edgeDistToString(EDGE_DISTRIBUTION_EXPONENTIAL),
@@ -906,7 +981,9 @@ TGenMarkovModel* tgenmarkovmodel_newFromPath(const gchar* name, guint32 seed, co
     fclose(graphFileStream);
 
     TGenMarkovModel* mmodel = graph ? _tgenmarkovmodel_new(graph, name, seed) : NULL;
-    mmodel->path = g_strdup(graphmlFilePath);
+    if(mmodel) {
+        mmodel->path = g_strdup(graphmlFilePath);
+    }
     return mmodel;
 }
 
@@ -1130,6 +1207,13 @@ static gdouble _tgenmarkovmodel_generateParetoValue(TGenMarkovModel* mmodel,
     return scale/pow(uniform, (1/shape));
 }
 
+static gdouble _tgenmarkovmodel_generateUniformValue(TGenMarkovModel* mmodel,
+        gdouble low, gdouble high) {
+    /* inverse transform sampling, scale is x_m, shape is alpha */
+    gdouble uniform = _tgenmarkovmodel_getUniform(mmodel);
+    return low + ((high - low) * uniform);
+}
+
 /* returns a generated value in microseconds, rounded to the nearest microsecond */
 static guint64 _tgenmarkovmodel_generateDelay(TGenMarkovModel* mmodel,
         igraph_integer_t edgeIndex) {
@@ -1193,6 +1277,20 @@ static guint64 _tgenmarkovmodel_generateDelay(TGenMarkovModel* mmodel,
         g_assert(shape > 0);
 
         generatedValue = _tgenmarkovmodel_generateParetoValue(mmodel, scale, shape);
+    } else if(_tgenmarkovmodel_edgeDistIsEqual(distStr, EDGE_DISTRIBUTION_UNIFORM)) {
+        gdouble low = -INFINITY;
+        isSuccess = _tgenmarkovmodel_findEdgeAttributeDouble(mmodel, edgeIndex, EDGE_ATTR_PARAM_LOW, &low);
+        g_assert(isSuccess);
+        g_assert(low > -INFINITY);
+
+        gdouble high = INFINITY;
+        isSuccess = _tgenmarkovmodel_findEdgeAttributeDouble(mmodel, edgeIndex, EDGE_ATTR_PARAM_HIGH, &high);
+        g_assert(isSuccess);
+        g_assert(high < INFINITY);
+
+        g_assert(low <= high);
+
+        generatedValue = _tgenmarkovmodel_generateUniformValue(mmodel, low, high);
     } else {
         g_assert_not_reached();
     }

@@ -459,7 +459,7 @@ static GError* _tgengraph_validateMarkovModel(TGenGraph* g, const gchar* path, g
         tgenmarkovmodel_unref(mmodel);
     } else {
         error = g_error_new(G_MARKUP_ERROR, G_MARKUP_ERROR_INVALID_CONTENT,
-                "Validation failed for Markov model at path '%s',"
+                "Validation failed for Markov model at path '%s', "
                 "please check the format of the file contents and try again.", path);
     }
 
