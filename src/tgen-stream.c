@@ -8,7 +8,7 @@
 
 /* disable default timeout */
 #define DEFAULT_STREAM_TIMEOUT_NSEC (0*((guint64)1000*1000*1000))
-/* 60 second default stallout */
+/* 30 second default stallout */
 #define DEFAULT_STREAM_STALLOUT_NSEC (30*((guint64)1000*1000*1000))
 
 /* default lengths for buffers used during i/o.
@@ -1660,28 +1660,69 @@ static TGenEvent _tgenstream_computeWantedEvents(TGenStream* stream) {
     return wantedEvents;
 }
 
+static void _tgenstream_onEpollERRHUP(TGenStream* stream) {
+    TGEN_ASSERT(stream);
+
+    /* we got an EPOLLERR or an EPOLLHUP event from epoll.
+     * if we still think we don't have an error, then we override here.
+     * this ensures that the error is logged and notified as an error. */
+    TGenEvent next = _tgenstream_computeWantedEvents(stream);
+
+    if(!(next & TGEN_EVENT_DONE)) {
+        tgen_debug("We got either an EPOLLERR or EPOLLHUP event but we still think "
+                "we need more io, overriding with MISC error");
+
+        /* we still dont think we are done, so override with error */
+        if(next & TGEN_EVENT_READ) {
+            /* we still think we need to read */
+            _tgenstream_changeRecvState(stream, TGEN_STREAM_RECV_ERROR);
+        }
+        if(next & TGEN_EVENT_WRITE) {
+            /* we still think we need to read */
+            _tgenstream_changeSendState(stream, TGEN_STREAM_SEND_ERROR);
+        }
+        _tgenstream_changeError(stream, TGEN_STREAM_ERR_MISC);
+    }
+}
+
 static TGenIOResponse _tgenstream_runStreamEventLoop(TGenStream* stream, TGenEvent events) {
     TGEN_ASSERT(stream);
 
     gsize recvBefore = stream->recv.payloadBytes;
     gsize sendBefore = stream->send.payloadBytes;
 
-    /* process the events */
+    /* process the read/write IO events */
     if(events & TGEN_EVENT_READ) {
         _tgenstream_onReadable(stream);
     }
     if(events & TGEN_EVENT_WRITE) {
-        /* process the events */
         _tgenstream_onWritable(stream);
+    }
+
+    /* if we got EPOLLERR or EPOLLHUP, lets read/write the EOF or err code */
+    if(events & TGEN_EVENT_DONE) {
+        /* call twice to finish reading the kernel recv buf, and then to read the EOF/error */
+        _tgenstream_onReadable(stream);
+        _tgenstream_onReadable(stream);
+
+        /* call to check for write error.
+         * this call may happen before an expected deferred write, so reset the defer time */
+        stream->send.deferBarrierMicros = 0;
+        _tgenstream_onWritable(stream);
+
+        /* ensure we set an error state */
+        _tgenstream_onEpollERRHUP(stream);
     }
 
     /* check if we want to log any progress information */
     gboolean recvActive = (stream->recv.payloadBytes > recvBefore) ? TRUE : FALSE;
     gboolean sendActive = (stream->send.payloadBytes > sendBefore) ? TRUE : FALSE;
     gboolean wasActive = (recvActive || sendActive) ? TRUE : FALSE;
+
+    /* log progress, success, or error */
     _tgenstream_log(stream, wasActive);
 
-    /* figure out which events we need to advance */
+    /* figure out which events we want next time */
     TGenIOResponse response;
     memset(&response, 0, sizeof(TGenIOResponse));
     response.events = _tgenstream_computeWantedEvents(stream);
