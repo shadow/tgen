@@ -42,9 +42,10 @@ def generate_default_packetmodel(filename):
 
     # 'distribution' is required
     # all parameters should be type double
+    # if 'uniform', ' then 'param_low' and 'param_high' are required
+    # if 'normal', ' then 'param_location' and 'param_scale' are required
     # if 'exponential', then 'param_rate' is required
     # if 'lognormal', ' then 'param_location' and 'param_scale' are required
-    # if 'normal', ' then 'param_location' and 'param_scale' are required
     # if 'pareto', ' then 'param_scale' and 'param_shape' are required
     G.add_edge('s1', 'o1', type='emission', weight=0.5, distribution='exponential', param_rate=100.0)
     G.add_edge('s1', 'o2', type='emission', weight=0.5, distribution='exponential', param_rate=100.0)
