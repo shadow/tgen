@@ -417,13 +417,21 @@ void tgenio_checkTimeouts(TGenIO* io) {
     GList* items = g_hash_table_get_values(io->children);
     GList* item = g_list_first(items);
 
+    /* deregistering children modifies the hash table and invalidates the values list.
+     * we cannot modify the hash table while iterating. */
+    GQueue* descriptorsToDeregister = NULL;
+
     while(item) {
         TGenIOChild* child = item->data;
         if(child && child->checkTimeout) {
             /* this calls tgentransfer_onCheckTimeout to check and handle if a timeout is present */
             gboolean hasTimeout = child->checkTimeout(child->data, child->descriptor);
             if(hasTimeout) {
-                _tgenio_deregister(io, child->descriptor);
+                /* only create the queue on the fly if needed */
+                if(descriptorsToDeregister == NULL) {
+                    descriptorsToDeregister = g_queue_new();
+                }
+                g_queue_push_head(descriptorsToDeregister, GINT_TO_POINTER(child->descriptor));
             }
         }
         item = g_list_next(item);
@@ -431,6 +439,16 @@ void tgenio_checkTimeouts(TGenIO* io) {
 
     if(items != NULL) {
         g_list_free(items);
+    }
+
+    /* now free any children who timed out */
+    if(descriptorsToDeregister) {
+        while(!g_queue_is_empty(descriptorsToDeregister)) {
+            gint descriptor = GPOINTER_TO_INT(g_queue_pop_head(descriptorsToDeregister));
+            _tgenio_deregister(io, descriptor);
+        }
+
+        g_queue_free(descriptorsToDeregister);
     }
 }
 
