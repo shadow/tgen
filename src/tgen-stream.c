@@ -455,12 +455,12 @@ static gssize _tgenstream_read(TGenStream* stream, guchar* buffer, gsize limit) 
         if(stream->recv.state != TGEN_STREAM_RECV_PAYLOAD ||
                 (stream->recv.requestedBytes > 0 &&
                         stream->recv.payloadBytes < stream->recv.requestedBytes)) {
-            _tgenstream_changeRecvState(stream, TGEN_STREAM_RECV_ERROR);
-            _tgenstream_changeError(stream, TGEN_STREAM_ERR_READEOF);
-
             tgen_critical("read(): transport %s stream %s closed unexpectedly",
                     tgentransport_toString(stream->transport),
                     _tgenstream_toString(stream));
+
+            _tgenstream_changeRecvState(stream, TGEN_STREAM_RECV_ERROR);
+            _tgenstream_changeError(stream, TGEN_STREAM_ERR_READEOF);
         }
     } else {
         stream->recv.totalBytes += bytes;
