@@ -61,6 +61,7 @@ struct _TGenGraph {
 
     gboolean startHasPeers;
     gboolean transferMissingPeers;
+    GHashTable* validatedMarkovModelPaths;
 
     gint refcount;
     guint magic;
@@ -448,6 +449,14 @@ static glong _tgengraph_countIncomingEdges(TGenGraph* g, igraph_integer_t vertex
 static GError* _tgengraph_validateMarkovModel(TGenGraph* g, const gchar* path, guint32 seed) {
     GError* error = NULL;
 
+    /* check if we already validated this path */
+    if(g->validatedMarkovModelPaths) {
+        if(g_hash_table_contains(g->validatedMarkovModelPaths, path)) {
+            /* this path was already used in the config and we already validated it */
+            return NULL;
+        }
+    }
+
     gchar* name = g_path_get_basename(path);
 
     TGenMarkovModel* mmodel = tgenmarkovmodel_newFromPath(name, seed, path);
@@ -457,6 +466,15 @@ static GError* _tgengraph_validateMarkovModel(TGenGraph* g, const gchar* path, g
     if(mmodel) {
         tgen_message("Validation of Markov model at path '%s' was successful!", path);
         tgenmarkovmodel_unref(mmodel);
+
+        /* store the path so we don't try to validate it again if it is used in another action */
+        if(!g->validatedMarkovModelPaths) {
+            g->validatedMarkovModelPaths = g_hash_table_new_full(g_str_hash, g_str_equal, g_free, NULL);
+        }
+
+        /* push a copy to the hash table, which takes ownership and will destroy it */
+        gchar* pathCopy = g_strdup(path);
+        g_hash_table_replace(g->validatedMarkovModelPaths, pathCopy, GINT_TO_POINTER(1));
     } else {
         error = g_error_new(G_MARKUP_ERROR, G_MARKUP_ERROR_INVALID_CONTENT,
                 "Validation failed for Markov model at path '%s', "
@@ -1083,6 +1101,9 @@ static void _tgengraph_free(TGenGraph* g) {
     if(g->graphPath) {
         g_free(g->graphPath);
     }
+    if(g->validatedMarkovModelPaths) {
+        g_hash_table_destroy(g->validatedMarkovModelPaths);
+    }
 
     g->magic = 0;
     g_free(g);
@@ -1156,6 +1177,13 @@ TGenGraph* tgengraph_new(gchar* path) {
         g_error_free(error);
         tgengraph_unref(g);
         return NULL;
+    }
+
+    /* we don't need the Markov model validation cache any more */
+    if(g->validatedMarkovModelPaths) {
+        g_hash_table_destroy(g->validatedMarkovModelPaths);
+        /* make sure it does not get destroyed again in _tgengraph_free() */
+        g->validatedMarkovModelPaths = NULL;
     }
 
     tgen_message("successfully loaded graphml file '%s' and validated actions: "
