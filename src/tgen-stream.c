@@ -389,7 +389,7 @@ static void _tgenstream_changeError(TGenStream* stream, TGenStreamErrorType erro
     _tgenstream_resetString(stream);
 }
 
-static gssize _tgenstream_readBuffered(TGenStream* stream, guchar* buffer, gsize limit) {
+static gsize _tgenstream_readBuffered(TGenStream* stream, guchar* buffer, gsize limit) {
     TGEN_ASSERT(stream);
     g_assert(stream->recv.buffer);
     g_assert(stream->recv.buffer->len > 0);
@@ -408,7 +408,7 @@ static gssize _tgenstream_readBuffered(TGenStream* stream, guchar* buffer, gsize
         stream->recv.buffer = NULL;
 
         /* their buffer might be larger than what they need, so return what we have */
-        return (gssize) amount;
+        return amount;
     } else {
         /* we already have more buffered than the caller wants */
         g_memmove(buffer, stream->recv.buffer->str, limit);
@@ -421,7 +421,7 @@ static gssize _tgenstream_readBuffered(TGenStream* stream, guchar* buffer, gsize
         stream->recv.buffer = newBuffer;
 
         /* we read everything they wanted, don't try to read more */
-        return (gssize) limit;
+        return limit;
     }
 }
 
@@ -432,7 +432,7 @@ static gssize _tgenstream_read(TGenStream* stream, guchar* buffer, gsize limit) 
 
     /* if there is anything left over in the recv buffer, use that first */
     if(stream->recv.buffer) {
-        return _tgenstream_readBuffered(stream, buffer, limit);
+        return (gssize)_tgenstream_readBuffered(stream, buffer, limit);
     }
 
     /* by now the recv buffer should be empty */
@@ -463,26 +463,56 @@ static gssize _tgenstream_read(TGenStream* stream, guchar* buffer, gsize limit) 
             _tgenstream_changeError(stream, TGEN_STREAM_ERR_READEOF);
         }
     } else {
-        stream->recv.totalBytes += bytes;
+        stream->recv.totalBytes += (gsize)bytes;
     }
 
     return bytes;
 }
 
+static gssize _tgenstream_findNewLineIndex(TGenStream* stream, gchar* buffer, gsize length) {
+    TGEN_ASSERT(stream);
+    for(gsize i = 0; i < length; i++) {
+        if(buffer[i] == '\n') {
+            return i;
+        }
+    }
+    return (gssize)-1;
+}
+
 static GString* _tgenstream_getLine(TGenStream* stream) {
     TGEN_ASSERT(stream);
 
-    /* our read buffer */
-    guchar buffer[DEFAULT_STREAM_READ_BUFLEN];
+    /* our line read buffer */
+    GString* lineBuffer = stream->recv.buffer;
+    stream->recv.buffer = NULL;
 
-    /* get some data */
-    gssize bytes = _tgenstream_read(stream, buffer, DEFAULT_STREAM_READ_BUFLEN);
+    gssize newlineIndex = -1;
 
-    /* if there was an error, just return */
-    if(bytes <= 0) {
-        tgen_debug("Read returned %"G_GSSIZE_FORMAT" when reading a line: error %i: %s",
-                bytes, errno, g_strerror(errno));
-        return NULL;
+    /* check any buffered data first */
+    if(lineBuffer) {
+        newlineIndex = _tgenstream_findNewLineIndex(stream, lineBuffer->str, lineBuffer->len);
+    }
+
+    /* if we did not find a newline, read some new data from the kernel */
+    if(newlineIndex < 0) {
+        guchar buffer[DEFAULT_STREAM_READ_BUFLEN];
+        gssize bytes = _tgenstream_read(stream, buffer, DEFAULT_STREAM_READ_BUFLEN);
+
+        /* if there was an error, just return */
+        if(bytes <= 0) {
+            tgen_debug("Read returned %"G_GSSIZE_FORMAT" when reading a line: error %i: %s",
+                    bytes, errno, g_strerror(errno));
+            g_assert(stream->recv.buffer == NULL);
+            stream->recv.buffer = lineBuffer;
+            return NULL;
+        }
+
+        if(lineBuffer) {
+            lineBuffer = g_string_append_len(lineBuffer, &buffer[0], bytes);
+        } else {
+            lineBuffer = g_string_new_len(&buffer[0], bytes);
+        }
+
     }
 
     /* we are looking for a full line */
@@ -491,41 +521,33 @@ static GString* _tgenstream_getLine(TGenStream* stream) {
     /* keep track if we need to keep any bytes */
     gssize remaining = 0;
     gssize offset = 0;
-    gboolean foundNewline = FALSE;
 
-    /* scan the buffer for the newline character */
-    for(gssize i = 0; i < bytes; i++) {
-        if(buffer[i] == '\n') {
-            /* found the end of the line */
-            foundNewline = TRUE;
+    newlineIndex = _tgenstream_findNewLineIndex(stream, lineBuffer->str, lineBuffer->len);
 
-            /* don't include the newline in the returned buffer */
-            line = g_string_new_len(buffer, i);
-
-            /* are there more bytes left, make sure not to count the newline character */
-            remaining = bytes-i-1;
-            offset = i+1;
-
-            break;
-        }
-    }
-
-    tgen_debug("%s newline in %"G_GSSIZE_FORMAT" bytes",
-            foundNewline ? "Found" : "Did not find", bytes);
-
-    /* if we didn't find the newline yet, then we need to keep everything */
-    if(!foundNewline) {
-        remaining = bytes;
+    if(newlineIndex < 0) {
+        /* we didn't find the newline yet, we need to keep everything */
+        remaining = lineBuffer->len;
         offset = 0;
+    } else {
+        /* don't include the newline in the returned buffer */
+        line = g_string_new_len(lineBuffer->str, newlineIndex);
+
+        /* are there more bytes left, make sure not to count the newline character */
+        remaining = lineBuffer->len - newlineIndex - 1;
+        offset = newlineIndex + 1;
     }
+
+    tgen_debug("%s newline in %"G_GSIZE_FORMAT" bytes",
+            (newlineIndex >= 0) ? "Found" : "Did not find", lineBuffer->len);
 
     if(remaining > 0) {
         /* store the rest of the bytes in the read buffer for later */
-        if(stream->recv.buffer == NULL) {
-            stream->recv.buffer = g_string_new_len(&buffer[offset], remaining);
-        } else {
-            g_string_append_len(stream->recv.buffer, &buffer[offset], remaining);
-        }
+        g_assert(stream->recv.buffer == NULL);
+        stream->recv.buffer = g_string_new_len(&lineBuffer->str[offset], remaining);
+    }
+
+    if(lineBuffer) {
+        g_string_free(lineBuffer, TRUE);
     }
 
     /* return the line, which may be NULL if we didn't find it yet */
