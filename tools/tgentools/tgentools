@@ -165,6 +165,14 @@ will override the default pattern 'tgen.*\.log'.""",
         action="store", dest="lineformats",
         default=util.LINEFORMATS)
 
+    visualize_parser.add_argument('-e', '--expression',
+        help="""Append a regex PATTERN to a custom list of strings used with
+re.search to select which host names in the analysis results get plotted.
+By default, results from all hosts in the analysis file will get plotted.""",
+        metavar="PATTERN", type=str,
+        action="append", dest="hostpatterns",
+        default=[])
+
     # edit
     edit_parser = sub_parser.add_parser('edit', description=DESC_EDIT, help=HELP_EDIT,
         formatter_class=my_formatter_class)
@@ -256,7 +264,7 @@ def visualize(args):
     lflist = args.lineformats.strip().split(",")
     lfcycle = cycle(lflist)
 
-    tgen_viz = TGenVisualization()
+    tgen_viz = TGenVisualization(args.hostpatterns)
 
     for (path, label) in args.datasets:
         nextformat = next(lfcycle)
