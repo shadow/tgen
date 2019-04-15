@@ -9,15 +9,16 @@ matplotlib.use('Agg') # for systems without X11
 import matplotlib.pyplot as pyplot
 from matplotlib.backends.backend_pdf import PdfPages
 
-import numpy, time, logging
+import numpy, time, logging, re
 from abc import abstractmethod, ABCMeta
 
 class Visualization(object):
 
     __metaclass__ = ABCMeta
 
-    def __init__(self):
+    def __init__(self, hostpatterns):
         self.datasets = []
+        self.hostpatterns = hostpatterns
 
     def add_dataset(self, analysis, label, lineformat):
         self.datasets.append((analysis, label, lineformat))
@@ -68,12 +69,23 @@ class TGenVisualization(Visualization):
             self.page.close()
             logging.info("Saved PDF page {}".format(pagename))
 
+    def __get_nodes(self, anal):
+        nodes = set()
+        for client in anal.get_nodes():
+            if len(self.hostpatterns) > 0:
+                for pattern in self.hostpatterns:
+                    if re.search(pattern, client) is not None:
+                        nodes.add(client)
+            else:
+                nodes.add(client)
+        return nodes
+
     def __plot_firstbyte(self):
         f = None
 
         for (anal, label, lineformat) in self.datasets:
             fb = []
-            for client in anal.get_nodes():
+            for client in self.__get_nodes(anal):
                 d = anal.get_tgen_stream_summary(client)
                 if d is None: continue
                 if "time_to_first_byte_recv" in d:
@@ -98,7 +110,7 @@ class TGenVisualization(Visualization):
 
         for (anal, label, lineformat) in self.datasets:
             lb = {}
-            for client in anal.get_nodes():
+            for client in self.__get_nodes(anal):
                 d = anal.get_tgen_stream_summary(client)
                 if d is None: continue
                 if "time_to_last_byte_recv" in d:
@@ -127,7 +139,7 @@ class TGenVisualization(Visualization):
 
         for (anal, label, lineformat) in self.datasets:
             lb = {}
-            for client in anal.get_nodes():
+            for client in self.__get_nodes(anal):
                 d = anal.get_tgen_stream_summary(client)
                 if d is None: continue
                 if "time_to_last_byte_recv" in d:
@@ -158,7 +170,7 @@ class TGenVisualization(Visualization):
 
         for (anal, label, lineformat) in self.datasets:
             lb = {}
-            for client in anal.get_nodes():
+            for client in self.__get_nodes(anal):
                 d = anal.get_tgen_stream_summary(client)
                 if d is None: continue
                 if "time_to_last_byte_recv" in d:
@@ -189,7 +201,7 @@ class TGenVisualization(Visualization):
 
         for (anal, label, lineformat) in self.datasets:
             lb = {}
-            for client in anal.get_nodes():
+            for client in self.__get_nodes(anal):
                 d = anal.get_tgen_stream_summary(client)
                 if d is None: continue
                 if "time_to_last_byte_recv" in d:
@@ -220,7 +232,7 @@ class TGenVisualization(Visualization):
 
         for (anal, label, lineformat) in self.datasets:
             lb = {}
-            for client in anal.get_nodes():
+            for client in self.__get_nodes(anal):
                 d = anal.get_tgen_stream_summary(client)
                 if d is None: continue
                 if bytekey in d:
@@ -256,7 +268,7 @@ class TGenVisualization(Visualization):
 
         for (anal, label, lineformat) in self.datasets:
             dls = {}
-            for client in anal.get_nodes():
+            for client in self.__get_nodes(anal):
                 d = anal.get_tgen_stream_summary(client)
                 if d is None: continue
                 if "time_to_last_byte_recv" in d:
@@ -286,7 +298,7 @@ class TGenVisualization(Visualization):
 
         for (anal, label, lineformat) in self.datasets:
             dls = {}
-            for client in anal.get_nodes():
+            for client in self.__get_nodes(anal):
                 d = anal.get_tgen_stream_summary(client)
                 if d is None: continue
                 if "time_to_last_byte_recv" in d:
@@ -322,7 +334,7 @@ class TGenVisualization(Visualization):
 
         for (anal, label, lineformat) in self.datasets:
             dls = {}
-            for client in anal.get_nodes():
+            for client in self.__get_nodes(anal):
                 d = anal.get_tgen_stream_summary(client)
                 if d is None: continue
                 if "errors" in d:
@@ -351,7 +363,7 @@ class TGenVisualization(Visualization):
 
         for (anal, label, lineformat) in self.datasets:
             dls = {}
-            for client in anal.get_nodes():
+            for client in self.__get_nodes(anal):
                 d = anal.get_tgen_stream_summary(client)
                 if d is None: continue
                 if "errors" in d:
@@ -386,7 +398,7 @@ class TGenVisualization(Visualization):
 
         for (anal, label, lineformat) in self.datasets:
             err = {}
-            for client in anal.get_nodes():
+            for client in self.__get_nodes(anal):
                 d = anal.get_tgen_stream_summary(client)
                 if d is None: continue
                 if "errors" in d:
@@ -416,7 +428,7 @@ class TGenVisualization(Visualization):
 
         for (anal, label, lineformat) in self.datasets:
             err = {}
-            for client in anal.get_nodes():
+            for client in self.__get_nodes(anal):
                 d = anal.get_tgen_stream_summary(client)
                 if d is None: continue
                 if "errors" in d:
@@ -446,7 +458,7 @@ class TGenVisualization(Visualization):
 
         for (anal, label, lineformat) in self.datasets:
             err = {}
-            for client in anal.get_nodes():
+            for client in self.__get_nodes(anal):
                 d = anal.get_tgen_stream_summary(client)
                 if d is None: continue
                 if "errors" in d:
