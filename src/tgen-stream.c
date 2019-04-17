@@ -1591,7 +1591,7 @@ static void _tgenstream_log(TGenStream* stream, gboolean wasActive) {
             gchar* bytesMessage = _tgenstream_getBytesStatusReport(stream);
             gchar* timeMessage = _tgenstream_getTimeStatusReport(stream);
 
-            tgen_message("[stream-complete] transport %s stream %s bytes %s times %s",
+            tgen_message("[stream-success] transport %s stream %s bytes %s times %s",
                     tgentransport_toString(stream->transport),
                     _tgenstream_toString(stream), bytesMessage, timeMessage);
 
