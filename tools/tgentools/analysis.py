@@ -331,7 +331,7 @@ class TGenParser(Parser):
             stream = self.state.setdefault(status.stream_id, Stream(status.stream_id))
             stream.add_event(status)
 
-        elif re.search("stream-complete", line) is not None:
+        elif re.search("stream-success", line) is not None:
             complete = StreamSuccessEvent(line)
 
             if do_complete:
