@@ -366,10 +366,9 @@ static void _tgentransport_free(TGenTransport* transport) {
         if(transport->error == TGEN_XPORT_ERR_NONE) {
             tgen_debug("Calling shutdown() on transport %s", tgentransport_toString(transport));
             shutdown(transport->socketD, SHUT_RDWR);
-        } else {
-            tgen_debug("Calling close() on transport %s", tgentransport_toString(transport));
-            close(transport->socketD);
         }
+        tgen_debug("Calling close() on transport %s", tgentransport_toString(transport));
+        close(transport->socketD);
     }
 
     if(transport->string) {
@@ -424,7 +423,9 @@ void tgentransport_unref(TGenTransport* transport) {
 void tgentransport_shutdownWrites(TGenTransport* transport) {
     TGEN_ASSERT(transport);
     if(transport->socketD > 0) {
-        shutdown(transport->socketD, SHUT_WR);
+//        Tor will close the circuit if we call shutdown
+//        Once they implement RELAY_FIN cells, we can uncomment this
+//        shutdown(transport->socketD, SHUT_WR);
     }
 }
 

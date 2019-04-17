@@ -117,6 +117,12 @@ struct _TGenStream {
         /* if TRUE and requestedBytes is 0, we should not recv anything;
          * if FALSE and requestedBytes is 0, we stop when the model ends */
         gboolean requestedZero;
+        /* the number of payload bytes we expect the other end should send us, computed as
+         * we make our way through the Markov model state machine.
+         * this is only valid if requestedBytes is 0, and requestedZero is FALSE, because
+         * otherwise both ends may repeat the model different number of times in order to
+         * reach the requested send amount. */
+        gsize expectedBytes;
         /* the number of payload bytes we have read */
         gsize payloadBytes;
         /* the total number of bytes we have read */
@@ -140,6 +146,8 @@ struct _TGenStream {
         /* if TRUE and requestedBytes is 0, we should not send anything;
          * if FALSE and requestedBytes is 0, we stop when the model ends */
         gboolean requestedZero;
+        /* how much did we expect to send based on the Markov model state machine */
+        gsize expectedBytes;
         /* the number of payload bytes we have written */
         gsize payloadBytes;
         /* the total number of bytes we have written */
@@ -168,6 +176,7 @@ struct _TGenStream {
 
     /* track timings for time reporting, using g_get_monotonic_time in usec granularity */
     struct {
+        gint64 nowCached;
         gint64 start;
         gint64 command;
         gint64 response;
@@ -387,6 +396,14 @@ static void _tgenstream_changeError(TGenStream* stream, TGenStreamErrorType erro
             _tgenstream_errorToString(error));
     stream->error = error;
     _tgenstream_resetString(stream);
+}
+
+static gint64 _tgenstream_getTime(TGenStream* stream) {
+    if(stream->time.nowCached > 0) {
+        return stream->time.nowCached;
+    } else {
+        return g_get_monotonic_time();
+    }
 }
 
 static gsize _tgenstream_readBuffered(TGenStream* stream, guchar* buffer, gsize limit) {
@@ -807,7 +824,7 @@ static gboolean _tgenstream_readHeader(TGenStream* stream) {
         _tgenstream_resetString(stream);
         if(stream->isCommander) {
             /* we are done receive the response */
-            stream->time.response = g_get_monotonic_time();
+            stream->time.response = _tgenstream_getTime(stream);
         }
         return TRUE;
     } else {
@@ -867,7 +884,7 @@ static gboolean _tgenstream_readModel(TGenStream* stream) {
             tgen_info("We received a valid Markov model");
             if(!stream->isCommander) {
                 /* we are done receive the command */
-                stream->time.command = g_get_monotonic_time();
+                stream->time.command = _tgenstream_getTime(stream);
             }
             return TRUE;
         } else {
@@ -909,21 +926,19 @@ static gboolean _tgenstream_readPayload(TGenStream* stream) {
 
     /* EOF is a valid end state for streams where we don't know the payload size */
     if(bytes == 0 && stream->recv.requestedBytes == 0) {
-        /* its possible they didnt send us anything */
-        if(stream->recv.payloadBytes > 0) {
-            stream->time.lastPayloadByteRecv = g_get_monotonic_time();
-        }
-
         return TRUE;
     }
 
+    /* we didn't get anything or some error when reading */
     if(bytes <= 0 || stream->recv.state != TGEN_STREAM_RECV_PAYLOAD) {
-        /* we didn't get anything or some error when reading */
         return FALSE;
     }
 
-    if(stream->recv.payloadBytes == 0) {
-        stream->time.firstPayloadByteRecv = g_get_monotonic_time();
+    if(bytes > 0) {
+        if(stream->recv.payloadBytes == 0) {
+            stream->time.firstPayloadByteRecv = _tgenstream_getTime(stream);
+        }
+        stream->time.lastPayloadByteRecv = _tgenstream_getTime(stream);
     }
 
     stream->recv.payloadBytes += bytes;
@@ -939,7 +954,6 @@ static gboolean _tgenstream_readPayload(TGenStream* stream) {
             stream->recv.payloadBytes >= stream->recv.requestedBytes) {
         tgen_debug("Finished reading %"G_GSIZE_FORMAT
                 " requested payload bytes", stream->recv.payloadBytes);
-        stream->time.lastPayloadByteRecv = g_get_monotonic_time();
         return TRUE;
     }
 
@@ -963,7 +977,7 @@ static gboolean _tgenstream_readChecksum(TGenStream* stream) {
     }
 
     /* we have read the entire checksum from the other end */
-    stream->time.checksumRecv = g_get_monotonic_time();
+    stream->time.checksumRecv = _tgenstream_getTime(stream);
 
     gchar** parts = g_strsplit(line->str, " ", 0);
     const gchar* receivedSum = parts[1];
@@ -1059,7 +1073,7 @@ static void _tgenstream_onReadable(TGenStream* stream) {
             _tgenstream_toString(stream), totalBytes);
 
     if(totalBytes > 0) {
-        stream->time.lastProgress = g_get_monotonic_time();
+        stream->time.lastProgress = _tgenstream_getTime(stream);
     }
 }
 
@@ -1192,7 +1206,7 @@ static gboolean _tgenstream_writeCommand(TGenStream* stream) {
 
     if(!stream->send.buffer) {
         /* entire command was sent, move to payload phase */
-        stream->time.command = g_get_monotonic_time();
+        stream->time.command = _tgenstream_getTime(stream);
         return TRUE;
     } else {
         /* still need to write/flush more */
@@ -1223,7 +1237,7 @@ static gboolean _tgenstream_writeResponse(TGenStream* stream) {
 
     if(!stream->send.buffer) {
         /* entire response was sent */
-        stream->time.response = g_get_monotonic_time();
+        stream->time.response = _tgenstream_getTime(stream);
         return TRUE;
     } else {
         /* unable to send entire command, wait for next chance to write */
@@ -1244,8 +1258,11 @@ static gboolean _tgenstream_writePayload(TGenStream* stream) {
     /* try to flush any leftover bytes */
     gsize bytes = _tgenstream_flushOut(stream);
 
-    if(stream->send.payloadBytes == 0 && bytes > 0) {
-        stream->time.firstPayloadByteSend = g_get_monotonic_time();
+    if(bytes > 0) {
+        if(stream->send.payloadBytes == 0) {
+            stream->time.firstPayloadByteSend = _tgenstream_getTime(stream);
+        }
+        stream->time.lastPayloadByteSend = _tgenstream_getTime(stream);
     }
 
     stream->send.payloadBytes += bytes;
@@ -1273,7 +1290,6 @@ static gboolean _tgenstream_writePayload(TGenStream* stream) {
     }
 
     if(doneSending) {
-        stream->time.lastPayloadByteSend = g_get_monotonic_time();
         return TRUE;
     }
 
@@ -1297,6 +1313,8 @@ static gboolean _tgenstream_writePayload(TGenStream* stream) {
 
         if((stream->isCommander && obs == OBSERVATION_TO_ORIGIN)
                 || (!stream->isCommander && obs == OBSERVATION_TO_SERVER)) {
+            /* we should expect to receive a packet */
+            stream->recv.expectedBytes += TGEN_MMODEL_PACKET_DATA_SIZE;
             /* the other end is sending us a packet, we have nothing to do.
              * but this delay should be included in the delay for our next outgoing packet. */
             interPacketDelay += obsDelay;
@@ -1305,6 +1323,7 @@ static gboolean _tgenstream_writePayload(TGenStream* stream) {
                 || (!stream->isCommander && obs == OBSERVATION_TO_ORIGIN)) {
             /* this means we should send a packet */
             cumulativeSize += TGEN_MMODEL_PACKET_DATA_SIZE;
+            stream->send.expectedBytes += TGEN_MMODEL_PACKET_DATA_SIZE;
             /* since we sent a packet, now we reset the delay */
             interPacketDelay = obsDelay;
             cumulativeDelay += obsDelay;
@@ -1328,12 +1347,14 @@ static gboolean _tgenstream_writePayload(TGenStream* stream) {
 
         if(interPacketDelay > TGEN_MMODEL_MICROS_AT_ONCE) {
             /* pause before we continue sending more */
-            stream->send.deferBarrierMicros = g_get_monotonic_time() + (gint64)interPacketDelay;
+            stream->send.deferBarrierMicros = _tgenstream_getTime(stream) + (gint64)interPacketDelay;
             break;
         }
     }
 
-    gsize newBufLen = MIN(limit, cumulativeSize);
+    /* if we don't have a specific requested size, then we must send full packets since
+     * the other side of the connection will be expecting that many bytes */
+    gsize newBufLen = (stream->send.requestedBytes > 0) ? MIN(limit, cumulativeSize) : cumulativeSize;
     if(newBufLen > 0) {
         stream->send.buffer = _tgenstream_getRandomString(newBufLen);
 
@@ -1346,8 +1367,11 @@ static gboolean _tgenstream_writePayload(TGenStream* stream) {
 
         bytes = _tgenstream_flushOut(stream);
 
-        if(stream->send.payloadBytes == 0 && bytes > 0) {
-            stream->time.firstPayloadByteSend = g_get_monotonic_time();
+        if(bytes > 0) {
+            if(stream->send.payloadBytes == 0) {
+                stream->time.firstPayloadByteSend = _tgenstream_getTime(stream);
+            }
+            stream->time.lastPayloadByteSend = _tgenstream_getTime(stream);
         }
 
         stream->send.payloadBytes += bytes;
@@ -1374,7 +1398,7 @@ static gboolean _tgenstream_writeChecksum(TGenStream* stream) {
 
     if(!stream->send.buffer) {
         /* we were able to send all of the checksum */
-        stream->time.checksumSend = g_get_monotonic_time();
+        stream->time.checksumSend = _tgenstream_getTime(stream);
         return TRUE;
     } else {
         /* unable to send entire checksum, wait for next chance to write */
@@ -1390,7 +1414,7 @@ static void _tgenstream_onWritable(TGenStream* stream) {
 
     /* if we previously wanted to defer writes, reset the cache */
     if(stream->send.deferBarrierMicros > 0) {
-        g_assert(g_get_monotonic_time() >= stream->send.deferBarrierMicros);
+        g_assert(_tgenstream_getTime(stream) >= stream->send.deferBarrierMicros);
         stream->send.deferBarrierMicros = 0;
     }
 
@@ -1453,7 +1477,7 @@ static void _tgenstream_onWritable(TGenStream* stream) {
                 _tgenstream_toString(stream), totalBytes);
 
     if(totalBytes > 0) {
-        stream->time.lastProgress = g_get_monotonic_time();
+        stream->time.lastProgress = _tgenstream_getTime(stream);
     }
 }
 
@@ -1554,7 +1578,7 @@ static void _tgenstream_log(TGenStream* stream, gboolean wasActive) {
                     tgentransport_toString(stream->transport),
                     _tgenstream_toString(stream), bytesMessage, timeMessage);
 
-            gint64 now = g_get_monotonic_time();
+            gint64 now = _tgenstream_getTime(stream);
             stream->time.lastBytesStatusReport = now;
             stream->time.lastTimeErrorReport = now;
             g_free(bytesMessage);
@@ -1571,7 +1595,7 @@ static void _tgenstream_log(TGenStream* stream, gboolean wasActive) {
                     tgentransport_toString(stream->transport),
                     _tgenstream_toString(stream), bytesMessage, timeMessage);
 
-            gint64 now = g_get_monotonic_time();
+            gint64 now = _tgenstream_getTime(stream);
             stream->time.lastBytesStatusReport = now;
             stream->time.lastTimeStatusReport = now;
             g_free(bytesMessage);
@@ -1587,7 +1611,7 @@ static void _tgenstream_log(TGenStream* stream, gboolean wasActive) {
                     tgentransport_toString(stream->transport),
                     _tgenstream_toString(stream), bytesMessage);
 
-            stream->time.lastBytesStatusReport = g_get_monotonic_time();;
+            stream->time.lastBytesStatusReport = _tgenstream_getTime(stream);
             g_free(bytesMessage);
         }
     }
@@ -1620,7 +1644,7 @@ static TGenIOResponse _tgenstream_runTransportEventLoop(TGenStream* stream, TGen
         /* return DONE to the io module so it does deregistration */
         response.events = TGEN_EVENT_DONE;
     } else {
-        stream->time.lastProgress = g_get_monotonic_time();
+        stream->time.lastProgress = _tgenstream_getTime(stream);
         if(retEvents & TGEN_EVENT_DONE) {
             /* proxy is connected and ready, now its our turn */
             response.events = TGEN_EVENT_READ|TGEN_EVENT_WRITE;
@@ -1650,7 +1674,7 @@ static TGenEvent _tgenstream_computeWantedEvents(TGenStream* stream) {
         recvDone = TRUE;
     }
 
-    /* for sending, we also need to make sure we flush the outbuf after success */
+    /* check if we are done sending */
     gboolean sendDone = FALSE;
     if(stream->send.state == TGEN_STREAM_SEND_SUCCESS) {
         sendDone = TRUE;
@@ -1659,6 +1683,18 @@ static TGenEvent _tgenstream_computeWantedEvents(TGenStream* stream) {
     } else if(stream->send.state == TGEN_STREAM_SEND_NONE &&
             stream->recv.state == TGEN_STREAM_RECV_ERROR) {
         sendDone = TRUE;
+    }
+
+    /* special case: we rely on the Markov model to inform us how many bytes we
+     * should receive, but only if the user did not set a specific amount and did
+     * not set 0. in this case, we are done receiving when payload exceeds expected. */
+    if(sendDone && !recvDone) {
+        if(stream->recv.requestedBytes == 0 && stream->recv.requestedZero == FALSE) {
+            if (stream->recv.payloadBytes >= stream->recv.expectedBytes) {
+                recvDone = TRUE;
+                _tgenstream_changeRecvState(stream, TGEN_STREAM_RECV_SUCCESS);
+            }
+        }
     }
 
     /* the stream is done if both sending and receiving states are done,
@@ -1741,13 +1777,13 @@ static TGenIOResponse _tgenstream_runStreamEventLoop(TGenStream* stream, TGenEve
     gboolean sendActive = (stream->send.payloadBytes > sendBefore) ? TRUE : FALSE;
     gboolean wasActive = (recvActive || sendActive) ? TRUE : FALSE;
 
-    /* log progress, success, or error */
-    _tgenstream_log(stream, wasActive);
-
     /* figure out which events we want next time */
     TGenIOResponse response;
     memset(&response, 0, sizeof(TGenIOResponse));
     response.events = _tgenstream_computeWantedEvents(stream);
+
+    /* log progress, success, or error */
+    _tgenstream_log(stream, wasActive);
 
     /* if io said we are done, or the stream thinks its done, notify the driver */
     if((events & TGEN_EVENT_DONE) || (response.events & TGEN_EVENT_DONE)) {
@@ -1763,6 +1799,9 @@ static TGenIOResponse _tgenstream_runStreamEventLoop(TGenStream* stream, TGenEve
 TGenIOResponse tgenstream_onEvent(TGenStream* stream, gint descriptor, TGenEvent events) {
     TGEN_ASSERT(stream);
 
+    /* make sure we get a fresh time when we need to */
+    stream->time.nowCached = 0;
+
     if(stream->transport && tgentransport_wantsEvents(stream->transport)) {
         /* transport layer wants to do some IO, redirect as needed */
         return _tgenstream_runTransportEventLoop(stream, events);
@@ -1775,9 +1814,12 @@ TGenIOResponse tgenstream_onEvent(TGenStream* stream, gint descriptor, TGenEvent
 gboolean tgenstream_onCheckTimeout(TGenStream* stream, gint descriptor) {
     TGEN_ASSERT(stream);
 
+    /* make sure we get a fresh time when we need to */
+    stream->time.nowCached = 0;
+
     /* the io module is checking to see if we are in a timeout state. if we are, then
      * the stream will be cancelled, de-registered and destroyed. */
-    gint64 now = g_get_monotonic_time();
+    gint64 now = _tgenstream_getTime(stream);
 
     gint64 stalloutCutoff = stream->time.lastProgress + stream->stalloutUSecs;
     gint64 timeoutCutoff = stream->time.start + stream->timeoutUSecs;
@@ -1827,7 +1869,7 @@ TGenStream* tgenstream_new(const gchar* idStr, TGenStreamOptions* options,
     stream->magic = TGEN_MAGIC;
     stream->refcount = 1;
 
-    stream->time.start = g_get_monotonic_time();
+    stream->time.start = _tgenstream_getTime(stream);
 
     stream->notify = notify;
     stream->data1 = data1;
@@ -1911,6 +1953,8 @@ TGenStream* tgenstream_new(const gchar* idStr, TGenStreamOptions* options,
 
     tgen_debug("Created new stream %s on transport %s",
             _tgenstream_toString(stream), tgentransport_toString(transport));
+
+    stream->time.nowCached = 0;
 
     return stream;
 }
