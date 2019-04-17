@@ -24,6 +24,11 @@ add_definitions(-D_GNU_SOURCE)
 if(CMAKE_BUILD_TYPE MATCHES "Release")
 	add_compile_options(-O3)
 	add_definitions(-DNDEBUG)
+elseif(CMAKE_BUILD_TYPE MATCHES "Shadow")
+	## Use -O2 until shadow/shadow#671 is fixed
+	## https://github.com/shadow/shadow/issues/671
+	add_compile_options(-O2)
+	add_definitions(-DNDEBUG)
 else()
 	add_compile_options(-O0)
 	add_definitions(-DDEBUG)
