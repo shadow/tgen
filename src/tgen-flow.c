@@ -122,9 +122,11 @@ TGenFlow* tgenflow_new(TGenFlowOptions* flowOptions, TGenStreamOptions* streamOp
     /* if there are no flow options, then this flow contains a single stream and
      * we do not need a model for generating streams. */
     if(flowOptions) {
+        const gchar* internalModelName = tgenconfig_getDefaultStreamMarkovModelName();
         const gchar* internalModelGraphml = tgenconfig_getDefaultStreamMarkovModelString();
+
         streamModel = _tgenflow_createMarkovModel(&flowOptions->streamOpts.seedGenerator,
-                &flowOptions->streamModelPath, internalModelGraphml, "internal-stream-model");
+                &flowOptions->streamModelPath, internalModelGraphml, internalModelName);
     }
 
     TGenFlow* flow = g_new0(TGenFlow, 1);
@@ -190,10 +192,12 @@ static void _tgenflow_onStreamComplete(TGenFlow* flow, gpointer none, gboolean w
 static gboolean _tgenflow_createStream(TGenFlow* flow) {
     TGEN_ASSERT(flow);
 
+    const gchar* internalModelName = tgenconfig_getDefaultPacketMarkovModelName();
     const gchar* internalModelGraphml = tgenconfig_getDefaultPacketMarkovModelString();
+
     TGenMarkovModel* packetModel = _tgenflow_createMarkovModel(
             &flow->streamOptions->seedGenerator, &flow->streamOptions->packetModelPath,
-            internalModelGraphml, "internal-packet-model");
+            internalModelGraphml, internalModelName);
 
     /* create the transport connection over which we can start a stream */
     TGenTransport* transport = tgentransport_newActive(flow->streamOptions,
