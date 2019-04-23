@@ -791,10 +791,26 @@ static gboolean _tgenstream_readHeader(TGenStream* stream) {
             }
 
             if(modeIsPath) {
-                tgen_info("Loading Markov model from the peer-provided path %s", modelPath);
+                /* if the internal model was sent as a path, we load it from config.
+                 * note! this only works if the client has the same tgen version as us,
+                 * because otherwise it may have a newer internal model than we do. */
+                const gchar* internalName = tgenconfig_getDefaultPacketMarkovModelName();
+                const gchar* internalGraphml = tgenconfig_getDefaultPacketMarkovModelString();
 
-                stream->mmodel = tgenmarkovmodel_newFromPath(stream->peer.modelName,
-                        stream->peer.modelSeed, modelPath);
+                if(!g_ascii_strcasecmp(modelPath, internalName)) {
+                    tgen_info("Loading Markov model '%s' from internal string", internalName);
+
+                    GString* graphmlBuffer = g_string_new(internalGraphml);
+                    stream->mmodel = tgenmarkovmodel_newFromString(stream->peer.modelName,
+                            stream->peer.modelSeed, graphmlBuffer);
+                    g_string_free(graphmlBuffer, TRUE);
+                } else {
+                    tgen_info("Loading Markov model '%s' from the peer-provided path '%s'",
+                            stream->peer.modelName, modelPath);
+
+                    stream->mmodel = tgenmarkovmodel_newFromPath(stream->peer.modelName,
+                            stream->peer.modelSeed, modelPath);
+                }
 
                 if(stream->mmodel) {
                     tgen_info("Success loading Markov model from path %s", modelPath);
@@ -1173,13 +1189,19 @@ static gboolean _tgenstream_writeCommand(TGenStream* stream) {
                 " MODEL_SEED=%"G_GUINT32_FORMAT, tgenmarkovmodel_getSeed(stream->mmodel));
 
         if(stream->mmodelSendPath) {
+            /* the built-in models are special cases, they don't have paths */
             const gchar* path = tgenmarkovmodel_getPath(stream->mmodel);
-            g_assert(path);
+            const gchar* name = tgenmarkovmodel_getName(stream->mmodel);
+            const gchar* internalName = tgenconfig_getDefaultPacketMarkovModelName();
+
+            if(!path) {
+                g_assert(!g_ascii_strcasecmp(name, internalName));
+            }
 
             g_string_append_printf(stream->send.buffer,
                     " MODEL_MODE=path");
             g_string_append_printf(stream->send.buffer,
-                    " MODEL_PATH=%s", path);
+                    " MODEL_PATH=%s", path ? path : name);
         } else {
             modelGraphml = tgenmarkovmodel_toGraphmlString(stream->mmodel);
             g_assert(modelGraphml);
@@ -1935,10 +1957,15 @@ TGenStream* tgenstream_new(const gchar* idStr, TGenStreamOptions* options,
         stream->mmodel = mmodel;
 
         /* send the path instead of the full graphml to the server if configured,
-         * but only if the mmodel was initiated from a path rather than a string */
+         * but only if the mmodel was initiated from a path rather than a string.
+         * our internal packet model can be sent either as a sepcial case path, or string. */
+        const gchar* path = tgenmarkovmodel_getPath(stream->mmodel);
+        const gchar* name = tgenmarkovmodel_getName(stream->mmodel);
+        const gchar* internalName = tgenconfig_getDefaultPacketMarkovModelName();
+
         if(options->packetModelMode.isSet &&
                 !g_ascii_strcasecmp(options->packetModelMode.value, "path") &&
-                tgenmarkovmodel_getPath(mmodel) != NULL) {
+                (path != NULL || !g_ascii_strcasecmp(name, internalName))) {
             stream->mmodelSendPath = TRUE;
         }
 

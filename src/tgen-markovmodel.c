@@ -1455,12 +1455,13 @@ guint32 tgenmarkovmodel_getSeed(TGenMarkovModel* mmodel) {
     return mmodel->prngSeed;
 }
 
-/* from the returned path, you could get the filename with g_path_get_basename() */
 const gchar* tgenmarkovmodel_getName(TGenMarkovModel* mmodel) {
     TGEN_MMODEL_ASSERT(mmodel);
     return mmodel->name;
 }
 
+/* from the returned path, you could get the filename with g_path_get_basename().
+ * this could return NULL if the model was initiated from a string and not a path */
 const gchar* tgenmarkovmodel_getPath(TGenMarkovModel* mmodel) {
     TGEN_MMODEL_ASSERT(mmodel);
     return mmodel->path;
