@@ -25,6 +25,10 @@ gchar* tgenconfig_getSOCKS() {
     return getenv("TGENSOCKS");
 }
 
+const gchar* tgenconfig_getDefaultPacketMarkovModelName() {
+    return "internal-packet-model";
+}
+
 const gchar* tgenconfig_getDefaultPacketMarkovModelString() {
     return "<?xml version=\"1.0\" encoding=\"utf-8\"?><graphml xmlns=\"http://graphml.graphdrawing.org/xmlns\" xmlns:xsi=\"http://www.w3.org/2001/XMLSchema-instance\" xsi:schemaLocation=\"http://graphml.graphdrawing.org/xmlns http://graphml.graphdrawing.org/xmlns/1.0/graphml.xsd\">"
             "  <key attr.name=\"param_rate\" attr.type=\"double\" for=\"edge\" id=\"d5\" />"
@@ -72,6 +76,10 @@ const gchar* tgenconfig_getDefaultPacketMarkovModelString() {
             "    </edge>"
             "  </graph>"
             "</graphml>";
+}
+
+const gchar* tgenconfig_getDefaultStreamMarkovModelName() {
+    return "internal-stream-model";
 }
 
 const gchar* tgenconfig_getDefaultStreamMarkovModelString() {
