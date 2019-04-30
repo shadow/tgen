@@ -8,7 +8,15 @@ All attributes are currently stored as strings in graphml. When we specify the a
     e.g., 127.0.0.1:9050 or 192.168.1.100:8080
   + size: \<integer\> \<suffix\>  
     e.g., "5 suffix" ("5" defaults to "5 bytes") where suffix is case in-sensitive and one of:  
-    kb, mb, gb, tb, kib, mib, gib, tib
+    b, byte, bytes,  
+    kb, kilobyte, kilobytes,  
+    kib, kibibyte, kibibytes,  
+    mb, megabyte, megabytes,  
+    mib, mebibyte, mebibytes,  
+    gb, gigabyte, gigabytes,  
+    gib, gibibyte, gibibytes,  
+    tb, terabyte, terabytes,  
+    tib, tebibyte, tebibytes
   + time: \<integer\> \<suffix\>  
     e.g., "60 suffix" ("60" defaults to "60 seconds") where suffix is case in-sensitive and one of:  
     nanosecond, nanoseconds, nsec, nsecs, ns,  
