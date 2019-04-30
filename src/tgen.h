@@ -58,7 +58,7 @@ typedef void (*TGen_notifyFunc)(gpointer data, TGenActionID actionID, TGenNotify
 #include "tgen-graph.h"
 #include "tgen-transport.h"
 #include "tgen-stream.h"
-#include "tgen-flow.h"
+#include "tgen-generator.h"
 #include "tgen-driver.h"
 
 #endif /* SHD_TGEN_H_ */

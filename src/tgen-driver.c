@@ -154,21 +154,22 @@ static void _tgendriver_onNewPeer(TGenDriver* driver, gint socketD, gint64 start
     tgentransport_unref(transport);
 }
 
-static gboolean _tgendriver_startFlow(TGenDriver* driver, TGenFlowOptions* flowOpts,
-        TGenStreamOptions* streamOpts, TGenActionID actionID) {
+static gboolean _tgendriver_startGenerator(TGenDriver* driver, TGenActionID actionID,
+        TGenTrafficOptions* trafficOpts, TGenFlowOptions* flowOpts, TGenStreamOptions* streamOpts) {
     TGEN_ASSERT(driver);
 
     const gchar* actionIDStr = tgengraph_getActionName(driver->actionGraph, actionID);
 
-    TGenFlow* flow = tgenflow_new(flowOpts, streamOpts, actionID, actionIDStr, driver->io,
+    TGenGenerator* gen = tgengenerator_new(trafficOpts, flowOpts, streamOpts,
+            actionID, actionIDStr, driver->io,
             (TGenTransport_notifyBytesFunc) _tgendriver_onBytesTransferred,
-            (TGen_notifyFunc)_tgendriver_onNotify,
-            driver, (GDestroyNotify)tgendriver_ref, (GDestroyNotify)tgendriver_unref);
+            (TGen_notifyFunc)_tgendriver_onNotify, driver,
+            (GDestroyNotify)tgendriver_ref, (GDestroyNotify)tgendriver_unref);
 
-    /* the flow will unref itself when it finishes generating new streams and
-     * all of its previously generated streams are complete. */
-    if(flow) {
-        tgenflow_start(flow);
+    /* the generator will unref itself when it finishes generating new flows/streams and
+     * all of its previously generated flows/streams are complete. */
+    if(gen) {
+        tgengenerator_start(gen);
         return TRUE;
     } else {
         return FALSE;
@@ -180,9 +181,10 @@ static void _tgendriver_initiateStream(TGenDriver* driver, TGenActionID actionID
 
     TGenStreamOptions* streamOpts = tgengraph_getStreamOptions(driver->actionGraph, actionID);
 
-    /* NULL flow options means create just one stream */
-    if(!_tgendriver_startFlow(driver, NULL, streamOpts, actionID)) {
-        tgen_warning("skipping failed stream action and continuing to the next action");
+    /* NULL traffic and flow options means generate just one stream */
+    if(!_tgendriver_startGenerator(driver, actionID, NULL, NULL, streamOpts)) {
+        const gchar* actionIDStr = tgengraph_getActionName(driver->actionGraph, actionID);
+        tgen_warning("skipping failed stream action '%s' and continuing to the next action", actionIDStr);
         _tgendriver_continueNextActions(driver, actionID);
     }
 }
@@ -190,47 +192,28 @@ static void _tgendriver_initiateStream(TGenDriver* driver, TGenActionID actionID
 static void _tgendriver_initiateFlow(TGenDriver* driver, TGenActionID actionID) {
     TGEN_ASSERT(driver);
 
-    const gchar* actionIDStr = tgengraph_getActionName(driver->actionGraph, actionID);
     TGenFlowOptions* flowOpts = tgengraph_getFlowOptions(driver->actionGraph, actionID);
+    TGenStreamOptions* streamOpts = &flowOpts->streamOpts;
 
-    /* we will create a stream model from the flow options and generate streams with it */
-    if(!_tgendriver_startFlow(driver, flowOpts, &flowOpts->streamOpts, actionID)) {
-        tgen_warning("skipping failed flow action and continuing to the next action");
+    /* NULL traffic options means generate just one flow and its streams */
+    if(!_tgendriver_startGenerator(driver, actionID, NULL, flowOpts, streamOpts)) {
+        const gchar* actionIDStr = tgengraph_getActionName(driver->actionGraph, actionID);
+        tgen_warning("skipping failed flow action '%s' and continuing to the next action", actionIDStr);
         _tgendriver_continueNextActions(driver, actionID);
     }
-}
-
-
-static gboolean _tgendriver_startTraffic(TGenDriver* driver, TGenTrafficOptions* trafficOpts,
-        TGenActionID actionID) {
-    TGEN_ASSERT(driver);
-
-//    const gchar* actionIDStr = tgengraph_getActionName(driver->actionGraph, actionID);
-//
-//    TGenFlow* flow = tgenflow_new(flowOpts, streamOpts, actionID, actionIDStr, driver->io,
-//            (TGenTransport_notifyBytesFunc) _tgendriver_onBytesTransferred,
-//            (TGen_notifyFunc)_tgendriver_onNotify,
-//            driver, (GDestroyNotify)tgendriver_ref, (GDestroyNotify)tgendriver_unref);
-//
-//    /* the flow will unref itself when it finishes generating new streams and
-//     * all of its previously generated streams are complete. */
-//    if(flow) {
-//        tgenflow_start(flow);
-//        return TRUE;
-//    } else {
-//        return FALSE;
-//    }
 }
 
 static void _tgendriver_initiateTraffic(TGenDriver* driver, TGenActionID actionID) {
     TGEN_ASSERT(driver);
 
-    const gchar* actionIDStr = tgengraph_getActionName(driver->actionGraph, actionID);
     TGenTrafficOptions* trafficOpts = tgengraph_getTrafficOptions(driver->actionGraph, actionID);
+    TGenFlowOptions* flowOpts = &trafficOpts->flowOpts;
+    TGenStreamOptions* streamOpts = &flowOpts->streamOpts;
 
     /* we will create a flow model from the traffic options and generate flows with it */
-    if(!_tgendriver_startTraffic(driver, trafficOpts, actionID)) {
-        tgen_warning("skipping failed traffic action and continuing to the next action");
+    if(!_tgendriver_startGenerator(driver, actionID, trafficOpts, flowOpts, streamOpts)) {
+        const gchar* actionIDStr = tgengraph_getActionName(driver->actionGraph, actionID);
+        tgen_warning("skipping failed traffic action '%s' and continuing to the next action", actionIDStr);
         _tgendriver_continueNextActions(driver, actionID);
     }
 }
