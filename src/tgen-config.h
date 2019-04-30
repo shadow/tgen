@@ -18,4 +18,7 @@ const gchar* tgenconfig_getDefaultPacketMarkovModelString();
 const gchar* tgenconfig_getDefaultStreamMarkovModelName();
 const gchar* tgenconfig_getDefaultStreamMarkovModelString();
 
+const gchar* tgenconfig_getDefaultFlowMarkovModelName();
+const gchar* tgenconfig_getDefaultFlowMarkovModelString();
+
 #endif /* TGEN_CONFIG_H_ */

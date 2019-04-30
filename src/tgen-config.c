@@ -122,3 +122,11 @@ const gchar* tgenconfig_getDefaultStreamMarkovModelString() {
             "  </graph>"
             "</graphml>";
 }
+
+const gchar* tgenconfig_getDefaultFlowMarkovModelName() {
+    return "internal-flow-model";
+}
+
+const gchar* tgenconfig_getDefaultFlowMarkovModelString() {
+    return tgenconfig_getDefaultStreamMarkovModelString();
+}

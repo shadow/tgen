@@ -9,8 +9,6 @@
 
 typedef struct _TGenGraph TGenGraph;
 
-typedef gint TGenActionID;
-
 typedef enum _TGenActionType {
     TGEN_ACTION_NONE,
     TGEN_ACTION_START,
@@ -18,6 +16,7 @@ typedef enum _TGenActionType {
     TGEN_ACTION_PAUSE,
     TGEN_ACTION_STREAM,
     TGEN_ACTION_FLOW,
+    TGEN_ACTION_TRAFFIC,
 } TGenActionType;
 
 typedef struct _TGenStreamOptions {
@@ -40,12 +39,17 @@ typedef struct _TGenFlowOptions {
     TGenStreamOptions streamOpts;
 } TGenFlowOptions;
 
+typedef struct _TGenTrafficOptions {
+    TGenOptionString flowModelPath;
+    TGenFlowOptions flowOpts;
+} TGenTrafficOptions;
+
 typedef struct _TGenStartOptions {
     TGenOptionUInt16 serverport;
     TGenOptionUInt64 timeNanos;
     TGenOptionUInt64 heartbeatPeriodNanos;
     TGenOptionLogLevel loglevel;
-    TGenStreamOptions defaultStreamOpts;
+    TGenTrafficOptions defaultTrafficOpts;
 } TGenStartOptions;
 
 typedef struct _TGenPauseOptions {
@@ -79,5 +83,6 @@ TGenPauseOptions* tgengraph_getPauseOptions(TGenGraph* g, TGenActionID actionID)
 TGenEndOptions* tgengraph_getEndOptions(TGenGraph* g, TGenActionID actionID);
 TGenStreamOptions* tgengraph_getStreamOptions(TGenGraph* g, TGenActionID actionID);
 TGenFlowOptions* tgengraph_getFlowOptions(TGenGraph* g, TGenActionID actionID);
+TGenTrafficOptions* tgengraph_getTrafficOptions(TGenGraph* g, TGenActionID actionID);
 
 #endif /* TGEN_GRAPH_H_ */

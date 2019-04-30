@@ -34,6 +34,18 @@
 #define TGENIOCHILD_ASSERT(obj)
 #endif
 
+typedef gint TGenActionID;
+
+typedef enum _TGenNotifyFlags {
+    TGEN_NOTIFY_NONE = 0,
+    TGEN_NOTIFY_STREAM_COMPLETE = 1 << 0,
+    TGEN_NOTIFY_STREAM_SUCCESS = 1 << 1,
+    TGEN_NOTIFY_FLOW_COMPLETE = 1 << 2,
+    TGEN_NOTIFY_TRAFFIC_COMPLETE = 1 << 3,
+} TGenNotifyFlags;
+
+typedef void (*TGen_notifyFunc)(gpointer data, TGenActionID actionID, TGenNotifyFlags flags);
+
 #include "tgen-config.h"
 #include "tgen-log.h"
 #include "tgen-io.h"
