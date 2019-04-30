@@ -227,27 +227,56 @@ GError* tgenoptionparser_parseBytes(const gchar* attributeName,
             if (suffixToken) {
                 gint base = 0, exponent = 0;
 
-                if (!g_ascii_strcasecmp(suffixToken, "kb")) {
+                if (!g_ascii_strcasecmp(suffixToken, "b") ||
+                        !g_ascii_strcasecmp(suffixToken, "byte") ||
+                        !g_ascii_strcasecmp(suffixToken, "bytes")) {
+                    base = 10, exponent = 0;
+                } else if (!g_ascii_strcasecmp(suffixToken, "kb") ||
+                        !g_ascii_strcasecmp(suffixToken, "kilobyte") ||
+                        !g_ascii_strcasecmp(suffixToken, "kilobytes")) {
                     base = 10, exponent = 3;
-                } else if (!g_ascii_strcasecmp(suffixToken, "mb")) {
+                } else if (!g_ascii_strcasecmp(suffixToken, "mb") ||
+                        !g_ascii_strcasecmp(suffixToken, "megabyte") ||
+                        !g_ascii_strcasecmp(suffixToken, "megabytes")) {
                     base = 10, exponent = 6;
-                } else if (!g_ascii_strcasecmp(suffixToken, "gb")) {
+                } else if (!g_ascii_strcasecmp(suffixToken, "gb") ||
+                        !g_ascii_strcasecmp(suffixToken, "gigabyte") ||
+                        !g_ascii_strcasecmp(suffixToken, "gigabytes")) {
                     base = 10, exponent = 9;
-                } else if (!g_ascii_strcasecmp(suffixToken, "tb")) {
+                } else if (!g_ascii_strcasecmp(suffixToken, "tb") ||
+                        !g_ascii_strcasecmp(suffixToken, "terabyte") ||
+                        !g_ascii_strcasecmp(suffixToken, "terabytes")) {
                     base = 10, exponent = 12;
-                } else if (!g_ascii_strcasecmp(suffixToken, "kib")) {
+                } else if (!g_ascii_strcasecmp(suffixToken, "kib") ||
+                        !g_ascii_strcasecmp(suffixToken, "kibibyte") ||
+                        !g_ascii_strcasecmp(suffixToken, "kibibytes")) {
                     base = 2, exponent = 10;
-                } else if (!g_ascii_strcasecmp(suffixToken, "mib")) {
+                } else if (!g_ascii_strcasecmp(suffixToken, "mib") ||
+                        !g_ascii_strcasecmp(suffixToken, "mebibyte") ||
+                        !g_ascii_strcasecmp(suffixToken, "mebibytes")) {
                     base = 2, exponent = 20;
-                } else if (!g_ascii_strcasecmp(suffixToken, "gib")) {
+                } else if (!g_ascii_strcasecmp(suffixToken, "gib") ||
+                        !g_ascii_strcasecmp(suffixToken, "gibibyte") ||
+                        !g_ascii_strcasecmp(suffixToken, "gibibytes")) {
                     base = 2, exponent = 30;
-                } else if (!g_ascii_strcasecmp(suffixToken, "tib")) {
+                } else if (!g_ascii_strcasecmp(suffixToken, "tib") ||
+                        !g_ascii_strcasecmp(suffixToken, "tebibyte") ||
+                        !g_ascii_strcasecmp(suffixToken, "tebibytes")) {
                     base = 2, exponent = 40;
                 } else {
                     error = g_error_new(G_MARKUP_ERROR,
                             G_MARKUP_ERROR_INVALID_CONTENT,
                             "invalid bytes suffix '%s' in byte string '%s' for attribute '%s', "
-                            "expected one of: 'kib','mib','gib','tib','kb','mb','gb', or 'tb'",
+                            "expected one of: "
+                            "'b', 'byte', 'bytes', "
+                            "'kb', 'kilobyte', 'kilobytes', "
+                            "'kib', 'kibibyte', 'kibibytes', "
+                            "'mb', 'megabyte', 'megabytes', "
+                            "'mib', 'mebibyte', 'mebibytes', "
+                            "'gb', 'gigabyte', 'gigabytes', "
+                            "'gib', 'gibibyte', 'gibibytes', "
+                            "'tb', 'terabyte', 'terabytes', "
+                            "'tib', 'tebibyte', or 'tebibytes'",
                             suffixToken, byteStr, attributeName);
                 }
 
