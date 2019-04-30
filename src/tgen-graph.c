@@ -27,7 +27,8 @@ typedef enum {
     TGEN_VA_TIMEOUT = 1 << 16,
     TGEN_VA_STALLOUT = 1 << 17,
     TGEN_VA_STREAMMODELPATH = 1 << 18,
-    TGEN_VA_COUNT = 1 << 19,
+    TGEN_VA_FLOWMODELPATH = 1 << 19,
+    TGEN_VA_COUNT = 1 << 20,
 } AttributeFlags;
 
 typedef struct _TGenAction {
@@ -80,7 +81,7 @@ static void _tgengraph_freeActionHelper(TGenActionType type, gpointer optionsptr
     if(type == TGEN_ACTION_START) {
         TGenStartOptions* options = optionsptr;
         if(options) {
-            _tgengraph_freeActionHelper(TGEN_ACTION_STREAM, &options->defaultStreamOpts);
+            _tgengraph_freeActionHelper(TGEN_ACTION_TRAFFIC, &options->defaultTrafficOpts);
         }
     } else if (type == TGEN_ACTION_PAUSE) {
         TGenPauseOptions* options = optionsptr;
@@ -121,6 +122,14 @@ static void _tgengraph_freeActionHelper(TGenActionType type, gpointer optionsptr
                 g_free(options->streamModelPath.value);
             }
             _tgengraph_freeActionHelper(TGEN_ACTION_STREAM, &options->streamOpts);
+        }
+    } else if (type == TGEN_ACTION_TRAFFIC) {
+        TGenTrafficOptions* options = optionsptr;
+        if(options) {
+            if(options->flowModelPath.value) {
+                g_free(options->flowModelPath.value);
+            }
+            _tgengraph_freeActionHelper(TGEN_ACTION_FLOW, &options->flowOpts);
         }
     }
 }
@@ -192,6 +201,9 @@ static const gchar* _tgengraph_attributeToString(AttributeFlags attr) {
         case TGEN_VA_STREAMMODELPATH: {
             return "streammodelpath";
         }
+        case TGEN_VA_FLOWMODELPATH: {
+            return "flowmodelpath";
+        }
         case TGEN_VA_COUNT: {
             return "count";
         }
@@ -255,6 +267,9 @@ static AttributeFlags _tgengraph_vertexAttributeToFlag(const gchar* stringAttrib
         } else if(!g_ascii_strcasecmp(stringAttribute,
                 _tgengraph_attributeToString(TGEN_VA_STREAMMODELPATH))) {
             return TGEN_VA_STREAMMODELPATH;
+        } else if(!g_ascii_strcasecmp(stringAttribute,
+                _tgengraph_attributeToString(TGEN_VA_FLOWMODELPATH))) {
+            return TGEN_VA_FLOWMODELPATH;
         } else if(!g_ascii_strcasecmp(stringAttribute,
                 _tgengraph_attributeToString(TGEN_VA_COUNT))) {
             return TGEN_VA_COUNT;
@@ -650,9 +665,43 @@ static GError* _tgengraph_parseFlowAttributesHelper(TGenGraph* g, const gchar* i
         return error;
     }
 
-    /* validate the stream markov model */
+    /* validate the stream Markov model */
     if(options->streamModelPath.isSet) {
         gchar* path = options->streamModelPath.value;
+        guint32 seed = 12345;
+        error = _tgengraph_validateMarkovModel(g, path, seed);
+        if(error) {
+            return error;
+        }
+    }
+
+    return NULL;
+}
+
+static GError* _tgengraph_parseTrafficAttributesHelper(TGenGraph* g, const gchar* idStr,
+        igraph_integer_t vertexIndex, TGenTrafficOptions* options) {
+    TGEN_ASSERT(g);
+    g_assert(options);
+
+    GError* error = NULL;
+
+    if(g->knownAttributes & TGEN_VA_FLOWMODELPATH) {
+        const gchar* name = _tgengraph_attributeToString(TGEN_VA_FLOWMODELPATH);
+        const gchar* valueStr = VAS(g->graph, name, vertexIndex);
+        error = tgenoptionparser_parseString(name, valueStr, &options->flowModelPath);
+        if(error) {
+            return error;
+        }
+    }
+
+    error = _tgengraph_parseFlowAttributesHelper(g, idStr, vertexIndex, &options->flowOpts);
+    if(error) {
+        return error;
+    }
+
+    /* validate the flow Markov model */
+    if(options->flowModelPath.isSet) {
+        gchar* path = options->flowModelPath.value;
         guint32 seed = 12345;
         error = _tgengraph_validateMarkovModel(g, path, seed);
         if(error) {
@@ -706,7 +755,7 @@ static GError* _tgengraph_parseStartAttributesHelper(TGenGraph* g, const gchar* 
         }
     }
 
-    error = _tgengraph_parseStreamAttributesHelper(g, idStr, vertexIndex, &options->defaultStreamOpts);
+    error = _tgengraph_parseTrafficAttributesHelper(g, idStr, vertexIndex, &options->defaultTrafficOpts);
     if(error) {
         return error;
     }
@@ -806,7 +855,7 @@ static GError* _tgengraph_parseStartVertex(TGenGraph* g, const gchar* idStr,
     g->startActionVertexIndex = vertexIndex;
     g->hasStartAction = TRUE;
 
-    if(options->defaultStreamOpts.peers.isSet) {
+    if(options->defaultTrafficOpts.flowOpts.streamOpts.peers.isSet) {
         g->startHasPeers = TRUE;
     }
 
@@ -903,6 +952,25 @@ static GError* _tgengraph_parseFlowVertex(TGenGraph* g, const gchar* idStr,
     return NULL;
 }
 
+static GError* _tgengraph_parseTrafficVertex(TGenGraph* g, const gchar* idStr,
+        igraph_integer_t vertexIndex) {
+    TGEN_ASSERT(g);
+
+    GError* error = NULL;
+    TGenTrafficOptions* options = g_new0(TGenTrafficOptions, 1);
+
+    error = _tgengraph_parseTrafficAttributesHelper(g, idStr, vertexIndex, options);
+    if(error) {
+        g_free(options);
+        return error;
+    }
+
+    TGenAction* action = _tgengraph_newAction(TGEN_ACTION_TRAFFIC, options);
+    _tgengraph_storeAction(g, vertexIndex, action);
+
+    return NULL;
+}
+
 static GError* _tgengraph_parseGraphVertices(TGenGraph* g) {
     TGEN_ASSERT(g);
 
@@ -944,6 +1012,8 @@ static GError* _tgengraph_parseGraphVertices(TGenGraph* g) {
             error = _tgengraph_parseStreamVertex(g, idStr, vertexIndex);
         } else if(g_strstr_len(idStr, (gssize)-1, "flow")) {
             error = _tgengraph_parseFlowVertex(g, idStr, vertexIndex);
+        } else if(g_strstr_len(idStr, (gssize)-1, "traffic")) {
+            error = _tgengraph_parseTrafficVertex(g, idStr, vertexIndex);
         } else {
             error = g_error_new(G_MARKUP_ERROR, G_MARKUP_ERROR_UNKNOWN_ELEMENT,
                     "found vertex %li (%s) with an unknown action id '%s'",
@@ -1390,7 +1460,7 @@ static void _tgengraph_copyDefaultStreamOptions(TGenGraph* g, TGenStreamOptions*
     TGenStartOptions* startOptions = tgengraph_getStartOptions(g);
     g_assert(startOptions);
 
-    TGenStreamOptions* defaults = &startOptions->defaultStreamOpts;
+    TGenStreamOptions* defaults = &startOptions->defaultTrafficOpts.flowOpts.streamOpts;
 
     if(!options->packetModelPath.isSet && defaults->packetModelPath.isSet) {
         options->packetModelPath.isSet = TRUE;
@@ -1456,6 +1526,42 @@ static void _tgengraph_copyDefaultStreamOptions(TGenGraph* g, TGenStreamOptions*
     }
 }
 
+static void _tgengraph_copyDefaultFlowOptions(TGenGraph* g, TGenFlowOptions* options) {
+    TGEN_ASSERT(g);
+    g_assert(options);
+
+    /* for all the given options that were not explicitly set, check if a
+     * default was set in start vertex and copy the default if it was. */
+
+    TGenStartOptions* startOptions = tgengraph_getStartOptions(g);
+    g_assert(startOptions);
+
+    TGenFlowOptions* defaults = &startOptions->defaultTrafficOpts.flowOpts;
+
+    if(!options->streamModelPath.isSet && defaults->streamModelPath.isSet) {
+        options->streamModelPath.isSet = TRUE;
+        options->streamModelPath.value = g_strdup(defaults->streamModelPath.value);
+    }
+}
+
+static void _tgengraph_copyDefaultTrafficOptions(TGenGraph* g, TGenTrafficOptions* options) {
+    TGEN_ASSERT(g);
+    g_assert(options);
+
+    /* for all the given options that were not explicitly set, check if a
+     * default was set in start vertex and copy the default if it was. */
+
+    TGenStartOptions* startOptions = tgengraph_getStartOptions(g);
+    g_assert(startOptions);
+
+    TGenTrafficOptions* defaults = &startOptions->defaultTrafficOpts;
+
+    if(!options->flowModelPath.isSet && defaults->flowModelPath.isSet) {
+        options->flowModelPath.isSet = TRUE;
+        options->flowModelPath.value = g_strdup(defaults->flowModelPath.value);
+    }
+}
+
 TGenStreamOptions* tgengraph_getStreamOptions(TGenGraph* g, TGenActionID actionID) {
     gpointer options = _tgengraph_getOptionsHelper(g, actionID, TGEN_ACTION_STREAM, "stream");
     TGenStreamOptions* streamOptions = (TGenStreamOptions*) options;
@@ -1467,7 +1573,17 @@ TGenFlowOptions* tgengraph_getFlowOptions(TGenGraph* g, TGenActionID actionID) {
     gpointer options = _tgengraph_getOptionsHelper(g, actionID, TGEN_ACTION_FLOW, "flow");
     TGenFlowOptions* flowOptions = (TGenFlowOptions*) options;
     _tgengraph_copyDefaultStreamOptions(g, &flowOptions->streamOpts);
+    _tgengraph_copyDefaultFlowOptions(g, flowOptions);
     return flowOptions;
+}
+
+TGenTrafficOptions* tgengraph_getTrafficOptions(TGenGraph* g, TGenActionID actionID) {
+    gpointer options = _tgengraph_getOptionsHelper(g, actionID, TGEN_ACTION_TRAFFIC, "traffic");
+    TGenTrafficOptions* trafficOptions = (TGenTrafficOptions*) options;
+    _tgengraph_copyDefaultStreamOptions(g, &trafficOptions->flowOpts.streamOpts);
+    _tgengraph_copyDefaultFlowOptions(g, &trafficOptions->flowOpts);
+    _tgengraph_copyDefaultTrafficOptions(g, trafficOptions);
+    return trafficOptions;
 }
 
 gboolean tgengraph_incrementPauseVisited(TGenGraph* g, TGenActionID actionID) {

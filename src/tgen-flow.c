@@ -17,7 +17,7 @@ struct _TGenFlow {
     TGenIO* io;
 
     TGenTransport_notifyBytesFunc onBytes;
-    TGenFlow_notifyCompleteFunc onComplete;
+    TGen_notifyFunc onComplete;
     gpointer arg;
     GDestroyNotify argRef;
     GDestroyNotify argUnref;
@@ -114,7 +114,7 @@ static TGenMarkovModel* _tgenflow_createMarkovModel(TGenOptionPool* seedGenerato
 TGenFlow* tgenflow_new(TGenFlowOptions* flowOptions, TGenStreamOptions* streamOptions,
         TGenActionID actionID, const gchar* actionIDStr, TGenIO* io,
         TGenTransport_notifyBytesFunc onBytes,
-        TGenFlow_notifyCompleteFunc onComplete,
+        TGen_notifyFunc onComplete,
         gpointer arg, GDestroyNotify argRef, GDestroyNotify argUnref) {
     /* see if we need a stream model */
     TGenMarkovModel* streamModel = NULL;
@@ -155,7 +155,7 @@ TGenFlow* tgenflow_new(TGenFlowOptions* flowOptions, TGenStreamOptions* streamOp
     return flow;
 }
 
-static void _tgenflow_onStreamComplete(TGenFlow* flow, gpointer none, gboolean wasSuccess) {
+static void _tgenflow_onStreamComplete(TGenFlow* flow, TGenActionID actionID, TGenNotifyFlags flags) {
     TGEN_ASSERT(flow);
 
     /* here we call the onComplete function in the driver so it can track some stats.
@@ -163,11 +163,8 @@ static void _tgenflow_onStreamComplete(TGenFlow* flow, gpointer none, gboolean w
      * driver knows how to continue in the action graph. if we still need to generate
      * more streams, then we return a negative actionID. */
 
-    flow->numStreamsCompleted++;
-
-    TGenFlowFlags flags = TGEN_FLOW_STREAM_COMPLETE;
-    if(wasSuccess) {
-        flags |= TGEN_FLOW_STREAM_SUCCESS;
+    if(flags & TGEN_NOTIFY_STREAM_COMPLETE) {
+        flow->numStreamsCompleted++;
     }
 
     if(flow->reachedEndState && flow->numStreamsCompleted >= flow->numStreamsGenerated) {
@@ -175,7 +172,7 @@ static void _tgenflow_onStreamComplete(TGenFlow* flow, gpointer none, gboolean w
         tgen_message("Flow action '%s' status: completed %u of %u streams, flow is complete",
                 flow->actionIDStr, flow->numStreamsCompleted, flow->numStreamsGenerated);
 
-        flags |= TGEN_FLOW_COMPLETE;
+        flags |= TGEN_NOTIFY_FLOW_COMPLETE;
 
         flow->onComplete(flow->arg, flow->actionID, flags);
 
@@ -185,7 +182,9 @@ static void _tgenflow_onStreamComplete(TGenFlow* flow, gpointer none, gboolean w
         tgen_info("Flow action '%s' status: completed %u of %u streams, flow is still active",
                 flow->actionIDStr, flow->numStreamsCompleted, flow->numStreamsGenerated);
 
-        flow->onComplete(flow->arg, flow->actionID, flags);
+        /* we send an action id of -1 so the driver knows that a stream completed, but
+         * it will not try to move to the next action in the action graph. */
+        flow->onComplete(flow->arg, (TGenActionID)-1, flags);
     }
 }
 
@@ -215,8 +214,8 @@ static gboolean _tgenflow_createStream(TGenFlow* flow) {
     /* a new stream will be coming in on this transport. the stream
      * takes control of the transport pointer reference. */
     TGenStream* stream = tgenstream_new(flow->actionIDStr, flow->streamOptions, packetModel,
-            transport, (TGenStream_notifyCompleteFunc)_tgenflow_onStreamComplete,
-            flow, (GDestroyNotify) _tgenflow_unref, NULL, NULL);
+            transport, (TGenActionID) -1, (TGen_notifyFunc)_tgenflow_onStreamComplete,
+            flow, (GDestroyNotify) _tgenflow_unref);
 
     /* release our ref to the model, the stream holds its own ref */
     tgenmarkovmodel_unref(packetModel);
@@ -323,7 +322,7 @@ static void _tgenflow_generateNextStream(TGenFlow* flow) {
 
             if(flow->numStreamsCompleted >= flow->numStreamsGenerated) {
                 /* tell the driver we are done so it continues the action graph */
-                flow->onComplete(flow->arg, flow->actionID, TGEN_FLOW_COMPLETE);
+                flow->onComplete(flow->arg, flow->actionID, TGEN_NOTIFY_FLOW_COMPLETE);
                 /* delete ourselves, dont use the flow anymore */
                 _tgenflow_unref(flow);
             }
@@ -338,7 +337,7 @@ static void _tgenflow_generateNextStream(TGenFlow* flow) {
         /* if we have no outstanding streams, we are done */
         if(flow->numStreamsCompleted >= flow->numStreamsGenerated) {
             /* tell the driver we are done so it continues the action graph */
-            flow->onComplete(flow->arg, flow->actionID, TGEN_FLOW_COMPLETE);
+            flow->onComplete(flow->arg, flow->actionID, TGEN_NOTIFY_FLOW_COMPLETE);
             /* delete ourselves, dont use the flow anymore */
             _tgenflow_unref(flow);
         }
@@ -357,7 +356,7 @@ void tgenflow_start(TGenFlow* flow) {
             flow->reachedEndState = TRUE;
         } else {
             /* it failed, tell the driver to advance and free ourselves */
-            flow->onComplete(flow->arg, flow->actionID, TGEN_FLOW_COMPLETE);
+            flow->onComplete(flow->arg, flow->actionID, TGEN_NOTIFY_FLOW_COMPLETE);
             _tgenflow_unref(flow);
         }
     }

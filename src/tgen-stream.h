@@ -7,13 +7,9 @@
 
 typedef struct _TGenStream TGenStream;
 
-typedef void (*TGenStream_notifyCompleteFunc)(gpointer data1, gpointer data2, gboolean wasSuccess);
-
 TGenStream* tgenstream_new(const gchar* idStr, TGenStreamOptions* options,
-        TGenMarkovModel* mmodel, TGenTransport* transport,
-        TGenStream_notifyCompleteFunc notify,
-        gpointer data1, GDestroyNotify destructData1,
-        gpointer data2, GDestroyNotify destructData2);
+        TGenMarkovModel* mmodel, TGenTransport* transport, TGenActionID actionID,
+        TGen_notifyFunc notify, gpointer notifyArg, GDestroyNotify notifyArgDestructor);
 
 void tgenstream_ref(TGenStream* stream);
 void tgenstream_unref(TGenStream* stream);

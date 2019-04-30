@@ -193,11 +193,10 @@ struct _TGenStream {
     } time;
 
     /* notification and parameters for when this stream finishes */
-    TGenStream_notifyCompleteFunc notify;
-    gpointer data1;
-    gpointer data2;
-    GDestroyNotify destructData1;
-    GDestroyNotify destructData2;
+    TGen_notifyFunc notifyFunc;
+    gpointer notifyArg;
+    GDestroyNotify notifyArgDestructor;
+    TGenActionID actionID;
 
     /* memory housekeeping */
     gint refcount;
@@ -1640,12 +1639,19 @@ static void _tgenstream_log(TGenStream* stream, gboolean wasActive) {
 }
 
 static void _tgenstream_callNotify(TGenStream* stream) {
-    if(stream->notify) {
+    if(stream->notifyFunc) {
         /* execute the callback to notify that we are complete */
+        TGenNotifyFlags flags = TGEN_NOTIFY_STREAM_COMPLETE;
+
         gboolean wasSuccess = stream->error == TGEN_STREAM_ERR_NONE ? TRUE : FALSE;
-        stream->notify(stream->data1, stream->data2, wasSuccess);
+        if(wasSuccess) {
+            flags |= TGEN_NOTIFY_STREAM_SUCCESS;
+        }
+
+        stream->notifyFunc(stream->notifyArg, stream->actionID, flags);
+
         /* make sure we only do the notification once */
-        stream->notify = NULL;
+        stream->notifyFunc = NULL;
     }
 }
 
@@ -1883,21 +1889,18 @@ gboolean tgenstream_onCheckTimeout(TGenStream* stream, gint descriptor) {
 }
 
 TGenStream* tgenstream_new(const gchar* idStr, TGenStreamOptions* options,
-        TGenMarkovModel* mmodel, TGenTransport* transport,
-        TGenStream_notifyCompleteFunc notify,
-        gpointer data1, GDestroyNotify destructData1,
-        gpointer data2, GDestroyNotify destructData2) {
+        TGenMarkovModel* mmodel, TGenTransport* transport, TGenActionID actionID,
+        TGen_notifyFunc notify, gpointer notifyArg, GDestroyNotify notifyArgDestructor) {
     TGenStream* stream = g_new0(TGenStream, 1);
     stream->magic = TGEN_MAGIC;
     stream->refcount = 1;
 
     stream->time.start = _tgenstream_getTime(stream);
 
-    stream->notify = notify;
-    stream->data1 = data1;
-    stream->destructData1 = destructData1;
-    stream->data2 = data2;
-    stream->destructData2 = destructData2;
+    stream->actionID = actionID;
+    stream->notifyFunc = notify;
+    stream->notifyArg = notifyArg;
+    stream->notifyArgDestructor = notifyArgDestructor;
 
     /* get the hostname */
     gchar nameBuffer[256];
@@ -2029,12 +2032,8 @@ static void _tgenstream_free(TGenStream* stream) {
         g_checksum_free(stream->recv.checksum);
     }
 
-    if(stream->destructData1 && stream->data1) {
-        stream->destructData1(stream->data1);
-    }
-
-    if(stream->destructData2 && stream->data2) {
-        stream->destructData2(stream->data2);
+    if(stream->notifyArg && stream->notifyArgDestructor) {
+        stream->notifyArgDestructor(stream->notifyArg);
     }
 
     if(stream->transport) {
