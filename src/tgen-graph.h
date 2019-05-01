@@ -28,6 +28,8 @@ typedef struct _TGenStreamOptions {
     TGenOptionPeer socksProxy;
     TGenOptionString socksUsername;
     TGenOptionString socksPassword;
+    TGenOptionUInt32 socksAuthSeed;
+    TGenOptionPool socksAuthGenerator; /* using pool as a ref-counted container */
     TGenOptionUInt64 sendSize;
     TGenOptionUInt64 recvSize;
     TGenOptionUInt64 timeoutNanos;

@@ -22,13 +22,14 @@ typedef enum {
     TGEN_VA_SOCKSPROXY = 1 << 11,
     TGEN_VA_SOCKSUSERNAME = 1 << 12,
     TGEN_VA_SOCKSPASSWORD = 1 << 13,
-    TGEN_VA_SENDSIZE = 1 << 14,
-    TGEN_VA_RECVSIZE = 1 << 15,
-    TGEN_VA_TIMEOUT = 1 << 16,
-    TGEN_VA_STALLOUT = 1 << 17,
-    TGEN_VA_STREAMMODELPATH = 1 << 18,
-    TGEN_VA_FLOWMODELPATH = 1 << 19,
-    TGEN_VA_COUNT = 1 << 20,
+    TGEN_VA_SOCKSAUTHSEED = 1 << 14,
+    TGEN_VA_SENDSIZE = 1 << 15,
+    TGEN_VA_RECVSIZE = 1 << 16,
+    TGEN_VA_TIMEOUT = 1 << 17,
+    TGEN_VA_STALLOUT = 1 << 18,
+    TGEN_VA_STREAMMODELPATH = 1 << 19,
+    TGEN_VA_FLOWMODELPATH = 1 << 20,
+    TGEN_VA_COUNT = 1 << 21,
 } AttributeFlags;
 
 typedef struct _TGenAction {
@@ -114,6 +115,9 @@ static void _tgengraph_freeActionHelper(TGenActionType type, gpointer optionsptr
             if(options->socksPassword.value) {
                 g_free(options->socksPassword.value);
             }
+            if(options->socksAuthGenerator.value) {
+                tgenpool_unref(options->socksAuthGenerator.value);
+            }
         }
     } else if (type == TGEN_ACTION_FLOW) {
         TGenFlowOptions* options = optionsptr;
@@ -186,6 +190,9 @@ static const gchar* _tgengraph_attributeToString(AttributeFlags attr) {
         case TGEN_VA_SOCKSPASSWORD: {
             return "sockspassword";
         }
+        case TGEN_VA_SOCKSAUTHSEED: {
+            return "socksauthseed";
+        }
         case TGEN_VA_SENDSIZE: {
             return "sendsize";
         }
@@ -252,6 +259,9 @@ static AttributeFlags _tgengraph_vertexAttributeToFlag(const gchar* stringAttrib
         } else if(!g_ascii_strcasecmp(stringAttribute,
                 _tgengraph_attributeToString(TGEN_VA_SOCKSPASSWORD))) {
             return TGEN_VA_SOCKSPASSWORD;
+        } else if(!g_ascii_strcasecmp(stringAttribute,
+                _tgengraph_attributeToString(TGEN_VA_SOCKSAUTHSEED))) {
+            return TGEN_VA_SOCKSAUTHSEED;
         } else if(!g_ascii_strcasecmp(stringAttribute,
                 _tgengraph_attributeToString(TGEN_VA_SENDSIZE))) {
             return TGEN_VA_SENDSIZE;
@@ -569,6 +579,15 @@ static GError* _tgengraph_parseStreamAttributesHelper(TGenGraph* g, const gchar*
         }
     }
 
+    if(g->knownAttributes & TGEN_VA_SOCKSAUTHSEED) {
+        const gchar* name = _tgengraph_attributeToString(TGEN_VA_SOCKSAUTHSEED);
+        const gchar* valueStr = VAS(g->graph, name, vertexIndex);
+        error = tgenoptionparser_parseUInt32(name, valueStr, &options->socksAuthSeed);
+        if(error) {
+            return error;
+        }
+    }
+
     if(g->knownAttributes & TGEN_VA_SENDSIZE) {
         const gchar* name = _tgengraph_attributeToString(TGEN_VA_SENDSIZE);
         const gchar* valueStr = VAS(g->graph, name, vertexIndex);
@@ -639,6 +658,15 @@ static GError* _tgengraph_parseStreamAttributesHelper(TGenGraph* g, const gchar*
 
         options->seedGenerator.isSet = TRUE;
         options->seedGenerator.value = seedPrngContainer;
+    }
+
+    if(options->socksAuthSeed.isSet) {
+        GRand* authPrng = g_rand_new_with_seed(options->socksAuthSeed.value);
+        TGenPool* authPrngContainer = tgenpool_new((GDestroyNotify)g_rand_free);
+        tgenpool_add(authPrngContainer, authPrng);
+
+        options->socksAuthGenerator.isSet = TRUE;
+        options->socksAuthGenerator.value = authPrngContainer;
     }
 
     return error;
@@ -1095,26 +1123,47 @@ static GError* _tgengraph_parseGraphProperties(TGenGraph* g) {
                 "igraph_cattribute_list return non-success code %i", result);
     }
 
+    GError* error = NULL;
     gint i = 0;
-    for(i = 0; i < igraph_strvector_size(&gnames); i++) {
+    for(i = 0; !error && i < igraph_strvector_size(&gnames); i++) {
         gchar* name = NULL;
         igraph_strvector_get(&gnames, (glong) i, &name);
 
         tgen_debug("found graph attribute '%s'", name);
     }
-    for(i = 0; i < igraph_strvector_size(&vnames); i++) {
+
+    for(i = 0; !error && i < igraph_strvector_size(&vnames); i++) {
         gchar* name = NULL;
         igraph_strvector_get(&vnames, (glong) i, &name);
 
         tgen_debug("found vertex attribute '%s'", name);
-        g->knownAttributes |= _tgengraph_vertexAttributeToFlag(name);
+
+        AttributeFlags flag = _tgengraph_vertexAttributeToFlag(name);
+
+        if(flag == TGEN_A_NONE) {
+            error = g_error_new(G_MARKUP_ERROR, G_MARKUP_ERROR_UNKNOWN_ATTRIBUTE,
+                    "Vertex attribute '%s' is unknown, "
+                    "please check your config and try again.", name);
+        } else {
+            g->knownAttributes |= flag;
+        }
     }
-    for(i = 0; i < igraph_strvector_size(&enames); i++) {
+
+    for(i = 0; !error && i < igraph_strvector_size(&enames); i++) {
         gchar* name = NULL;
         igraph_strvector_get(&enames, (glong) i, &name);
 
         tgen_debug("found edge attribute '%s'", name);
-        g->knownAttributes |= _tgengraph_edgeAttributeToFlag(name);
+
+        AttributeFlags flag = _tgengraph_edgeAttributeToFlag(name);
+
+        if(flag == TGEN_A_NONE) {
+            error = g_error_new(G_MARKUP_ERROR, G_MARKUP_ERROR_UNKNOWN_ATTRIBUTE,
+                    "Edge attribute '%s' is unknown, "
+                    "please check your config and try again.", name);
+        } else {
+            g->knownAttributes |= flag;
+        }
     }
 
     igraph_strvector_destroy(&gnames);
@@ -1124,9 +1173,13 @@ static GError* _tgengraph_parseGraphProperties(TGenGraph* g) {
     igraph_strvector_destroy(&enames);
     igraph_vector_destroy(&etypes);
 
-    tgen_info("successfully verified graph properties and attributes");
+    if(error) {
+        tgen_warning("failed to verify graph properties and attributes");
+    } else {
+        tgen_info("successfully verified graph properties and attributes");
+    }
 
-    return NULL;
+    return error;
 }
 
 static igraph_t* _tgengraph_loadNewGraph(const gchar* path) {
@@ -1513,6 +1566,17 @@ static void _tgengraph_copyDefaultStreamOptions(TGenGraph* g, TGenStreamOptions*
     if(!options->socksPassword.isSet && defaults->socksPassword.isSet) {
         options->socksPassword.isSet = TRUE;
         options->socksPassword.value = g_strdup(defaults->socksPassword.value);
+    }
+
+    if(!options->socksAuthSeed.isSet && defaults->socksAuthSeed.isSet) {
+        options->socksAuthSeed.isSet = TRUE;
+        options->socksAuthSeed.value = defaults->socksAuthSeed.value;
+    }
+
+    if(!options->socksAuthGenerator.isSet && defaults->socksAuthGenerator.isSet) {
+        options->socksAuthGenerator.isSet = TRUE;
+        options->socksAuthGenerator.value = defaults->socksAuthGenerator.value;
+        tgenpool_ref(defaults->socksAuthGenerator.value);
     }
 
     if(!options->stalloutNanos.isSet && defaults->stalloutNanos.isSet) {

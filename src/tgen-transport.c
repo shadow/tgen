@@ -275,7 +275,8 @@ static TGenPeer* _tgentransport_getProxyFromEnvHelper(){
     }
 }
 
-TGenTransport* tgentransport_newActive(TGenStreamOptions* options, NotifyBytesCallback bytesCB) {
+TGenTransport* tgentransport_newActive(TGenStreamOptions* options, NotifyBytesCallback bytesCB,
+        const gchar* socksUsername, const gchar* socksPassword) {
     /* get the ultimate destination */
     TGenPeer* peer = options->peers.isSet ? tgenpool_getRandom(options->peers.value) : NULL;
     if(!peer) {
@@ -340,8 +341,8 @@ TGenTransport* tgentransport_newActive(TGenStreamOptions* options, NotifyBytesCa
         return NULL;
     }
 
-    gchar* username = (proxy && options->socksUsername.isSet) ? options->socksUsername.value : NULL;
-    gchar* password = (proxy && options->socksPassword.isSet) ? options->socksPassword.value : NULL;
+    const gchar* username = (proxy && socksUsername) ? socksUsername : NULL;
+    const gchar* password = (proxy && socksPassword) ? socksPassword : NULL;
 
     TGenTransport* transport = _tgentransport_newHelper(socketD, started, created,
             proxy, username, password, peer, bytesCB);

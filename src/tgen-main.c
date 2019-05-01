@@ -2,6 +2,7 @@
  * See LICENSE for licensing information
  */
 
+#include <stdlib.h>
 #include <unistd.h>
 #include <signal.h>
 
@@ -17,16 +18,22 @@ static void _tgenmain_cleanup(gint status, gpointer arg) {
     }
 }
 
-static gint _tgenmain_run(gint argc, gchar *argv[]) {
-    /* start the logger at the message level until we read the config file */
-    tgenlog_setLogFilterLevel(G_LOG_LEVEL_MESSAGE);
+static gint _tgenmain_returnError(gint flushLogCache) {
+    if(flushLogCache) {
+        /* make sure we flush any cached messages */
+        tgenlog_setLogFilterLevel(0);
+    }
+    return EXIT_FAILURE;
+}
 
+static gint _tgenmain_run(gint argc, gchar *argv[]) {
     /* get our hostname for logging */
     gchar hostname[128];
     memset(hostname, 0, 128);
     tgenconfig_gethostname(hostname, 128);
 
-    /* default to message level log until we read config */
+    /* note: messages will not be flushed by the logger until after we read the config
+     * and then set the log level in tgenlog_setLogFilterLevel. */
     tgen_message("Initializing TGen v%s running GLib v%u.%u.%u and IGraph v%s "
         "on host %s with process id %i",
         TGEN_VERSION,
@@ -60,7 +67,7 @@ static gint _tgenmain_run(gint argc, gchar *argv[]) {
     if (argc != 2) {
         tgen_warning("USAGE: %s path/to/tgen.xml", argv[0]);
         tgen_critical("cannot continue: incorrect argument list format")
-        return -1;
+        return _tgenmain_returnError(1);
     }
 
     /* make sure broken pipes (if a tgen peer closes) do not crash our process */
@@ -74,7 +81,7 @@ static gint _tgenmain_run(gint argc, gchar *argv[]) {
     TGenGraph* graph = tgengraph_new(argv[1]);
     if (!graph) {
         tgen_critical("cannot continue: traffic generator config file '%s' failed validation", argv[1]);
-        return -1;
+        return _tgenmain_returnError(1);
     }
 
     /* set log level, which again defaults to message if no level was configured */
@@ -93,7 +100,7 @@ static gint _tgenmain_run(gint argc, gchar *argv[]) {
 
     if(!tgen) {
         tgen_critical("Error initializing new TrafficGen instance");
-        return -1;
+        return _tgenmain_returnError(0);
     } else {
         on_exit(_tgenmain_cleanup, tgen);
     }
@@ -102,14 +109,14 @@ static gint _tgenmain_run(gint argc, gchar *argv[]) {
     gint tgenepolld = tgendriver_getEpollDescriptor(tgen);
     if(tgenepolld < 0) {
         tgen_critical("Error retrieving tgen epolld");
-        return -1;
+        return _tgenmain_returnError(0);
     }
 
     /* now we need to watch all of the epoll descriptors in our main loop */
     gint mainepolld = epoll_create(1);
     if(mainepolld < 0) {
         tgen_critical("Error in main epoll_create");
-        return -1;
+        return _tgenmain_returnError(0);
     }
 
     /* register the tgen epoll descriptor so we can watch its events */
@@ -134,7 +141,7 @@ static gint _tgenmain_run(gint argc, gchar *argv[]) {
                 continue;
             }
             tgen_critical("error %i in client epoll_wait:, %s", errno, g_strerror(errno));
-            return -1;
+            return _tgenmain_returnError(0);
         }
 
         /* activate if something is ready */
@@ -159,7 +166,7 @@ static gint _tgenmain_run(gint argc, gchar *argv[]) {
     tgen_message("returning 0 from main");
 
     /* _tgenmain_cleanup() should get called via on_exit */
-    return 0;
+    return EXIT_SUCCESS;
 }
 
 gint main(gint argc, gchar *argv[]) {
