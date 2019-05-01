@@ -8,8 +8,17 @@
 
 #include "tgen-log.h"
 
+typedef struct _CachedLogMessage CachedLogMessage;
+struct _CachedLogMessage {
+    GLogLevelFlags level;
+    gchar* str;
+};
+
 /* store a global pointer to the log filter */
-GLogLevelFlags tgenLogFilterLevel = G_LOG_LEVEL_MESSAGE;
+GLogLevelFlags tgenLogFilterLevel = 0;
+
+/* we cache messages until a log level is set */
+GQueue* tgenLogMessageCache = NULL;
 
 static const gchar* _tgenlog_logLevelToString(GLogLevelFlags logLevel) {
     switch (logLevel) {
@@ -30,6 +39,36 @@ static const gchar* _tgenlog_logLevelToString(GLogLevelFlags logLevel) {
     }
 }
 
+static void _tgenlog_flushMessageCache() {
+    g_assert(tgenLogMessageCache);
+
+    while(!g_queue_is_empty(tgenLogMessageCache)) {
+        CachedLogMessage* message = g_queue_pop_head(tgenLogMessageCache);
+        if(message) {
+            if(message->str) {
+                if(message->level <= tgenLogFilterLevel || tgenLogFilterLevel == 0) {
+                    g_print("%s\n", message->str);
+                }
+                g_free(message->str);
+            }
+            g_free(message);
+        }
+    }
+
+    g_queue_free(tgenLogMessageCache);
+    tgenLogMessageCache = NULL;
+}
+
+static void _tgenlog_cacheMessage(gchar* messageStr, GLogLevelFlags level) {
+    if(tgenLogMessageCache == NULL) {
+        tgenLogMessageCache = g_queue_new();
+    }
+    CachedLogMessage* message = g_new0(CachedLogMessage, 1);
+    message->str = messageStr;
+    message->level = level;
+    g_queue_push_tail(tgenLogMessageCache, message);
+}
+
 void tgenlog_setLogFilterLevel(GLogLevelFlags level) {
     GLogLevelFlags oldLevel = tgenLogFilterLevel;
     if(oldLevel != level) {
@@ -37,11 +76,15 @@ void tgenlog_setLogFilterLevel(GLogLevelFlags level) {
         tgen_message("Changed log level filter from '%s' to '%s'",
                 _tgenlog_logLevelToString(oldLevel), _tgenlog_logLevelToString(level));
     }
+    /* now that we set a level we can stop cacheing */
+    if(tgenLogMessageCache) {
+        _tgenlog_flushMessageCache();
+    }
 }
 
 void tgenlog_printMessage(GLogLevelFlags level, const gchar* fileName, const gint lineNum,
         const gchar* functionName, const gchar* format, ...) {
-    if(level > tgenLogFilterLevel) {
+    if(level > tgenLogFilterLevel && tgenLogFilterLevel > 0) {
         return;
     }
 
@@ -60,9 +103,20 @@ void tgenlog_printMessage(GLogLevelFlags level, const gchar* fileName, const gin
             g_date_time_to_unix(dt), g_date_time_get_microsecond(dt),
             _tgenlog_logLevelToString(level), fileStr, lineNum, functionName, format);
 
-    gchar* message = g_strdup_vprintf(newformat->str, vargs);
-    g_print("%s\n", message);
-    g_free(message);
+    gchar* messageStr = g_strdup_vprintf(newformat->str, vargs);
+
+    /* do we print right away, or cache it until we set a level */
+    if(tgenLogFilterLevel > 0) {
+        /* we already set a level */
+        if(tgenLogMessageCache) {
+            /* we have a level, so make sure we don't cache any more messages */
+            _tgenlog_flushMessageCache();
+        }
+        g_print("%s\n", messageStr);
+        g_free(messageStr);
+    } else {
+        _tgenlog_cacheMessage(messageStr, level);
+    }
 
     g_string_free(newformat, TRUE);
     g_date_time_unref(dt);

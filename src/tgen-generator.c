@@ -29,6 +29,9 @@ struct _TGenGenerator {
     NotifyBytesCallback bytesCB;
     NotifyCompleteCallback completeCB;
 
+    gchar* socksUsername;
+    gchar* socksPassword;
+
     gint refcount;
     guint magic;
 };
@@ -46,6 +49,14 @@ static void _tgengenerator_free(TGenGenerator* gen) {
 
     if(gen->io) {
         tgenio_unref(gen->io);
+    }
+
+    if(gen->socksUsername) {
+        g_free(gen->socksUsername);
+    }
+
+    if(gen->socksPassword) {
+        g_free(gen->socksPassword);
     }
 
     if(gen->bytesCB.arg && gen->bytesCB.argUnref) {
@@ -123,6 +134,64 @@ static TGenMarkovModel* _tgengenerator_createMarkovModel(
     return mmodel;
 }
 
+void mkrndstr_ipa(size_t length, char *randomString) { // const size_t length, supra
+
+    static char charset[] = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789@#&?!";
+
+    if (length) {
+        if (randomString) {
+            int l = (int) (sizeof(charset) - 1);
+            for (int n = 0; n < length; n++) {
+                int key = rand() % l;          // per-iteration instantiation
+                randomString[n] = charset[key];
+            }
+
+            randomString[length] = '\0';
+        }
+    }
+}
+
+static void _tgengenerator_initSocksAuthStrings(TGenGenerator* gen) {
+    TGEN_ASSERT(gen);
+
+    if(!gen->streamOptions) {
+        /* we won't be generating streams, so nothing to do */
+        return;
+    }
+
+    if(gen->streamOptions->socksAuthGenerator.isSet) {
+        g_assert(gen->streamOptions->socksAuthGenerator.value);
+        GRand* prng = tgenpool_getRandom(gen->streamOptions->socksAuthGenerator.value);
+        g_assert(prng);
+
+        const gchar charset[] = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789,.-#'?!";
+        gint charsetLength = (gint)(sizeof(charset)-1);
+        gchar randomStr[8];
+
+        for(gint i = 0; i < 7; i++) {
+            gint index = (gint)(g_rand_int(prng) % charsetLength);
+            randomStr[i] = charset[index];
+        }
+
+        randomStr[7] = '\0';
+
+        gen->socksUsername = g_strdup(randomStr);
+        gen->socksPassword = g_strdup(randomStr);
+    } else {
+        if(gen->streamOptions->socksUsername.isSet && gen->streamOptions->socksUsername.value) {
+            gen->socksUsername = g_strdup(gen->streamOptions->socksUsername.value);
+        } else {
+            gen->socksUsername = NULL;
+        }
+
+        if(gen->streamOptions->socksPassword.isSet && gen->streamOptions->socksPassword.value) {
+            gen->socksPassword = g_strdup(gen->streamOptions->socksPassword.value);
+        } else {
+            gen->socksPassword = NULL;
+        }
+    }
+}
+
 TGenGenerator* tgengenerator_new(TGenTrafficOptions* trafficOptions,
         TGenFlowOptions* flowOptions, TGenStreamOptions* streamOptions,
         TGenActionID actionID, const gchar* actionIDStr, TGenIO* io,
@@ -188,6 +257,8 @@ TGenGenerator* tgengenerator_new(TGenTrafficOptions* trafficOptions,
     if(gen->completeCB.arg && gen->completeCB.argRef) {
         gen->completeCB.argRef(gen->completeCB.arg);
     }
+
+    _tgengenerator_initSocksAuthStrings(gen);
 
     return gen;
 }
@@ -304,7 +375,8 @@ static gboolean _tgengenerator_createStream(TGenGenerator* gen) {
 
     /* create the transport connection over which we can start a stream.
      * the transport will ref++ driver and notify it when bytes are sent/recv'd */
-    TGenTransport* transport = tgentransport_newActive(gen->streamOptions, gen->bytesCB);
+    TGenTransport* transport = tgentransport_newActive(gen->streamOptions, gen->bytesCB,
+            gen->socksUsername, gen->socksPassword);
 
     if(!transport) {
         tgen_warning("failed to initialize transport for stream '%s'", gen->actionIDStr);
