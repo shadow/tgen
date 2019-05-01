@@ -31,9 +31,8 @@ struct _TGenTransport {
 
     gint socketD;
 
-    TGenTransport_notifyBytesFunc notify;
-    gpointer data;
-    GDestroyNotify destructData;
+    /* function/args to use when we send/recv bytes */
+    NotifyBytesCallback bytesCB;
 
     /* our local socket, our side of the transport */
     TGenPeer* local;
@@ -198,7 +197,7 @@ static void _tgentransport_changeError(TGenTransport* transport, TGenTransportEr
 
 static TGenTransport* _tgentransport_newHelper(gint socketD, gint64 startedTime, gint64 createdTime,
         TGenPeer* proxy, const gchar* username, const gchar* password, TGenPeer* peer,
-        TGenTransport_notifyBytesFunc notify, gpointer data, GDestroyNotify destructData) {
+        NotifyBytesCallback bytesCB) {
     TGenTransport* transport = g_new0(TGenTransport, 1);
     transport->magic = TGEN_MAGIC;
     transport->refcount = 1;
@@ -235,10 +234,6 @@ static TGenTransport* _tgentransport_newHelper(gint socketD, gint64 startedTime,
         transport->local = tgenpeer_newFromIP(addrBuf.sin_addr.s_addr, addrBuf.sin_port);
     }
 
-    transport->notify = notify;
-    transport->data = data;
-    transport->destructData = destructData;
-
     transport->time.start = startedTime;
     transport->time.socketCreate = createdTime;
     transport->time.socketConnect = -1;
@@ -246,6 +241,11 @@ static TGenTransport* _tgentransport_newHelper(gint socketD, gint64 startedTime,
     transport->time.proxyChoice = -1;
     transport->time.proxyRequest = -1;
     transport->time.proxyResponse = -1;
+
+    transport->bytesCB = bytesCB;
+    if(transport->bytesCB.arg && transport->bytesCB.argRef) {
+        transport->bytesCB.argRef(transport->bytesCB.arg);
+    }
 
     return transport;
 }
@@ -275,8 +275,7 @@ static TGenPeer* _tgentransport_getProxyFromEnvHelper(){
     }
 }
 
-TGenTransport* tgentransport_newActive(TGenStreamOptions* options,
-        TGenTransport_notifyBytesFunc notify, gpointer data, GDestroyNotify destructData) {
+TGenTransport* tgentransport_newActive(TGenStreamOptions* options, NotifyBytesCallback bytesCB) {
     /* get the ultimate destination */
     TGenPeer* peer = options->peers.isSet ? tgenpool_getRandom(options->peers.value) : NULL;
     if(!peer) {
@@ -345,7 +344,7 @@ TGenTransport* tgentransport_newActive(TGenStreamOptions* options,
     gchar* password = (proxy && options->socksPassword.isSet) ? options->socksPassword.value : NULL;
 
     TGenTransport* transport = _tgentransport_newHelper(socketD, started, created,
-            proxy, username, password, peer, notify, data, destructData);
+            proxy, username, password, peer, bytesCB);
 
     if(envProxy) {
         tgenpeer_unref(envProxy);
@@ -355,8 +354,8 @@ TGenTransport* tgentransport_newActive(TGenStreamOptions* options,
 }
 
 TGenTransport* tgentransport_newPassive(gint socketD, gint64 started, gint64 created, TGenPeer* peer,
-        TGenTransport_notifyBytesFunc notify, gpointer data, GDestroyNotify destructData) {
-    return _tgentransport_newHelper(socketD, started, created, NULL, NULL, NULL, peer, notify, data, destructData);
+        NotifyBytesCallback bytesCB) {
+    return _tgentransport_newHelper(socketD, started, created, NULL, NULL, NULL, peer, bytesCB);
 }
 
 static void _tgentransport_free(TGenTransport* transport) {
@@ -391,8 +390,8 @@ static void _tgentransport_free(TGenTransport* transport) {
         g_string_free(transport->socksBuffer, TRUE);
     }
 
-    if(transport->destructData && transport->data) {
-        transport->destructData(transport->data);
+    if(transport->bytesCB.arg && transport->bytesCB.argUnref) {
+        transport->bytesCB.argUnref(transport->bytesCB.arg);
     }
 
     if(transport->username) {
@@ -447,8 +446,8 @@ gssize tgentransport_write(TGenTransport* transport, gpointer buffer, gsize leng
         _tgentransport_changeError(transport, TGEN_XPORT_ERR_WRITE);
     }
 
-    if(bytes > 0 && transport->notify) {
-        transport->notify(transport->data, 0, (gsize)bytes);
+    if(bytes > 0 && transport->bytesCB.func) {
+        transport->bytesCB.func(transport->bytesCB.arg, 0, (gsize)bytes);
     }
 
     return bytes;
@@ -476,8 +475,8 @@ gssize tgentransport_read(TGenTransport* transport, gpointer buffer, gsize lengt
         }
     }
 
-    if(bytes > 0 && transport->notify) {
-        transport->notify(transport->data, (gsize)bytes, 0);
+    if(bytes > 0 && transport->bytesCB.func) {
+        transport->bytesCB.func(transport->bytesCB.arg, (gsize)bytes, 0);
     }
 
     return bytes;

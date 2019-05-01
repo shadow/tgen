@@ -193,10 +193,7 @@ struct _TGenStream {
     } time;
 
     /* notification and parameters for when this stream finishes */
-    TGen_notifyFunc notifyFunc;
-    gpointer notifyArg;
-    GDestroyNotify notifyArgDestructor;
-    TGenActionID actionID;
+    NotifyCompleteCallback completeCB;
 
     /* memory housekeeping */
     gint refcount;
@@ -1639,7 +1636,7 @@ static void _tgenstream_log(TGenStream* stream, gboolean wasActive) {
 }
 
 static void _tgenstream_callNotify(TGenStream* stream) {
-    if(stream->notifyFunc) {
+    if(stream->completeCB.func) {
         /* execute the callback to notify that we are complete */
         TGenNotifyFlags flags = TGEN_NOTIFY_STREAM_COMPLETE;
 
@@ -1648,10 +1645,10 @@ static void _tgenstream_callNotify(TGenStream* stream) {
             flags |= TGEN_NOTIFY_STREAM_SUCCESS;
         }
 
-        stream->notifyFunc(stream->notifyArg, stream->actionID, flags);
+        stream->completeCB.func(stream->completeCB.arg, stream->completeCB.actionID, flags);
 
         /* make sure we only do the notification once */
-        stream->notifyFunc = NULL;
+        stream->completeCB.func = NULL;
     }
 }
 
@@ -1889,18 +1886,12 @@ gboolean tgenstream_onCheckTimeout(TGenStream* stream, gint descriptor) {
 }
 
 TGenStream* tgenstream_new(const gchar* idStr, TGenStreamOptions* options,
-        TGenMarkovModel* mmodel, TGenTransport* transport, TGenActionID actionID,
-        TGen_notifyFunc notify, gpointer notifyArg, GDestroyNotify notifyArgDestructor) {
+        TGenMarkovModel* mmodel, TGenTransport* transport, NotifyCompleteCallback completeCB) {
     TGenStream* stream = g_new0(TGenStream, 1);
     stream->magic = TGEN_MAGIC;
     stream->refcount = 1;
 
     stream->time.start = _tgenstream_getTime(stream);
-
-    stream->actionID = actionID;
-    stream->notifyFunc = notify;
-    stream->notifyArg = notifyArg;
-    stream->notifyArgDestructor = notifyArgDestructor;
 
     /* get the hostname */
     gchar nameBuffer[256];
@@ -1986,6 +1977,11 @@ TGenStream* tgenstream_new(const gchar* idStr, TGenStreamOptions* options,
 
     stream->time.nowCached = 0;
 
+    stream->completeCB = completeCB;
+    if(stream->completeCB.arg && stream->completeCB.argRef) {
+        stream->completeCB.argRef(stream->completeCB.arg);
+    }
+
     return stream;
 }
 
@@ -2032,8 +2028,8 @@ static void _tgenstream_free(TGenStream* stream) {
         g_checksum_free(stream->recv.checksum);
     }
 
-    if(stream->notifyArg && stream->notifyArgDestructor) {
-        stream->notifyArgDestructor(stream->notifyArg);
+    if(stream->completeCB.arg && stream->completeCB.argUnref) {
+        stream->completeCB.argUnref(stream->completeCB.arg);
     }
 
     if(stream->transport) {

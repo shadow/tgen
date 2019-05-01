@@ -29,14 +29,23 @@ struct _TGenDriver {
     TGenIO* io;
 
     /* traffic statistics */
-    guint64 heartbeatStreamSuccess;
-    guint64 heartbeatStreamError;
     gsize heartbeatBytesRead;
     gsize heartbeatBytesWritten;
-    guint64 totalStreamSuccess;
-    guint64 totalStreamError;
+    guint64 heartbeatStreamSuccess;
+    guint64 heartbeatStreamError;
+    guint64 heartbeatFlowSuccess;
+    guint64 heartbeatFlowError;
+    guint64 heartbeatTrafficSuccess;
+    guint64 heartbeatTrafficError;
+
     gsize totalBytesRead;
     gsize totalBytesWritten;
+    guint64 totalStreamSuccess;
+    guint64 totalStreamError;
+    guint64 totalFlowSuccess;
+    guint64 totalFlowError;
+    guint64 totalTrafficSuccess;
+    guint64 totalTrafficError;
 
     gint refcount;
     guint magic;
@@ -57,6 +66,26 @@ static void _tgendriver_onNotify(TGenDriver* driver, TGenActionID actionID, TGen
         } else {
             driver->heartbeatStreamError++;
             driver->totalStreamError++;
+        }
+    }
+
+    if(flags & TGEN_NOTIFY_FLOW_COMPLETE) {
+        if(flags & TGEN_NOTIFY_FLOW_SUCCESS) {
+            driver->heartbeatFlowSuccess++;
+            driver->totalFlowSuccess++;
+        } else {
+            driver->heartbeatFlowError++;
+            driver->totalFlowError++;
+        }
+    }
+
+    if(flags & TGEN_NOTIFY_TRAFFIC_COMPLETE) {
+        if(flags & TGEN_NOTIFY_TRAFFIC_SUCCESS) {
+            driver->heartbeatTrafficSuccess++;
+            driver->totalTrafficSuccess++;
+        } else {
+            driver->heartbeatTrafficError++;
+            driver->totalTrafficError++;
         }
     }
 
@@ -82,17 +111,84 @@ static void _tgendriver_onBytesTransferred(TGenDriver* driver, gsize bytesRead, 
 static gboolean _tgendriver_onHeartbeat(TGenDriver* driver, gpointer nullData) {
     TGEN_ASSERT(driver);
 
-    tgen_message("[driver-heartbeat] bytes-read=%"G_GSIZE_FORMAT" bytes-written=%"G_GSIZE_FORMAT
-            " current-streams-succeeded=%"G_GUINT64_FORMAT" current-streams-failed=%"G_GUINT64_FORMAT
-            " total-streams-succeeded=%"G_GUINT64_FORMAT" total-streams-failed=%"G_GUINT64_FORMAT,
-            driver->heartbeatBytesRead, driver->heartbeatBytesWritten,
-            driver->heartbeatStreamSuccess, driver->heartbeatStreamError,
-            driver->totalStreamSuccess, driver->totalStreamError);
+    GString* message = g_string_new("driver-heartbeat]");
 
-    driver->heartbeatStreamSuccess = 0;
-    driver->heartbeatStreamError = 0;
+    g_string_append_printf(message,
+            " bytes-read=%"G_GSIZE_FORMAT" bytes-written=%"G_GSIZE_FORMAT,
+            driver->heartbeatBytesRead, driver->heartbeatBytesWritten);
+
+    if(driver->heartbeatStreamSuccess > 0) {
+        g_string_append_printf(message,
+                " streams-succeeded=%"G_GUINT64_FORMAT, driver->heartbeatStreamSuccess);
+    }
+
+    if(driver->heartbeatStreamError > 0) {
+        g_string_append_printf(message,
+                " streams-failed=%"G_GUINT64_FORMAT, driver->heartbeatStreamError);
+    }
+
+    if(driver->heartbeatFlowSuccess > 0) {
+        g_string_append_printf(message,
+                " flows-succeeded=%"G_GUINT64_FORMAT, driver->heartbeatFlowSuccess);
+    }
+
+    if(driver->heartbeatFlowError > 0) {
+        g_string_append_printf(message,
+                " flows-failed=%"G_GUINT64_FORMAT, driver->heartbeatFlowError);
+    }
+
+    if(driver->heartbeatTrafficSuccess > 0) {
+        g_string_append_printf(message,
+                " traffics-succeeded=%"G_GUINT64_FORMAT, driver->heartbeatTrafficSuccess);
+    }
+
+    if(driver->heartbeatTrafficError > 0) {
+        g_string_append_printf(message,
+                " traffics-failed=%"G_GUINT64_FORMAT, driver->heartbeatTrafficError);
+    }
+
+    if(driver->totalStreamSuccess > 0) {
+        g_string_append_printf(message,
+                " total-streams-succeeded=%"G_GUINT64_FORMAT, driver->totalStreamSuccess);
+    }
+
+    if(driver->totalStreamError > 0) {
+        g_string_append_printf(message,
+                " total-streams-failed=%"G_GUINT64_FORMAT, driver->totalStreamError);
+    }
+
+    if(driver->totalFlowSuccess > 0) {
+        g_string_append_printf(message,
+                " total-flows-succeeded=%"G_GUINT64_FORMAT, driver->totalFlowSuccess);
+    }
+
+    if(driver->totalFlowError > 0) {
+        g_string_append_printf(message,
+                " total-flows-failed=%"G_GUINT64_FORMAT, driver->totalFlowError);
+    }
+
+    if(driver->totalTrafficSuccess > 0) {
+        g_string_append_printf(message,
+                " total-traffics-succeeded=%"G_GUINT64_FORMAT, driver->totalTrafficSuccess);
+    }
+
+    if(driver->totalTrafficError > 0) {
+        g_string_append_printf(message,
+                " total-traffics-failed=%"G_GUINT64_FORMAT, driver->totalTrafficError);
+    }
+
+    tgen_message("%s", message->str);
+
+    g_string_free(message, TRUE);
+
     driver->heartbeatBytesRead = 0;
     driver->heartbeatBytesWritten = 0;
+    driver->heartbeatStreamSuccess = 0;
+    driver->heartbeatStreamError = 0;
+    driver->heartbeatFlowSuccess = 0;
+    driver->heartbeatFlowError = 0;
+    driver->heartbeatTrafficSuccess = 0;
+    driver->heartbeatTrafficError = 0;
 
     tgenio_checkTimeouts(driver->io);
 
@@ -100,6 +196,23 @@ static gboolean _tgendriver_onHeartbeat(TGenDriver* driver, gpointer nullData) {
      * we are still running and the heartbeat timer still owns a driver ref.
      * do not cancel the timer */
     return FALSE;
+}
+
+static void _tgendriver_initBytesCB(TGenDriver* driver, NotifyBytesCallback* bytesCB) {
+    memset(bytesCB, 0, sizeof(NotifyBytesCallback));
+    bytesCB->func = (TGenTransport_notifyBytesFunc) _tgendriver_onBytesTransferred;
+    bytesCB->arg = driver;
+    bytesCB->argRef = (GDestroyNotify)tgendriver_ref;
+    bytesCB->argUnref = (GDestroyNotify)tgendriver_unref;
+}
+
+static void _tgendriver_initCompleteCB(TGenDriver* driver, NotifyCompleteCallback* completeCB) {
+    memset(completeCB, 0, sizeof(NotifyCompleteCallback));
+    completeCB->func = (TGen_notifyFunc) _tgendriver_onNotify;
+    completeCB->arg = driver;
+    completeCB->argRef = (GDestroyNotify)tgendriver_ref;
+    completeCB->argUnref = (GDestroyNotify)tgendriver_unref;
+    completeCB->actionID = (TGenActionID)-1;
 }
 
 static void _tgendriver_onNewPeer(TGenDriver* driver, gint socketD, gint64 started, gint64 created, TGenPeer* peer) {
@@ -111,27 +224,30 @@ static void _tgendriver_onNewPeer(TGenDriver* driver, gint socketD, gint64 start
         return;
     }
 
+    /* set up the callback function and args for the transport */
+    NotifyBytesCallback bytesCB;
+    _tgendriver_initBytesCB(driver, &bytesCB);
+
     /* this connect was initiated by the other end.
-     * stream information will be sent to us later. */
-    TGenTransport* transport = tgentransport_newPassive(socketD, started, created, peer,
-            (TGenTransport_notifyBytesFunc) _tgendriver_onBytesTransferred, driver,
-            (GDestroyNotify)tgendriver_unref);
+     * stream information will be sent to us later.
+     * bytesCB will be used to ref++ the driver in the transport. */
+    TGenTransport* transport = tgentransport_newPassive(socketD, started, created, peer, bytesCB);
 
     if(!transport) {
         tgen_warning("failed to initialize transport for incoming peer, skipping");
         return;
     }
 
-    /* ref++ the driver for the transport notify func */
-    tgendriver_ref(driver);
-
     TGenStreamOptions* options = &driver->startOptions->defaultTrafficOpts.flowOpts.streamOpts;
 
+    /* set up the callback function and args for the stream */
+    NotifyCompleteCallback completeCB;
+    _tgendriver_initCompleteCB(driver, &completeCB);
+
     /* don't send a Markov model on passive streams. sending an action id of -1 means
-     * we dont try to move forward in the action graph when the stream completes. */
-    TGenStream* stream = tgenstream_new("passive-stream", options, NULL,
-            transport, (TGenActionID)-1,
-            (TGen_notifyFunc)_tgendriver_onNotify, driver, (GDestroyNotify)tgendriver_unref);
+     * we dont try to move forward in the action graph when the stream completes.
+     * completeCB will be used to ref++ the driver in the stream. */
+    TGenStream* stream = tgenstream_new("passive-stream", options, NULL, transport, completeCB);
 
     if(!stream) {
         /* the transport will unref its reference to driver */
@@ -139,9 +255,6 @@ static void _tgendriver_onNewPeer(TGenDriver* driver, gint socketD, gint64 start
         tgen_warning("failed to initialize stream for incoming peer, skipping");
         return;
     }
-
-    /* ref++ the driver for the stream notify func */
-    tgendriver_ref(driver);
 
     /* now let the IO handler manage the stream. our stream pointer reference
      * will be held by the IO object */
@@ -160,11 +273,16 @@ static gboolean _tgendriver_startGenerator(TGenDriver* driver, TGenActionID acti
 
     const gchar* actionIDStr = tgengraph_getActionName(driver->actionGraph, actionID);
 
+    /* setup the callback functions */
+    NotifyBytesCallback bytesCB;
+    _tgendriver_initBytesCB(driver, &bytesCB);
+    NotifyCompleteCallback completeCB;
+    _tgendriver_initCompleteCB(driver, &completeCB);
+
+    completeCB.actionID = actionID;
+
     TGenGenerator* gen = tgengenerator_new(trafficOpts, flowOpts, streamOpts,
-            actionID, actionIDStr, driver->io,
-            (TGenTransport_notifyBytesFunc) _tgendriver_onBytesTransferred,
-            (TGen_notifyFunc)_tgendriver_onNotify, driver,
-            (GDestroyNotify)tgendriver_ref, (GDestroyNotify)tgendriver_unref);
+            actionID, actionIDStr, driver->io, bytesCB, completeCB);
 
     /* the generator will unref itself when it finishes generating new flows/streams and
      * all of its previously generated flows/streams are complete. */
