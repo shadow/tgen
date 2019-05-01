@@ -11,10 +11,17 @@ typedef struct _TGenTransport TGenTransport;
 
 typedef void (*TGenTransport_notifyBytesFunc)(gpointer data, gsize bytesRead, gsize bytesWritten);
 
-TGenTransport* tgentransport_newActive(TGenStreamOptions* options,
-        TGenTransport_notifyBytesFunc notify, gpointer data, GDestroyNotify destructData);
-TGenTransport* tgentransport_newPassive(gint socketD, gint64 started, gint64 created, TGenPeer* peer,
-        TGenTransport_notifyBytesFunc notify, gpointer data, GDestroyNotify destructData);
+typedef struct _NotifyBytesCallback NotifyBytesCallback;
+struct _NotifyBytesCallback {
+    TGenTransport_notifyBytesFunc func;
+    gpointer arg;
+    GDestroyNotify argRef;
+    GDestroyNotify argUnref;
+};
+
+TGenTransport* tgentransport_newActive(TGenStreamOptions* options, NotifyBytesCallback bytesCB);
+TGenTransport* tgentransport_newPassive(gint socketD, gint64 started, gint64 created,
+        TGenPeer* peer, NotifyBytesCallback bytesCB);
 
 void tgentransport_ref(TGenTransport* transport);
 void tgentransport_unref(TGenTransport* transport);
