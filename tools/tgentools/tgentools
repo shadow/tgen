@@ -9,6 +9,7 @@
 import sys, os, argparse, logging, re, datetime
 from itertools import cycle
 from socket import gethostname
+from multiprocessing import cpu_count
 
 from tgentools._version import __version__
 import tgentools.util as util
@@ -247,6 +248,10 @@ def analyze(args):
         return
 
     analysis = None
+    
+    if args.nprocesses == 0:
+        args.nprocesses = cpu_count()
+
     if args.nprocesses > 1:
         analysis = ParallelAnalysis(nickname=args.nickname, ip_address=args.ip_address)
         analysis.analyze(paths, do_complete=args.do_complete, date_filter=args.date_filter,
