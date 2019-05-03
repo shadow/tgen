@@ -342,28 +342,37 @@ class TGenParser(Parser):
 
             second = int(complete.unix_ts_end)
             recv_size = int(complete.byte_info['payload-bytes-recv'])
-
-            fb_recv_secs = (int(complete.time_info['usecs-to-first-byte-recv']) -
-                int(complete.time_info['usecs-to-command'])) / 1000000.0  # usecs to secs
-            lb_recv_secs = (int(complete.time_info['usecs-to-last-byte-recv']) -
-                int(complete.time_info['usecs-to-command'])) / 1000000.0  # usecs to secs
-
-            fb_list = self.stream_summary['time_to_first_byte_recv'].setdefault(recv_size, {}).setdefault(second, [])
-            fb_list.append(fb_recv_secs)
-            lb_list = self.stream_summary['time_to_last_byte_recv'].setdefault(recv_size, {}).setdefault(second, [])
-            lb_list.append(lb_recv_secs)
-
             send_size = int(complete.byte_info['payload-bytes-send'])
 
-            fb_send_secs = (int(complete.time_info['usecs-to-first-byte-send']) -
-                int(complete.time_info['usecs-to-command'])) / 1000000.0  # usecs to secs
-            lb_send_secs = (int(complete.time_info['usecs-to-last-byte-send']) -
-                int(complete.time_info['usecs-to-command'])) / 1000000.0  # usecs to secs
+            if recv_size > 0:
+                cmd = int(complete.time_info['usecs-to-command'])
+                fb = int(complete.time_info['usecs-to-first-byte-recv'])
+                lb = int(complete.time_info['usecs-to-last-byte-recv'])
 
-            fb_list = self.stream_summary['time_to_first_byte_send'].setdefault(send_size, {}).setdefault(second, [])
-            fb_list.append(fb_send_secs)
-            lb_list = self.stream_summary['time_to_last_byte_send'].setdefault(send_size, {}).setdefault(second, [])
-            lb_list.append(lb_send_secs)
+                fb_recv_secs = (fb - cmd) / 1000000.0  # usecs to secs
+                lb_recv_secs = (lb - cmd) / 1000000.0  # usecs to secs
+
+                if fb_recv_secs >= 0:
+                    fb_list = self.stream_summary['time_to_first_byte_recv'].setdefault(recv_size, {}).setdefault(second, [])
+                    fb_list.append(fb_recv_secs)
+                if lb_recv_secs >= 0:
+                    lb_list = self.stream_summary['time_to_last_byte_recv'].setdefault(recv_size, {}).setdefault(second, [])
+                    lb_list.append(lb_recv_secs)
+
+            if send_size > 0:
+                cmd = int(complete.time_info['usecs-to-command'])
+                fb = int(complete.time_info['usecs-to-first-byte-send'])
+                lb = int(complete.time_info['usecs-to-last-byte-send'])
+
+                fb_send_secs = (fb - cmd) / 1000000.0  # usecs to secs
+                lb_send_secs = (lb - cmd) / 1000000.0  # usecs to secs
+
+                if fb_send_secs >= 0:
+                    fb_list = self.stream_summary['time_to_first_byte_send'].setdefault(send_size, {}).setdefault(second, [])
+                    fb_list.append(fb_send_secs)
+                if lb_send_secs >= 0:
+                    lb_list = self.stream_summary['time_to_last_byte_send'].setdefault(send_size, {}).setdefault(second, [])
+                    lb_list.append(lb_send_secs)
 
         elif re.search("stream-error", line) is not None:
             error = StreamErrorEvent(line)
