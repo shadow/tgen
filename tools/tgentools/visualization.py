@@ -249,6 +249,8 @@ class TGenVisualization(Visualization):
                 x = [sec for sec in lb[bytes]]
                 x.sort()
                 y = [numpy.mean(lb[bytes][sec]) for sec in x]
+                if len(y) > 20:
+                    y = movingaverage(y, len(y)*0.05)
                 start_sec = min(x)
                 x[:] = [sec - start_sec for sec in x]
                 pyplot.plot(x, y, lineformat, label=label)
@@ -257,7 +259,7 @@ class TGenVisualization(Visualization):
             pyplot.figure(figs[bytes].number)
             pyplot.xlabel("Tick (s)")
             pyplot.ylabel("Download Time (s)")
-            pyplot.title("mean time to download {0} of {1} bytes, all clients over time".format('first' if 'first' in bytekey else 'last', bytes))
+            pyplot.title("moving avg. time to download {0} of {1} bytes, all clients over time".format('first' if 'first' in bytekey else 'last', bytes))
             pyplot.legend(loc="best")
             pyplot.tight_layout(pad=0.3)
             self.page.savefig()
@@ -315,6 +317,8 @@ class TGenVisualization(Visualization):
                 x = [sec for sec in dls[bytes]]
                 x.sort()
                 y = [dls[bytes][sec] for sec in x]
+                if len(y) > 20:
+                    y = movingaverage(y, len(y)*0.05)
                 start_sec = min(x)
                 x[:] = [sec - start_sec for sec in x]
                 pyplot.plot(x, y, lineformat, label=label)
@@ -323,7 +327,7 @@ class TGenVisualization(Visualization):
             pyplot.figure(figs[bytes].number)
             pyplot.xlabel("Tick (s)")
             pyplot.ylabel("Downloads Completed (num)")
-            pyplot.title("number of {0} byte downloads completed, all clients over time".format(bytes))
+            pyplot.title("moving avg. num. {0} byte downloads completed, all clients over time".format(bytes))
             pyplot.legend(loc="best")
             pyplot.tight_layout(pad=0.3)
             self.page.savefig()
@@ -333,16 +337,29 @@ class TGenVisualization(Visualization):
         figs = {}
 
         for (anal, label, lineformat) in self.datasets:
-            dls = {}
+            codes_observed = set()
             for client in self.__get_nodes(anal):
                 d = anal.get_tgen_stream_summary(client)
                 if d is None: continue
                 if "errors" in d:
                     for code in d["errors"]:
-                        if code not in figs: figs[code] = pyplot.figure()
-                        if code not in dls: dls[code] = {}
-                        if client not in dls[code]: dls[code][client] = 0
-                        for sec in d["errors"][code]: dls[code][client] += len(d["errors"][code][sec])
+                        codes_observed.add(code)
+
+            dls = {}
+            for code in codes_observed:
+                figs[code] = pyplot.figure()
+                dls[code] = {}
+
+            for client in self.__get_nodes(anal):
+                d = anal.get_tgen_stream_summary(client)
+                if d is None: continue
+                if "errors" in d:
+                    for code in codes_observed:
+                        if client not in dls[code]:
+                            dls[code][client] = 0
+                        if code in d["errors"]:
+                            for sec in d["errors"][code]:
+                                dls[code][client] += len(d["errors"][code][sec])
             for code in dls:
                 x, y = getcdf([dls[code][client] for client in dls[code]], shownpercentile=1.0)
                 pyplot.figure(figs[code].number)
@@ -376,18 +393,24 @@ class TGenVisualization(Visualization):
                             dls[code][sec] += len(d["errors"][code][secstr])
             for code in dls:
                 pyplot.figure(figs[code].number)
-                x = [sec for sec in dls[code]]
-                x.sort()
-                y = [dls[code][sec] for sec in x]
-                start_sec = min(x)
-                x[:] = [sec - start_sec for sec in x]
+                start_sec, end_sec = min(dls[code]), max(dls[code])
+                x = range(start_sec, end_sec)
+                y = []
+                for sec in x:
+                    if sec in dls[code]:
+                        y.append(dls[code][sec])
+                    else:
+                        y.append(0)
+                if len(y) > 20:
+                    y = movingaverage(y, len(y)*0.05)
+                x = [sec - start_sec for sec in x]
                 pyplot.plot(x, y, lineformat, label=label)
 
         for code in sorted(figs.keys()):
             pyplot.figure(figs[code].number)
             pyplot.xlabel("Tick (s)")
             pyplot.ylabel("Download Errors (num)")
-            pyplot.title("number of transfer {0} errors, all clients over time".format(code))
+            pyplot.title("moving avg. num. transfer {0} errors, all clients over time".format(code))
             pyplot.legend(loc="best")
             pyplot.tight_layout(pad=0.3)
             self.page.savefig()
