@@ -134,23 +134,6 @@ static TGenMarkovModel* _tgengenerator_createMarkovModel(
     return mmodel;
 }
 
-void mkrndstr_ipa(size_t length, char *randomString) { // const size_t length, supra
-
-    static char charset[] = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789@#&?!";
-
-    if (length) {
-        if (randomString) {
-            int l = (int) (sizeof(charset) - 1);
-            for (int n = 0; n < length; n++) {
-                int key = rand() % l;          // per-iteration instantiation
-                randomString[n] = charset[key];
-            }
-
-            randomString[length] = '\0';
-        }
-    }
-}
-
 static void _tgengenerator_initSocksAuthStrings(TGenGenerator* gen) {
     TGEN_ASSERT(gen);
 
@@ -164,12 +147,12 @@ static void _tgengenerator_initSocksAuthStrings(TGenGenerator* gen) {
         GRand* prng = tgenpool_getRandom(gen->streamOptions->socksAuthGenerator.value);
         g_assert(prng);
 
-        const gchar charset[] = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789,.-#'?!";
-        gint charsetLength = (gint)(sizeof(charset)-1);
+        static char charset[] = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789@#&?!";
+        guint charsetLength = (guint)(sizeof(charset)-1);
         gchar randomStr[8];
 
         for(gint i = 0; i < 7; i++) {
-            gint index = (gint)(g_rand_int(prng) % charsetLength);
+            guint index = (guint)(g_rand_int(prng) % charsetLength);
             randomStr[i] = charset[index];
         }
 
