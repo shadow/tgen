@@ -239,11 +239,16 @@ static gboolean _tgenmarkovmodel_findVertexAttributeString(TGenMarkovModel* mmod
     const gchar* name = _tgenmarkovmodel_vertexAttributeToString(attr);
 
     if(igraph_cattribute_has_attr(mmodel->graph, IGRAPH_ATTRIBUTE_VERTEX, name)) {
-        const gchar* value = igraph_cattribute_VAS(mmodel->graph, name, vertexIndex);
-        if(value != NULL && value[0] != '\0') {
-            if(valueOut != NULL) {
-                *valueOut = value;
-                return TRUE;
+        igraph_attribute_type_t type = IGRAPH_ATTRIBUTE_DEFAULT;
+        igraph_i_attribute_gettype(mmodel->graph, &type, IGRAPH_ATTRIBUTE_VERTEX, name);
+
+        if(type == IGRAPH_ATTRIBUTE_STRING) {
+            const gchar* value = igraph_cattribute_VAS(mmodel->graph, name, vertexIndex);
+            if(value != NULL && value[0] != '\0') {
+                if(valueOut != NULL) {
+                    *valueOut = value;
+                    return TRUE;
+                }
             }
         }
     }
@@ -260,13 +265,19 @@ static gboolean _tgenmarkovmodel_findEdgeAttributeDouble(TGenMarkovModel* mmodel
     const gchar* name = _tgenmarkovmodel_edgeAttributeToString(attr);
 
     if(igraph_cattribute_has_attr(mmodel->graph, IGRAPH_ATTRIBUTE_EDGE, name)) {
-        gdouble value = (gdouble) igraph_cattribute_EAN(mmodel->graph, name, edgeIndex);
-        if(isnan(value) == 0) {
-            if(valueOut != NULL) {
-                *valueOut = value;
-                return TRUE;
+        igraph_attribute_type_t type = IGRAPH_ATTRIBUTE_DEFAULT;
+        igraph_i_attribute_gettype(mmodel->graph, &type, IGRAPH_ATTRIBUTE_EDGE, name);
+
+        if(type == IGRAPH_ATTRIBUTE_NUMERIC) {
+            gdouble value = (gdouble) igraph_cattribute_EAN(mmodel->graph, name, edgeIndex);
+            if(isnan(value) == 0) {
+                if(valueOut != NULL) {
+                    *valueOut = value;
+                    return TRUE;
+                }
             }
         }
+
     }
 
     return FALSE;
@@ -285,11 +296,16 @@ static gboolean _tgenmarkovmodel_findEdgeAttributeString(TGenMarkovModel* mmodel
     const gchar* name = _tgenmarkovmodel_edgeAttributeToString(attr);
 
     if(igraph_cattribute_has_attr(mmodel->graph, IGRAPH_ATTRIBUTE_EDGE, name)) {
-        const gchar* value = igraph_cattribute_EAS(mmodel->graph, name, edgeIndex);
-        if(value != NULL && value[0] != '\0') {
-            if(valueOut != NULL) {
-                *valueOut = value;
-                return TRUE;
+        igraph_attribute_type_t type = IGRAPH_ATTRIBUTE_DEFAULT;
+        igraph_i_attribute_gettype(mmodel->graph, &type, IGRAPH_ATTRIBUTE_EDGE, name);
+
+        if(type == IGRAPH_ATTRIBUTE_STRING) {
+            const gchar* value = igraph_cattribute_EAS(mmodel->graph, name, edgeIndex);
+            if(value != NULL && value[0] != '\0') {
+                if(valueOut != NULL) {
+                    *valueOut = value;
+                    return TRUE;
+                }
             }
         }
     }
