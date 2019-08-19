@@ -208,8 +208,11 @@ class StreamStatusEvent(object):
         self.byte_info = None if len(parts) < 13 else parse_tagged_csv_string(parts[12])
         self.time_info = None if len(parts) < 15 else parse_tagged_csv_string(parts[14])
 
-        self.stream_id = "{}:{}:{}:{}".format(self.stream_info['id'], self.transport_info['fd'],
-            self.transport_info['local'], self.transport_info['remote'])
+        self.stream_id = "{}:{}:{}:{}".format( \
+            self.stream_info['id'] if 'id' in self.stream_info else "None", \
+            self.transport_info['fd'] if 'fd' in self.transport_info else "None", \
+            self.transport_info['local'] if 'local' in self.transport_info else "None", \
+            self.transport_info['remote'] if 'remote' in self.transport_info else "None")
 
 class StreamCompleteEvent(StreamStatusEvent):
     def __init__(self, line):
