@@ -203,10 +203,10 @@ class StreamStatusEvent(object):
         parts = line.strip().split()
         self.unix_ts_end = util.timestamp_to_seconds(parts[2])
 
-        self.transport_info = None if len(parts) < 9 else parse_tagged_csv_string(parts[8])
-        self.stream_info = None if len(parts) < 11 else parse_tagged_csv_string(parts[10])
-        self.byte_info = None if len(parts) < 13 else parse_tagged_csv_string(parts[12])
-        self.time_info = None if len(parts) < 15 else parse_tagged_csv_string(parts[14])
+        self.transport_info = {} if len(parts) < 9 else parse_tagged_csv_string(parts[8])
+        self.stream_info = {} if len(parts) < 11 else parse_tagged_csv_string(parts[10])
+        self.byte_info = {} if len(parts) < 13 else parse_tagged_csv_string(parts[12])
+        self.time_info = {} if len(parts) < 15 else parse_tagged_csv_string(parts[14])
 
         self.stream_id = "{}:{}:{}:{}".format( \
             self.stream_info['id'] if 'id' in self.stream_info else "None", \
