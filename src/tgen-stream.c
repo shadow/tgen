@@ -193,7 +193,7 @@ struct _TGenStream {
     } time;
 
     /* notification and parameters for when this stream finishes */
-    NotifyCompleteCallback completeCB;
+    NotifyCallback notifyCB;
 
     /* memory housekeeping */
     gint refcount;
@@ -1635,8 +1635,8 @@ static void _tgenstream_log(TGenStream* stream, gboolean wasActive) {
     }
 }
 
-static void _tgenstream_callNotify(TGenStream* stream) {
-    if(stream->completeCB.func) {
+static void _tgenstream_callNotifyComplete(TGenStream* stream) {
+    if(stream->notifyCB.func) {
         /* execute the callback to notify that we are complete */
         TGenNotifyFlags flags = TGEN_NOTIFY_STREAM_COMPLETE;
 
@@ -1645,10 +1645,10 @@ static void _tgenstream_callNotify(TGenStream* stream) {
             flags |= TGEN_NOTIFY_STREAM_SUCCESS;
         }
 
-        stream->completeCB.func(stream->completeCB.arg, stream->completeCB.actionID, flags);
+        stream->notifyCB.func(stream->notifyCB.arg, stream->notifyCB.actionID, flags);
 
         /* make sure we only do the notification once */
-        stream->completeCB.func = NULL;
+        stream->notifyCB.func = NULL;
     }
 }
 
@@ -1664,7 +1664,7 @@ static TGenIOResponse _tgenstream_runTransportEventLoop(TGenStream* stream, TGen
         _tgenstream_changeRecvState(stream, TGEN_STREAM_RECV_ERROR);
         _tgenstream_changeError(stream, TGEN_STREAM_ERR_PROXY);
         _tgenstream_log(stream, FALSE);
-        _tgenstream_callNotify(stream);
+        _tgenstream_callNotifyComplete(stream);
 
         /* return DONE to the io module so it does deregistration */
         response.events = TGEN_EVENT_DONE;
@@ -1812,7 +1812,7 @@ static TGenIOResponse _tgenstream_runStreamEventLoop(TGenStream* stream, TGenEve
 
     /* if io said we are done, or the stream thinks its done, notify the driver */
     if((events & TGEN_EVENT_DONE) || (response.events & TGEN_EVENT_DONE)) {
-        _tgenstream_callNotify(stream);
+        _tgenstream_callNotifyComplete(stream);
     } else if(response.events & TGEN_EVENT_WRITE_DEFERRED) {
         g_assert(stream->send.deferBarrierMicros > 0);
         response.deferUntilUSec = stream->send.deferBarrierMicros;
@@ -1886,7 +1886,7 @@ gboolean tgenstream_onCheckTimeout(TGenStream* stream, gint descriptor) {
 }
 
 TGenStream* tgenstream_new(const gchar* idStr, TGenStreamOptions* options,
-        TGenMarkovModel* mmodel, TGenTransport* transport, NotifyCompleteCallback completeCB) {
+        TGenMarkovModel* mmodel, TGenTransport* transport, NotifyCallback notifyCB) {
     TGenStream* stream = g_new0(TGenStream, 1);
     stream->magic = TGEN_MAGIC;
     stream->refcount = 1;
@@ -1977,9 +1977,14 @@ TGenStream* tgenstream_new(const gchar* idStr, TGenStreamOptions* options,
 
     stream->time.nowCached = 0;
 
-    stream->completeCB = completeCB;
-    if(stream->completeCB.arg && stream->completeCB.argRef) {
-        stream->completeCB.argRef(stream->completeCB.arg);
+    stream->notifyCB = notifyCB;
+    if(stream->notifyCB.arg && stream->notifyCB.argRef) {
+        stream->notifyCB.argRef(stream->notifyCB.arg);
+    }
+
+    if(stream->notifyCB.func) {
+        /* use -1 to indicate not to move on in the action graph */
+        stream->notifyCB.func(stream->notifyCB.arg, (TGenActionID)-1, TGEN_NOTIFY_STREAM_CREATED);
     }
 
     return stream;
@@ -2028,8 +2033,8 @@ static void _tgenstream_free(TGenStream* stream) {
         g_checksum_free(stream->recv.checksum);
     }
 
-    if(stream->completeCB.arg && stream->completeCB.argUnref) {
-        stream->completeCB.argUnref(stream->completeCB.arg);
+    if(stream->notifyCB.arg && stream->notifyCB.argUnref) {
+        stream->notifyCB.argUnref(stream->notifyCB.arg);
     }
 
     if(stream->transport) {

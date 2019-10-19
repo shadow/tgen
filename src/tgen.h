@@ -38,12 +38,15 @@ typedef gint TGenActionID;
 
 typedef enum _TGenNotifyFlags {
     TGEN_NOTIFY_NONE = 0,
-    TGEN_NOTIFY_STREAM_COMPLETE = 1 << 0,
-    TGEN_NOTIFY_STREAM_SUCCESS = 1 << 1,
-    TGEN_NOTIFY_FLOW_COMPLETE = 1 << 2,
-    TGEN_NOTIFY_FLOW_SUCCESS = 1 << 3,
-    TGEN_NOTIFY_TRAFFIC_COMPLETE = 1 << 4,
-    TGEN_NOTIFY_TRAFFIC_SUCCESS = 1 << 5,
+    TGEN_NOTIFY_STREAM_CREATED = 1 << 0,
+    TGEN_NOTIFY_STREAM_COMPLETE = 1 << 1,
+    TGEN_NOTIFY_STREAM_SUCCESS = 1 << 2,
+    TGEN_NOTIFY_FLOW_CREATED = 1 << 3,
+    TGEN_NOTIFY_FLOW_COMPLETE = 1 << 4,
+    TGEN_NOTIFY_FLOW_SUCCESS = 1 << 5,
+    TGEN_NOTIFY_TRAFFIC_CREATED = 1 << 6,
+    TGEN_NOTIFY_TRAFFIC_COMPLETE = 1 << 7,
+    TGEN_NOTIFY_TRAFFIC_SUCCESS = 1 << 8,
 } TGenNotifyFlags;
 
 typedef void (*TGen_notifyFunc)(gpointer data, TGenActionID actionID, TGenNotifyFlags flags);

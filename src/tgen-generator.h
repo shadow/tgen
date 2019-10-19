@@ -12,7 +12,7 @@ typedef struct _TGenGenerator TGenGenerator;
 TGenGenerator* tgengenerator_new(TGenTrafficOptions* trafficOptions,
         TGenFlowOptions* flowOptions, TGenStreamOptions* streamOptions,
         TGenActionID actionID, const gchar* actionIDStr, TGenIO* io,
-        NotifyBytesCallback bytesCB, NotifyCompleteCallback completeCB);
+        NotifyBytesCallback bytesCB, NotifyCallback notifyCB);
 
 void tgengenerator_start(TGenGenerator* flow);
 
