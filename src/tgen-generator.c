@@ -27,7 +27,7 @@ struct _TGenGenerator {
     TGenIO* io;
 
     NotifyBytesCallback bytesCB;
-    NotifyCompleteCallback completeCB;
+    NotifyCallback notifyCB;
 
     gchar* socksUsername;
     gchar* socksPassword;
@@ -63,8 +63,8 @@ static void _tgengenerator_free(TGenGenerator* gen) {
         gen->bytesCB.argUnref(gen->bytesCB.arg);
     }
 
-    if(gen->completeCB.arg && gen->completeCB.argUnref) {
-        gen->completeCB.argUnref(gen->completeCB.arg);
+    if(gen->notifyCB.arg && gen->notifyCB.argUnref) {
+        gen->notifyCB.argUnref(gen->notifyCB.arg);
     }
 
     gen->magic = 0;
@@ -178,7 +178,7 @@ static void _tgengenerator_initSocksAuthStrings(TGenGenerator* gen) {
 TGenGenerator* tgengenerator_new(TGenTrafficOptions* trafficOptions,
         TGenFlowOptions* flowOptions, TGenStreamOptions* streamOptions,
         TGenActionID actionID, const gchar* actionIDStr, TGenIO* io,
-        NotifyBytesCallback bytesCB, NotifyCompleteCallback completeCB) {
+        NotifyBytesCallback bytesCB, NotifyCallback notifyCB) {
     TGenGenerator* gen = g_new0(TGenGenerator, 1);
     gen->magic = TGEN_MAGIC;
     gen->refcount = 1;
@@ -236,12 +236,25 @@ TGenGenerator* tgengenerator_new(TGenTrafficOptions* trafficOptions,
         gen->bytesCB.argRef(gen->bytesCB.arg);
     }
 
-    gen->completeCB = completeCB;
-    if(gen->completeCB.arg && gen->completeCB.argRef) {
-        gen->completeCB.argRef(gen->completeCB.arg);
+    gen->notifyCB = notifyCB;
+    if(gen->notifyCB.arg && gen->notifyCB.argRef) {
+        gen->notifyCB.argRef(gen->notifyCB.arg);
     }
 
     _tgengenerator_initSocksAuthStrings(gen);
+
+    if(gen->notifyCB.func) {
+        TGenNotifyFlags flags = TGEN_NOTIFY_NONE;
+
+        if(gen->flowOptions) {
+            flags = TGEN_NOTIFY_TRAFFIC_CREATED;
+        } else {
+            flags = TGEN_NOTIFY_FLOW_CREATED;
+        }
+
+        /* use -1 to indicate not to move on in the action graph */
+        gen->notifyCB.func(gen->notifyCB.arg, (TGenActionID)-1, flags);
+    }
 
     return gen;
 }
@@ -274,8 +287,8 @@ static void _tgengenerator_onCompleteHelper(TGenGenerator* gen, TGenNotifyFlags 
             }
         }
 
-        if(gen->completeCB.func) {
-            gen->completeCB.func(gen->completeCB.arg, gen->completeCB.actionID, flags);
+        if(gen->notifyCB.func) {
+            gen->notifyCB.func(gen->notifyCB.arg, gen->notifyCB.actionID, flags);
         }
 
         /* now we delete ourselves because we are done. the flow should never be used again. */
@@ -286,14 +299,24 @@ static void _tgengenerator_onCompleteHelper(TGenGenerator* gen, TGenNotifyFlags 
 
         /* we send an action id of -1 so the driver knows that a stream/flow completed, but
          * it will not try to move to the next action in the action graph. */
-        if(gen->completeCB.func) {
-            gen->completeCB.func(gen->completeCB.arg, (TGenActionID)-1, flags);
+        if(gen->notifyCB.func) {
+            gen->notifyCB.func(gen->notifyCB.arg, (TGenActionID)-1, flags);
         }
     }
 }
 
-static void _tgengenerator_onComplete(TGenGenerator* gen, TGenActionID actionID, TGenNotifyFlags flags) {
+static void _tgengenerator_onNotify(TGenGenerator* gen, TGenActionID actionID, TGenNotifyFlags flags) {
     TGEN_ASSERT(gen);
+
+    if((flags & TGEN_NOTIFY_STREAM_CREATED) || (flags & TGEN_NOTIFY_FLOW_CREATED) ||
+            (flags & TGEN_NOTIFY_TRAFFIC_CREATED)) {
+        /* forward to our parent (the driver).
+         * use -1 to indicate not to move on in the action graph */
+        if(gen->notifyCB.func) {
+            gen->notifyCB.func(gen->notifyCB.arg, (TGenActionID)-1, flags);
+        }
+        return;
+    }
 
     /* check if we should increment (flow generators increment when child flows complete,
      * but do not increment when their grandchildren streams complete) */
@@ -306,13 +329,13 @@ static void _tgengenerator_onComplete(TGenGenerator* gen, TGenActionID actionID,
     _tgengenerator_onCompleteHelper(gen, flags);
 }
 
-static void _tgengenerator_initCompleteCB(TGenGenerator* gen, NotifyCompleteCallback* completeCB) {
-    memset(completeCB, 0, sizeof(NotifyCompleteCallback));
-    completeCB->func = (TGen_notifyFunc) _tgengenerator_onComplete;
-    completeCB->arg = gen;
-    completeCB->argRef = (GDestroyNotify)_tgengenerator_ref;
-    completeCB->argUnref = (GDestroyNotify)_tgengenerator_unref;
-    completeCB->actionID = (TGenActionID)-1;
+static void _tgengenerator_initNotifyCB(TGenGenerator* gen, NotifyCallback* notifyCB) {
+    memset(notifyCB, 0, sizeof(NotifyCallback));
+    notifyCB->func = (TGen_notifyFunc) _tgengenerator_onNotify;
+    notifyCB->arg = gen;
+    notifyCB->argRef = (GDestroyNotify)_tgengenerator_ref;
+    notifyCB->argUnref = (GDestroyNotify)_tgengenerator_unref;
+    notifyCB->actionID = (TGenActionID)-1;
 }
 
 static gboolean _tgengenerator_createFlow(TGenGenerator* gen) {
@@ -325,12 +348,12 @@ static gboolean _tgengenerator_createFlow(TGenGenerator* gen) {
     /* make sure our child flow notifies *us* when it is complete, not the parent that
      * we notify as when bytes are sent. Pass a negative action id to indicate that
      * the child flow is not a graph action. */
-    NotifyCompleteCallback completeCB;
-    _tgengenerator_initCompleteCB(gen, &completeCB);
+    NotifyCallback notifyCB;
+    _tgengenerator_initNotifyCB(gen, &notifyCB);
 
     /* NULL traffic options means generate streams for one flow. */
     TGenGenerator* flow = tgengenerator_new(NULL, flowOpts, streamOpts,
-            (TGenActionID) -1, gen->actionIDStr, gen->io, gen->bytesCB, completeCB);
+            (TGenActionID) -1, gen->actionIDStr, gen->io, gen->bytesCB, notifyCB);
 
     /* the generator will unref itself when it finishes generating new streams and
      * all of its previously generated streams are complete. */
@@ -367,14 +390,14 @@ static gboolean _tgengenerator_createStream(TGenGenerator* gen) {
     }
 
     /* set up the callback function and args for the stream */
-    NotifyCompleteCallback completeCB;
-    _tgengenerator_initCompleteCB(gen, &completeCB);
+    NotifyCallback notifyCB;
+    _tgengenerator_initNotifyCB(gen, &notifyCB);
 
     /* a new stream will be coming in on this transport. the stream
      * takes control of the transport pointer reference. the stream
-     * will ref++ the gen object stored in the completeCB. */
+     * will ref++ the gen object stored in the notifyCB. */
     TGenStream* stream = tgenstream_new(gen->actionIDStr, gen->streamOptions, packetModel,
-            transport, completeCB);
+            transport, notifyCB);
 
     /* release our ref to the model, the stream holds its own ref */
     tgenmarkovmodel_unref(packetModel);
