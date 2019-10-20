@@ -132,7 +132,7 @@ static void _tgendriver_onBytesTransferred(TGenDriver* driver, gsize bytesRead, 
 static gboolean _tgendriver_onHeartbeat(TGenDriver* driver, gpointer nullData) {
     TGEN_ASSERT(driver);
 
-    GString* message = g_string_new("driver-heartbeat]");
+    GString* message = g_string_new("[driver-heartbeat]");
 
     g_string_append_printf(message,
             " bytes-read=%"G_GSIZE_FORMAT" bytes-written=%"G_GSIZE_FORMAT,
