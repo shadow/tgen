@@ -88,6 +88,54 @@ The structure is given here with variable keys marked as such.
                 }
               }
             },
+            "heartbeats": { # summary info from tgen heartbeat messages
+              "bytes-read": { # the count of bytes received from kernel
+                "1456707932": [ # the second at which the info was obtained
+                  1534 # the counted value
+                ],
+              },
+              "bytes-written": { # the count of bytes sent to kernel
+                "1456707932": [ # the second at which the info was obtained
+                  1534 # the counted value
+                ],
+              },
+              "streams-created": { # the count of the number of streams created since previous heartbeat message
+                "1456707932": [ # the second at which the info was obtained
+                  1 # the counted value
+                ],
+              },
+              "streams-succeeded": { # the count of the number of streams succeeded since previous heartbeat message
+                "1456707932": [ # the second at which the info was obtained
+                  1 # the counted value
+                ],
+              },
+              "streams-failed": { # the count of the number of streams failed since previous heartbeat message
+                "1456707932": [ # the second at which the info was obtained
+                  1 # the counted value
+                ],
+              },
+              "total-streams-created": { # the count of the cumulative number of streams created
+                "1456707932": [ # the second at which the info was obtained
+                  1 # the counted value
+                ],
+              },
+              "total-streams-succeeded": { # the count of the cumulative number of streams succeeded
+                "1456707932": [ # the second at which the info was obtained
+                  1 # the counted value
+                ],
+              },
+              "total-streams-failed": { # the count of the cumulative number of streams failed
+                "1456707932": [ # the second at which the info was obtained
+                  1 # the counted value
+                ],
+              },
+              "total-streams-pending": { # the count of the cumulative number of streams created but not yet completed
+                "1456707932": [ # the second at which the info was obtained
+                  1 # the counted value
+                ],
+              },
+              # ... the stream counters are repeated for flows and traffics
+            },
           },
         }
       }
