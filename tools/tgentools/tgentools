@@ -159,6 +159,12 @@ will override the default pattern 'tgen.*\.log'.""",
         action="store", dest="prefix",
         default=None)
 
+    visualize_parser.add_argument('-c', '--complete',
+        help="""Plot a set of time to first and last byte graphs for every file size.
+        Note: you probably don't want this if your clients transfer files of many different sizes.""",
+        action="store_true", dest="do_complete",
+        default=False)
+
     visualize_parser.add_argument('-f', '--format',
         help="""A comma-separated LIST of color/line format strings to cycle to
                 matplotlib's plot command (see matplotlib.pyplot.plot)""",
@@ -248,7 +254,7 @@ def analyze(args):
         return
 
     analysis = None
-    
+
     if args.nprocesses == 0:
         args.nprocesses = cpu_count()
 
@@ -269,7 +275,7 @@ def visualize(args):
     lflist = args.lineformats.strip().split(",")
     lfcycle = cycle(lflist)
 
-    tgen_viz = TGenVisualization(args.hostpatterns)
+    tgen_viz = TGenVisualization(args.hostpatterns, args.do_complete)
 
     for (path, label) in args.datasets:
         nextformat = next(lfcycle)

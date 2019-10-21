@@ -38,6 +38,12 @@ class Analysis(object):
         except:
             return None
 
+    def get_tgen_heartbeats(self, node):
+        try:
+            return self.json_db['data'][node]['tgen']['heartbeats']
+        except:
+            return None
+
     def analyze(self, do_complete=False, date_filter=None):
         if self.did_analysis:
             return
@@ -237,6 +243,13 @@ class StreamErrorEvent(StreamCompleteEvent):
         super(StreamErrorEvent, self).__init__(line)
         self.is_error = True
 
+class TGenHeartbeatEvent(object):
+
+    def __init__(self, line):
+        parts = line.strip().split()
+        self.unix_ts = util.timestamp_to_seconds(parts[2])
+        self.info = parse_tagged_csv_string(parts[7])
+
 class Stream(object):
     def __init__(self, tid):
         self.id = tid
@@ -287,6 +300,8 @@ class TGenParser(Parser):
     def __init__(self, date_filter=None):
         ''' date_filter should be given in UTC '''
         self.state = {}
+        self.heartbeats = {}
+        self.heartbeat_seconds = set()
         self.streams = {}
         self.stream_summary = {'time_to_first_byte_recv':{}, 'time_to_last_byte_recv':{},
             'time_to_first_byte_send':{}, 'time_to_last_byte_send':{}, 'errors':{}}
@@ -398,6 +413,16 @@ class TGenParser(Parser):
                 err_list = self.stream_summary['errors'].setdefault(err_code, {}).setdefault(second, [])
                 err_list.append((send_size,recv_size))
 
+        elif re.search("driver-heartbeat", line) is not None:
+            heartbeat = TGenHeartbeatEvent(line)
+
+            second = int(heartbeat.unix_ts)
+            self.heartbeat_seconds.add(second)
+
+            for k in heartbeat.info:
+                v = int(heartbeat.info[k])
+                self.heartbeats.setdefault(k, {}).setdefault(second, []).append(v)
+
         return True
 
     def parse(self, source, do_complete=False):
@@ -416,7 +441,13 @@ class TGenParser(Parser):
         source.close()
 
     def get_data(self):
-        return {'streams':self.streams, 'stream_summary': self.stream_summary}
+        # fill in heartbeat info that was not printed in the log because it was 0
+        for k in self.heartbeats:
+            for second in self.heartbeat_seconds:
+                if second not in self.heartbeats[k]:
+                    self.heartbeats[k].setdefault(second, [0])
+
+        return {'heartbeats': self.heartbeats, 'streams':self.streams, 'stream_summary': self.stream_summary}
 
     def get_name(self):
         return self.name
