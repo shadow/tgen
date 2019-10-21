@@ -16,9 +16,10 @@ class Visualization(object):
 
     __metaclass__ = ABCMeta
 
-    def __init__(self, hostpatterns):
+    def __init__(self, hostpatterns, do_complete):
         self.datasets = []
         self.hostpatterns = hostpatterns
+        self.do_complete = do_complete
 
     def add_dataset(self, analysis, label, lineformat):
         self.datasets.append((analysis, label, lineformat))
@@ -35,27 +36,47 @@ class TGenVisualization(Visualization):
             ts = time.strftime("%Y-%m-%d_%H:%M:%S")
             pagename = "{0}tgen.viz.{1}.pdf".format(prefix, ts)
 
+            matplotlib.rcParams.update({'figure.max_open_warning': 0})
+
             logging.info("Starting to plot graphs to {}".format(pagename))
 
             self.page = PdfPages(pagename)
+
             logging.info("Plotting first byte CDF")
             self.__plot_firstbyte()
             logging.info("Plotting first byte time series")
-            self.__plot_byte_timeseries("time_to_first_byte_recv")
-            logging.info("Plotting last byte for all transfers")
-            self.__plot_lastbyte_all()
-            logging.info("Plotting median last byte per client")
-            self.__plot_lastbyte_median()
-            logging.info("Plotting median last byte per client")
-            self.__plot_lastbyte_mean()
-            logging.info("Plotting median last byte per client")
-            self.__plot_lastbyte_max()
-            logging.info("Plotting last byte time series")
-            self.__plot_byte_timeseries("time_to_last_byte_recv")
+            self.__plot_firstbyte_timeseries()
+
+            if self.do_complete:
+                logging.info("Plotting first byte time series (for each file size)")
+                self.__plot_byte_timeseries("time_to_first_byte_recv")
+                logging.info("Plotting last byte for all transfers (for each file size)")
+                self.__plot_lastbyte_all()
+                logging.info("Plotting median last byte per client (for each file size)")
+                self.__plot_lastbyte_median()
+                logging.info("Plotting median last byte per client (for each file size)")
+                self.__plot_lastbyte_mean()
+                logging.info("Plotting median last byte per client (for each file size)")
+                self.__plot_lastbyte_max()
+                logging.info("Plotting last byte time series (for each file size)")
+                self.__plot_byte_timeseries("time_to_last_byte_recv")
+
             logging.info("Plotting number of downloads CDF")
             self.__plot_downloads()
             logging.info("Plotting number of downloads time series")
             self.__plot_downloads_timeseries()
+
+            if self.do_complete:
+                logging.info("Plotting number of downloads CDF (for each file size)")
+                self.__plot_downloads_bytes()
+                logging.info("Plotting number of downloads time series (for each file size)")
+                self.__plot_downloads_timeseries_bytes()
+
+            logging.info("Plotting heartbeat counter CDFs")
+            self.__plot_heartbeat_cdfs()
+            logging.info("Plotting heartbeat counter time series")
+            self.__plot_heartbeat_timeseries()
+
             logging.info("Plotting number of errors")
             self.__plot_errors()
             logging.info("Plotting number of errors time series")
@@ -100,6 +121,40 @@ class TGenVisualization(Visualization):
             pyplot.xlabel("Download Time (s)")
             pyplot.ylabel("Cumulative Fraction")
             pyplot.title("time to download first byte, all clients")
+            pyplot.legend(loc="best")
+            pyplot.tight_layout(pad=0.3)
+            self.page.savefig()
+            pyplot.close()
+
+    def __plot_firstbyte_timeseries(self):
+        f = None
+
+        for (anal, label, lineformat) in self.datasets:
+            fb = {}
+            for client in self.__get_nodes(anal):
+                d = anal.get_tgen_stream_summary(client)
+                if d is None: continue
+                if "time_to_first_byte_recv" in d:
+                    for b in d["time_to_first_byte_recv"]:
+                        if f is None: f = pyplot.figure()
+                        for secstr in d["time_to_first_byte_recv"][b]:
+                            sec = int(secstr)
+                            fb.setdefault(sec, [])
+                            fb[sec].extend(d["time_to_first_byte_recv"][b][secstr])
+            if f is not None:
+                x = [sec for sec in fb]
+                x.sort()
+                y = [numpy.mean(fb[sec]) for sec in x]
+                if len(y) > 20:
+                    y = movingaverage(y, len(y)*0.05)
+                start_sec = min(x)
+                x[:] = [sec - start_sec for sec in x]
+                pyplot.plot(x, y, lineformat, label=label)
+
+        if f is not None:
+            pyplot.xlabel("Tick (s)")
+            pyplot.ylabel("Download Time (s)")
+            pyplot.title("moving avg. time to download first byte, all clients over time")
             pyplot.legend(loc="best")
             pyplot.tight_layout(pad=0.3)
             self.page.savefig()
@@ -266,6 +321,71 @@ class TGenVisualization(Visualization):
             pyplot.close()
 
     def __plot_downloads(self):
+        f = None
+
+        for (anal, label, lineformat) in self.datasets:
+            dls = {}
+            for client in self.__get_nodes(anal):
+                d = anal.get_tgen_stream_summary(client)
+                if d is None: continue
+                if "time_to_last_byte_recv" in d:
+                    for b in d["time_to_last_byte_recv"]:
+                        dls.setdefault(client, 0)
+                        for sec in d["time_to_last_byte_recv"][b]:
+                            dls[client] += len(d["time_to_last_byte_recv"][b][sec])
+                        if dls[client] > 0 and f == None:
+                            f = pyplot.figure()
+            if f is not None:
+                x, y = getcdf(dls.values(), shownpercentile=1.0)
+                pyplot.plot(x, y, lineformat, label=label)
+
+        if f is not None:
+            pyplot.xlabel("Downloads Completed (num)")
+            pyplot.ylabel("Cumulative Fraction")
+            pyplot.title("number of total downloads completed, each client")
+            pyplot.legend(loc="best")
+            pyplot.tight_layout(pad=0.3)
+            self.page.savefig()
+            pyplot.close()
+
+    def __plot_downloads_timeseries(self):
+        f = None
+
+        for (anal, label, lineformat) in self.datasets:
+            total_count = 0
+            dls = {}
+            for client in self.__get_nodes(anal):
+                d = anal.get_tgen_stream_summary(client)
+                if d is None: continue
+                if "time_to_last_byte_recv" in d:
+                    for b in d["time_to_last_byte_recv"]:
+                        for secstr in d["time_to_last_byte_recv"][b]:
+                            sec = int(secstr)
+                            dls.setdefault(sec, 0)
+                            count = len(d["time_to_last_byte_recv"][b][secstr])
+                            dls[sec] += count
+                            total_count += count
+            if total_count > 0:
+                if f is None: f = pyplot.figure()
+                x = [sec for sec in dls]
+                x.sort()
+                y = [dls[sec] for sec in x]
+                if len(y) > 20:
+                    y = movingaverage(y, len(y)*0.05)
+                start_sec = min(x)
+                x[:] = [sec - start_sec for sec in x]
+                pyplot.plot(x, y, lineformat, label=label)
+
+        if f is not None:
+            pyplot.xlabel("Tick (s)")
+            pyplot.ylabel("Downloads Completed (num)")
+            pyplot.title("moving avg. number of downloads completed, all clients over time")
+            pyplot.legend(loc="best")
+            pyplot.tight_layout(pad=0.3)
+            self.page.savefig()
+            pyplot.close()
+
+    def __plot_downloads_bytes(self):
         figs = {}
 
         for (anal, label, lineformat) in self.datasets:
@@ -295,7 +415,7 @@ class TGenVisualization(Visualization):
             self.page.savefig()
             pyplot.close()
 
-    def __plot_downloads_timeseries(self):
+    def __plot_downloads_timeseries_bytes(self):
         figs = {}
 
         for (anal, label, lineformat) in self.datasets:
@@ -501,6 +621,72 @@ class TGenVisualization(Visualization):
             pyplot.xlabel("Data Transferred (KiB)")
             pyplot.ylabel("Cumulative Fraction")
             pyplot.title("mean bytes transferred before {0} error, each client".format(code))
+            pyplot.legend(loc="best")
+            pyplot.tight_layout(pad=0.3)
+            self.page.savefig()
+            pyplot.close()
+
+    def __plot_heartbeat_cdfs(self):
+        figs = {}
+
+        for (anal, label, lineformat) in self.datasets:
+            hb = {}
+            for client in self.__get_nodes(anal):
+                d = anal.get_tgen_heartbeats(client)
+                if d is None: continue
+                for hbkey in d:
+                    if 'total' in hbkey: continue
+                    figs.setdefault(hbkey, pyplot.figure())
+                    hb.setdefault(hbkey, {}).setdefault(client, [])
+                    for secstr in d[hbkey]:
+                        hb[hbkey][client].extend(d[hbkey][secstr])
+
+            for hbkey in hb:
+                pyplot.figure(figs[hbkey].number)
+                x, y = getcdf([sum(val_list) for val_list in hb[hbkey].values()])
+                pyplot.plot(x, y, lineformat, label=label)
+
+        for hbkey in sorted(figs.keys()):
+            pyplot.figure(figs[hbkey].number)
+            pyplot.xlabel("Number of '{}'".format(hbkey))
+            pyplot.ylabel("Cumulative Fraction")
+            pyplot.title("sum of heartbeat '{}' count, each client".format(hbkey))
+            pyplot.legend(loc="best")
+            pyplot.tight_layout(pad=0.3)
+            self.page.savefig()
+            pyplot.close()
+
+    def __plot_heartbeat_timeseries(self):
+        figs = {}
+
+        for (anal, label, lineformat) in self.datasets:
+            hb = {}
+            for client in self.__get_nodes(anal):
+                d = anal.get_tgen_heartbeats(client)
+                if d is None: continue
+                for hbkey in d:
+                    figs.setdefault(hbkey, pyplot.figure())
+                    for secstr in d[hbkey]:
+                        sec = int(secstr)
+                        hb.setdefault(hbkey, {}).setdefault(sec, [])
+                        hb[hbkey][sec].extend(d[hbkey][secstr])
+
+            for hbkey in hb:
+                pyplot.figure(figs[hbkey].number)
+                x = [sec for sec in hb[hbkey]]
+                x.sort()
+                y = [sum(hb[hbkey][sec]) for sec in x]
+                if len(y) > 20:
+                    y = movingaverage(y, len(y)*0.05)
+                start_sec = min(x)
+                x[:] = [sec - start_sec for sec in x]
+                pyplot.plot(x, y, lineformat, label=label)
+
+        for hbkey in sorted(figs.keys()):
+            pyplot.figure(figs[hbkey].number)
+            pyplot.xlabel("Tick (s)")
+            pyplot.ylabel("Number of '{}'".format(hbkey))
+            pyplot.title("moving avg. sum of heartbeat '{}', all clients over time".format(hbkey))
             pyplot.legend(loc="best")
             pyplot.tight_layout(pad=0.3)
             self.page.savefig()

@@ -135,116 +135,118 @@ static gboolean _tgendriver_onHeartbeat(TGenDriver* driver, gpointer nullData) {
     GString* message = g_string_new("[driver-heartbeat]");
 
     g_string_append_printf(message,
-            " bytes-read=%"G_GSIZE_FORMAT" bytes-written=%"G_GSIZE_FORMAT,
+            " [bytes-read=%"G_GSIZE_FORMAT",bytes-written=%"G_GSIZE_FORMAT,
             driver->heartbeatBytesRead, driver->heartbeatBytesWritten);
 
     if(driver->heartbeatStreamCreated > 0) {
         g_string_append_printf(message,
-                " streams-created=%"G_GUINT64_FORMAT, driver->heartbeatStreamCreated);
+                ",streams-created=%"G_GUINT64_FORMAT, driver->heartbeatStreamCreated);
     }
 
     if(driver->heartbeatStreamSuccess > 0) {
         g_string_append_printf(message,
-                " streams-succeeded=%"G_GUINT64_FORMAT, driver->heartbeatStreamSuccess);
+                ",streams-succeeded=%"G_GUINT64_FORMAT, driver->heartbeatStreamSuccess);
     }
 
     if(driver->heartbeatStreamError > 0) {
         g_string_append_printf(message,
-                " streams-failed=%"G_GUINT64_FORMAT, driver->heartbeatStreamError);
+                ",streams-failed=%"G_GUINT64_FORMAT, driver->heartbeatStreamError);
     }
 
     if(driver->heartbeatFlowCreated > 0) {
         g_string_append_printf(message,
-                " flows-created=%"G_GUINT64_FORMAT, driver->heartbeatFlowCreated);
+                ",flows-created=%"G_GUINT64_FORMAT, driver->heartbeatFlowCreated);
     }
 
     if(driver->heartbeatFlowSuccess > 0) {
         g_string_append_printf(message,
-                " flows-succeeded=%"G_GUINT64_FORMAT, driver->heartbeatFlowSuccess);
+                ",flows-succeeded=%"G_GUINT64_FORMAT, driver->heartbeatFlowSuccess);
     }
 
     if(driver->heartbeatFlowError > 0) {
         g_string_append_printf(message,
-                " flows-failed=%"G_GUINT64_FORMAT, driver->heartbeatFlowError);
+                ",flows-failed=%"G_GUINT64_FORMAT, driver->heartbeatFlowError);
     }
 
     if(driver->heartbeatTrafficCreated > 0) {
         g_string_append_printf(message,
-                " traffics-created=%"G_GUINT64_FORMAT, driver->heartbeatTrafficCreated);
+                ",traffics-created=%"G_GUINT64_FORMAT, driver->heartbeatTrafficCreated);
     }
 
     if(driver->heartbeatTrafficSuccess > 0) {
         g_string_append_printf(message,
-                " traffics-succeeded=%"G_GUINT64_FORMAT, driver->heartbeatTrafficSuccess);
+                ",traffics-succeeded=%"G_GUINT64_FORMAT, driver->heartbeatTrafficSuccess);
     }
 
     if(driver->heartbeatTrafficError > 0) {
         g_string_append_printf(message,
-                " traffics-failed=%"G_GUINT64_FORMAT, driver->heartbeatTrafficError);
+                ",traffics-failed=%"G_GUINT64_FORMAT, driver->heartbeatTrafficError);
     }
 
     if(driver->totalStreamCreated > 0) {
         g_string_append_printf(message,
-                " total-streams-created=%"G_GUINT64_FORMAT, driver->totalStreamCreated);
+                ",total-streams-created=%"G_GUINT64_FORMAT, driver->totalStreamCreated);
     }
 
     if(driver->totalStreamSuccess > 0) {
         g_string_append_printf(message,
-                " total-streams-succeeded=%"G_GUINT64_FORMAT, driver->totalStreamSuccess);
+                ",total-streams-succeeded=%"G_GUINT64_FORMAT, driver->totalStreamSuccess);
     }
 
     if(driver->totalStreamError > 0) {
         g_string_append_printf(message,
-                " total-streams-failed=%"G_GUINT64_FORMAT, driver->totalStreamError);
+                ",total-streams-failed=%"G_GUINT64_FORMAT, driver->totalStreamError);
     }
 
     guint64 streamsPending = driver->totalStreamCreated - driver->totalStreamSuccess - driver->totalStreamError;
     if(streamsPending > 0) {
         g_string_append_printf(message,
-                " total-streams-pending=%"G_GUINT64_FORMAT, streamsPending);
+                ",total-streams-pending=%"G_GUINT64_FORMAT, streamsPending);
     }
 
     if(driver->totalFlowCreated > 0) {
         g_string_append_printf(message,
-                " total-flows-created=%"G_GUINT64_FORMAT, driver->totalFlowCreated);
+                ",total-flows-created=%"G_GUINT64_FORMAT, driver->totalFlowCreated);
     }
 
     if(driver->totalFlowSuccess > 0) {
         g_string_append_printf(message,
-                " total-flows-succeeded=%"G_GUINT64_FORMAT, driver->totalFlowSuccess);
+                ",total-flows-succeeded=%"G_GUINT64_FORMAT, driver->totalFlowSuccess);
     }
 
     if(driver->totalFlowError > 0) {
         g_string_append_printf(message,
-                " total-flows-failed=%"G_GUINT64_FORMAT, driver->totalFlowError);
+                ",total-flows-failed=%"G_GUINT64_FORMAT, driver->totalFlowError);
     }
 
     guint64 flowsPending = driver->totalFlowCreated - driver->totalFlowSuccess - driver->totalFlowError;
     if(flowsPending > 0) {
         g_string_append_printf(message,
-                " total-flows-pending=%"G_GUINT64_FORMAT, flowsPending);
+                ",total-flows-pending=%"G_GUINT64_FORMAT, flowsPending);
     }
 
     if(driver->totalTrafficCreated > 0) {
         g_string_append_printf(message,
-                " total-traffics-created=%"G_GUINT64_FORMAT, driver->totalTrafficCreated);
+                ",total-traffics-created=%"G_GUINT64_FORMAT, driver->totalTrafficCreated);
     }
 
     if(driver->totalTrafficSuccess > 0) {
         g_string_append_printf(message,
-                " total-traffics-succeeded=%"G_GUINT64_FORMAT, driver->totalTrafficSuccess);
+                ",total-traffics-succeeded=%"G_GUINT64_FORMAT, driver->totalTrafficSuccess);
     }
 
     if(driver->totalTrafficError > 0) {
         g_string_append_printf(message,
-                " total-traffics-failed=%"G_GUINT64_FORMAT, driver->totalTrafficError);
+                ",total-traffics-failed=%"G_GUINT64_FORMAT, driver->totalTrafficError);
     }
 
     guint64 trafficsPending = driver->totalTrafficCreated - driver->totalTrafficSuccess - driver->totalTrafficError;
     if(trafficsPending > 0) {
         g_string_append_printf(message,
-                " total-traffics-pending=%"G_GUINT64_FORMAT, trafficsPending);
+                ",total-traffics-pending=%"G_GUINT64_FORMAT, trafficsPending);
     }
+
+    g_string_append_printf(message, "]");
 
     tgen_message("%s", message->str);
 
