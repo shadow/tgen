@@ -1868,14 +1868,15 @@ gboolean tgenstream_onCheckTimeout(TGenStream* stream, gint descriptor) {
         }
 
         /* it's either a stallout or timeout error */
-        if(stalled) {
+        if(stream->stalloutUSecs > 0 && stalled) {
             _tgenstream_changeError(stream, TGEN_STREAM_ERR_STALLOUT);
         } else {
             _tgenstream_changeError(stream, TGEN_STREAM_ERR_TIMEOUT);
         }
 
         /* log the error and notify driver before the stream is destroyed */
-        _tgenstream_runStreamEventLoop(stream, TGEN_EVENT_NONE);
+        _tgenstream_log(stream, FALSE);
+        _tgenstream_callNotifyComplete(stream);
 
         /* this stream will be destroyed by the io module */
         return TRUE;

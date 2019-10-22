@@ -132,6 +132,9 @@ static void _tgendriver_onBytesTransferred(TGenDriver* driver, gsize bytesRead, 
 static gboolean _tgendriver_onHeartbeat(TGenDriver* driver, gpointer nullData) {
     TGEN_ASSERT(driver);
 
+    /* check timeouts, which may cause us to close streams and update our counters */
+    tgenio_checkTimeouts(driver->io);
+
     GString* message = g_string_new("[driver-heartbeat]");
 
     g_string_append_printf(message,
@@ -263,8 +266,6 @@ static gboolean _tgendriver_onHeartbeat(TGenDriver* driver, gpointer nullData) {
     driver->heartbeatTrafficCreated = 0;
     driver->heartbeatTrafficSuccess = 0;
     driver->heartbeatTrafficError = 0;
-
-    tgenio_checkTimeouts(driver->io);
 
     /* even if the client ended, we keep serving requests.
      * we are still running and the heartbeat timer still owns a driver ref.
