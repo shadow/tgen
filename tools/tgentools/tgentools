@@ -159,7 +159,7 @@ will override the default pattern 'tgen.*\.log'.""",
         action="store", dest="prefix",
         default=None)
 
-    visualize_parser.add_argument('-h', '--heartbeat-cdfs',
+    visualize_parser.add_argument('-c', '--counter-cdfs',
         help="""Plot the tgen heartbeat counters as cumulative distributions across
         nodes in addition to the timeseries that are plotted by default.""",
         action="store_true", dest="do_heartbeat_cdfs",
