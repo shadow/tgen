@@ -16,10 +16,11 @@ class Visualization(object):
 
     __metaclass__ = ABCMeta
 
-    def __init__(self, hostpatterns, do_complete):
+    def __init__(self, hostpatterns, do_bytes, do_heartbeat_cdfs):
         self.datasets = []
         self.hostpatterns = hostpatterns
-        self.do_complete = do_complete
+        self.do_bytes = do_bytes
+        self.do_heartbeat_cdfs = do_heartbeat_cdfs
 
     def add_dataset(self, analysis, label, lineformat):
         self.datasets.append((analysis, label, lineformat))
@@ -47,7 +48,7 @@ class TGenVisualization(Visualization):
             logging.info("Plotting first byte time series")
             self.__plot_firstbyte_timeseries()
 
-            if self.do_complete:
+            if self.do_bytes:
                 logging.info("Plotting first byte time series (for each file size)")
                 self.__plot_byte_timeseries("time_to_first_byte_recv")
                 logging.info("Plotting last byte for all transfers (for each file size)")
@@ -66,16 +67,45 @@ class TGenVisualization(Visualization):
             logging.info("Plotting number of downloads time series")
             self.__plot_downloads_timeseries()
 
-            if self.do_complete:
+            if self.do_bytes:
                 logging.info("Plotting number of downloads CDF (for each file size)")
                 self.__plot_downloads_bytes()
                 logging.info("Plotting number of downloads time series (for each file size)")
                 self.__plot_downloads_timeseries_bytes()
 
-            logging.info("Plotting heartbeat counter CDFs")
-            self.__plot_heartbeat_cdfs()
-            logging.info("Plotting heartbeat counter time series")
-            self.__plot_heartbeat_timeseries()
+            logging.info("Plotting heartbeat counter info")
+            if self.do_heartbeat_cdfs: self.__plot_heartbeat_cdf("bytes-read")
+            self.__plot_heartbeat_timeseries('bytes-read')
+            if self.do_heartbeat_cdfs: self.__plot_heartbeat_cdf("bytes-written")
+            self.__plot_heartbeat_timeseries('bytes-written')
+
+            if self.do_heartbeat_cdfs: self.__plot_heartbeat_cdf("traffics-created")
+            self.__plot_heartbeat_timeseries('traffics-created')
+            if self.do_heartbeat_cdfs: self.__plot_heartbeat_cdf("traffics-succeeded")
+            self.__plot_heartbeat_timeseries('traffics-succeeded')
+            if self.do_heartbeat_cdfs: self.__plot_heartbeat_cdf("traffics-failed")
+            self.__plot_heartbeat_timeseries('traffics-failed')
+            self.__plot_heartbeat_timeseries('total-traffics-pending')
+
+            if self.do_heartbeat_cdfs: self.__plot_heartbeat_cdf("flows-created")
+            self.__plot_heartbeat_timeseries('flows-created')
+            if self.do_heartbeat_cdfs: self.__plot_heartbeat_cdf("flows-succeeded")
+            self.__plot_heartbeat_timeseries('flows-succeeded')
+            if self.do_heartbeat_cdfs: self.__plot_heartbeat_cdf("flows-failed")
+            self.__plot_heartbeat_timeseries('flows-failed')
+            self.__plot_heartbeat_timeseries('total-flows-pending')
+
+            if self.do_heartbeat_cdfs: self.__plot_heartbeat_cdf("streams-created")
+            self.__plot_heartbeat_timeseries('streams-created')
+            if self.do_heartbeat_cdfs: self.__plot_heartbeat_cdf("streams-succeeded")
+            self.__plot_heartbeat_timeseries('streams-succeeded')
+            if self.do_heartbeat_cdfs: self.__plot_heartbeat_cdf("streams-failed")
+            self.__plot_heartbeat_timeseries('streams-failed')
+            self.__plot_heartbeat_timeseries('total-streams-pending')
+
+            #self.__plot_heartbeat_timeseries('total-streams-created')
+            #self.__plot_heartbeat_timeseries('total-streams-succeeded')
+            #self.__plot_heartbeat_timeseries('total-streams-failed')
 
             logging.info("Plotting number of errors")
             self.__plot_errors()
@@ -626,7 +656,7 @@ class TGenVisualization(Visualization):
             self.page.savefig()
             pyplot.close()
 
-    def __plot_heartbeat_cdfs(self):
+    def __plot_heartbeat_cdf(self, hbkey='streams-created'):
         figs = {}
 
         for (anal, label, lineformat) in self.datasets:
@@ -634,19 +664,18 @@ class TGenVisualization(Visualization):
             for client in self.__get_nodes(anal):
                 d = anal.get_tgen_heartbeats(client)
                 if d is None: continue
-                for hbkey in d:
-                    if 'total' in hbkey: continue
+                if hbkey in d:
                     figs.setdefault(hbkey, pyplot.figure())
                     hb.setdefault(hbkey, {}).setdefault(client, [])
                     for secstr in d[hbkey]:
                         hb[hbkey][client].extend(d[hbkey][secstr])
 
-            for hbkey in hb:
+            if hbkey in hb:
                 pyplot.figure(figs[hbkey].number)
                 x, y = getcdf([sum(val_list) for val_list in hb[hbkey].values()])
                 pyplot.plot(x, y, lineformat, label=label)
 
-        for hbkey in sorted(figs.keys()):
+        if hbkey in sorted(figs.keys()):
             pyplot.figure(figs[hbkey].number)
             pyplot.xlabel("Number of '{}'".format(hbkey))
             pyplot.ylabel("Cumulative Fraction")
@@ -656,7 +685,7 @@ class TGenVisualization(Visualization):
             self.page.savefig()
             pyplot.close()
 
-    def __plot_heartbeat_timeseries(self):
+    def __plot_heartbeat_timeseries(self, hbkey='streams-created'):
         figs = {}
 
         for (anal, label, lineformat) in self.datasets:
@@ -664,14 +693,14 @@ class TGenVisualization(Visualization):
             for client in self.__get_nodes(anal):
                 d = anal.get_tgen_heartbeats(client)
                 if d is None: continue
-                for hbkey in d:
+                if hbkey in d:
                     figs.setdefault(hbkey, pyplot.figure())
                     for secstr in d[hbkey]:
                         sec = int(secstr)
                         hb.setdefault(hbkey, {}).setdefault(sec, [])
                         hb[hbkey][sec].extend(d[hbkey][secstr])
 
-            for hbkey in hb:
+            if hbkey in hb:
                 pyplot.figure(figs[hbkey].number)
                 x = [sec for sec in hb[hbkey]]
                 x.sort()
@@ -682,7 +711,7 @@ class TGenVisualization(Visualization):
                 x[:] = [sec - start_sec for sec in x]
                 pyplot.plot(x, y, lineformat, label=label)
 
-        for hbkey in sorted(figs.keys()):
+        if hbkey in sorted(figs.keys()):
             pyplot.figure(figs[hbkey].number)
             pyplot.xlabel("Tick (s)")
             pyplot.ylabel("Number of '{}'".format(hbkey))

@@ -159,10 +159,16 @@ will override the default pattern 'tgen.*\.log'.""",
         action="store", dest="prefix",
         default=None)
 
-    visualize_parser.add_argument('-c', '--complete',
+    visualize_parser.add_argument('-h', '--heartbeat-cdfs',
+        help="""Plot the tgen heartbeat counters as cumulative distributions across
+        nodes in addition to the timeseries that are plotted by default.""",
+        action="store_true", dest="do_heartbeat_cdfs",
+        default=False)
+
+    visualize_parser.add_argument('-b', '--bytes',
         help="""Plot a set of time to first and last byte graphs for every file size.
-        Note: you probably don't want this if your clients transfer files of many different sizes.""",
-        action="store_true", dest="do_complete",
+        Warning: may result in a PDF with hundreds or thousands of pages!""",
+        action="store_true", dest="do_bytes",
         default=False)
 
     visualize_parser.add_argument('-f', '--format',
@@ -275,7 +281,7 @@ def visualize(args):
     lflist = args.lineformats.strip().split(",")
     lfcycle = cycle(lflist)
 
-    tgen_viz = TGenVisualization(args.hostpatterns, args.do_complete)
+    tgen_viz = TGenVisualization(args.hostpatterns, args.do_bytes, args.do_heartbeat_cdfs)
 
     for (path, label) in args.datasets:
         nextformat = next(lfcycle)
