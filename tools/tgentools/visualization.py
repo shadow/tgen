@@ -161,9 +161,16 @@ class TGenVisualization(Visualization):
 
         for (anal, label, lineformat) in self.datasets:
             fb = {}
+            init_ts_min = None
+
             for client in self.__get_nodes(anal):
                 d = anal.get_tgen_stream_summary(client)
                 if d is None: continue
+
+                init_ts = anal.get_tgen_init_ts(client)
+                if init_ts_min is None or init_ts < init_ts_min:
+                    init_ts_min = init_ts
+
                 if "time_to_first_byte_recv" in d:
                     for b in d["time_to_first_byte_recv"]:
                         if f is None: f = pyplot.figure()
@@ -171,14 +178,17 @@ class TGenVisualization(Visualization):
                             sec = int(secstr)
                             fb.setdefault(sec, [])
                             fb[sec].extend(d["time_to_first_byte_recv"][b][secstr])
+
+            if init_ts_min == None:
+                init_ts_min = 0.0
+
             if f is not None:
                 x = [sec for sec in fb]
                 x.sort()
                 y = [numpy.mean(fb[sec]) for sec in x]
                 if len(y) > 20:
                     y = movingaverage(y, len(y)*0.05)
-                start_sec = min(x)
-                x[:] = [sec - start_sec for sec in x]
+                x[:] = [sec - init_ts_min for sec in x]
                 pyplot.plot(x, y, lineformat, label=label)
 
         if f is not None:
@@ -317,9 +327,16 @@ class TGenVisualization(Visualization):
 
         for (anal, label, lineformat) in self.datasets:
             lb = {}
+            init_ts_min = None
+
             for client in self.__get_nodes(anal):
                 d = anal.get_tgen_stream_summary(client)
                 if d is None: continue
+
+                init_ts = anal.get_tgen_init_ts(client)
+                if init_ts_min is None or init_ts < init_ts_min:
+                    init_ts_min = init_ts
+
                 if bytekey in d:
                     for b in d[bytekey]:
                         bytes = int(b)
@@ -329,6 +346,10 @@ class TGenVisualization(Visualization):
                             sec = int(secstr)
                             if sec not in lb[bytes]: lb[bytes][sec] = []
                             lb[bytes][sec].extend(d[bytekey][b][secstr])
+
+            if init_ts_min == None:
+                init_ts_min = 0.0
+
             for bytes in lb:
                 pyplot.figure(figs[bytes].number)
                 x = [sec for sec in lb[bytes]]
@@ -336,8 +357,7 @@ class TGenVisualization(Visualization):
                 y = [numpy.mean(lb[bytes][sec]) for sec in x]
                 if len(y) > 20:
                     y = movingaverage(y, len(y)*0.05)
-                start_sec = min(x)
-                x[:] = [sec - start_sec for sec in x]
+                x[:] = [sec - init_ts_min for sec in x]
                 pyplot.plot(x, y, lineformat, label=label)
 
         for bytes in sorted(figs.keys()):
@@ -384,9 +404,16 @@ class TGenVisualization(Visualization):
         for (anal, label, lineformat) in self.datasets:
             total_count = 0
             dls = {}
+            init_ts_min = None
+
             for client in self.__get_nodes(anal):
                 d = anal.get_tgen_stream_summary(client)
                 if d is None: continue
+
+                init_ts = anal.get_tgen_init_ts(client)
+                if init_ts_min is None or init_ts < init_ts_min:
+                    init_ts_min = init_ts
+
                 if "time_to_last_byte_recv" in d:
                     for b in d["time_to_last_byte_recv"]:
                         for secstr in d["time_to_last_byte_recv"][b]:
@@ -395,6 +422,10 @@ class TGenVisualization(Visualization):
                             count = len(d["time_to_last_byte_recv"][b][secstr])
                             dls[sec] += count
                             total_count += count
+
+            if init_ts_min == None:
+                init_ts_min = 0.0
+
             if total_count > 0:
                 if f is None: f = pyplot.figure()
                 x = [sec for sec in dls]
@@ -402,8 +433,7 @@ class TGenVisualization(Visualization):
                 y = [dls[sec] for sec in x]
                 if len(y) > 20:
                     y = movingaverage(y, len(y)*0.05)
-                start_sec = min(x)
-                x[:] = [sec - start_sec for sec in x]
+                x[:] = [sec - init_ts_min for sec in x]
                 pyplot.plot(x, y, lineformat, label=label)
 
         if f is not None:
@@ -450,9 +480,16 @@ class TGenVisualization(Visualization):
 
         for (anal, label, lineformat) in self.datasets:
             dls = {}
+            init_ts_min = None
+
             for client in self.__get_nodes(anal):
                 d = anal.get_tgen_stream_summary(client)
                 if d is None: continue
+
+                init_ts = anal.get_tgen_init_ts(client)
+                if init_ts_min is None or init_ts < init_ts_min:
+                    init_ts_min = init_ts
+
                 if "time_to_last_byte_recv" in d:
                     for b in d["time_to_last_byte_recv"]:
                         bytes = int(b)
@@ -462,6 +499,10 @@ class TGenVisualization(Visualization):
                             sec = int(secstr)
                             if sec not in dls[bytes]: dls[bytes][sec] = 0
                             dls[bytes][sec] += len(d["time_to_last_byte_recv"][b][secstr])
+
+            if init_ts_min == None:
+                init_ts_min = 0.0
+
             for bytes in dls:
                 pyplot.figure(figs[bytes].number)
                 x = [sec for sec in dls[bytes]]
@@ -469,8 +510,7 @@ class TGenVisualization(Visualization):
                 y = [dls[bytes][sec] for sec in x]
                 if len(y) > 20:
                     y = movingaverage(y, len(y)*0.05)
-                start_sec = min(x)
-                x[:] = [sec - start_sec for sec in x]
+                x[:] = [sec - init_ts_min for sec in x]
                 pyplot.plot(x, y, lineformat, label=label)
 
         for bytes in sorted(figs.keys()):
@@ -530,7 +570,13 @@ class TGenVisualization(Visualization):
 
         for (anal, label, lineformat) in self.datasets:
             dls = {}
+            init_ts_min = None
+
             for client in self.__get_nodes(anal):
+                init_ts = anal.get_tgen_init_ts(client)
+                if init_ts_min is None or init_ts < init_ts_min:
+                    init_ts_min = init_ts
+
                 d = anal.get_tgen_stream_summary(client)
                 if d is None: continue
                 if "errors" in d:
@@ -541,10 +587,14 @@ class TGenVisualization(Visualization):
                             sec = int(secstr)
                             if sec not in dls[code]: dls[code][sec] = 0
                             dls[code][sec] += len(d["errors"][code][secstr])
+
+            if init_ts_min == None:
+                init_ts_min = 0.0
+
             for code in dls:
                 pyplot.figure(figs[code].number)
-                start_sec, end_sec = min(dls[code]), max(dls[code])
-                x = range(start_sec, end_sec)
+                end_sec = max(dls[code])
+                x = range(init_ts_min, end_sec)
                 y = []
                 for sec in x:
                     if sec in dls[code]:
@@ -553,7 +603,7 @@ class TGenVisualization(Visualization):
                         y.append(0)
                 if len(y) > 20:
                     y = movingaverage(y, len(y)*0.05)
-                x = [sec - start_sec for sec in x]
+                x = [sec - init_ts_min for sec in x]
                 pyplot.plot(x, y, lineformat, label=label)
 
         for code in sorted(figs.keys()):
@@ -690,15 +740,25 @@ class TGenVisualization(Visualization):
 
         for (anal, label, lineformat) in self.datasets:
             hb = {}
+            init_ts_min = None
+
             for client in self.__get_nodes(anal):
                 d = anal.get_tgen_heartbeats(client)
                 if d is None: continue
+
+                init_ts = anal.get_tgen_init_ts(client)
+                if init_ts_min is None or init_ts < init_ts_min:
+                    init_ts_min = init_ts
+
                 if hbkey in d:
                     figs.setdefault(hbkey, pyplot.figure())
                     for secstr in d[hbkey]:
                         sec = int(secstr)
                         hb.setdefault(hbkey, {}).setdefault(sec, [])
                         hb[hbkey][sec].extend(d[hbkey][secstr])
+
+            if init_ts_min == None:
+                init_ts_min = 0.0
 
             if hbkey in hb:
                 pyplot.figure(figs[hbkey].number)
@@ -707,8 +767,7 @@ class TGenVisualization(Visualization):
                 y = [sum(hb[hbkey][sec]) for sec in x]
                 if len(y) > 20:
                     y = movingaverage(y, len(y)*0.05)
-                start_sec = min(x)
-                x[:] = [sec - start_sec for sec in x]
+                x[:] = [sec - init_ts_min for sec in x]
                 pyplot.plot(x, y, lineformat, label=label)
 
         if hbkey in sorted(figs.keys()):

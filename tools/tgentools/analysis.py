@@ -44,6 +44,12 @@ class Analysis(object):
         except:
             return None
 
+    def get_tgen_init_ts(self, node):
+        try:
+            return self.json_db['data'][node]['tgen']['init_ts']
+        except:
+            return None
+
     def analyze(self, do_complete=False, date_filter=None):
         if self.did_analysis:
             return
@@ -306,6 +312,7 @@ class TGenParser(Parser):
         self.stream_summary = {'time_to_first_byte_recv':{}, 'time_to_last_byte_recv':{},
             'time_to_first_byte_send':{}, 'time_to_last_byte_send':{}, 'errors':{}}
         self.name = None
+        self.unix_ts_init = 0.0
         self.date_filter = date_filter
         self.version_mismatch = False
 
@@ -324,6 +331,7 @@ class TGenParser(Parser):
 
             if len(parts) < 9:
                 return True
+            self.unix_ts_init = int(util.timestamp_to_seconds(parts[2]))
 
             version_str = parts[8].strip('v')
             if version_str != __version__:
@@ -447,7 +455,12 @@ class TGenParser(Parser):
                 if second not in self.heartbeats[k]:
                     self.heartbeats[k].setdefault(second, [0])
 
-        return {'heartbeats': self.heartbeats, 'streams':self.streams, 'stream_summary': self.stream_summary}
+        return {
+            'init_ts': self.unix_ts_init,
+            'heartbeats': self.heartbeats,
+            'streams':self.streams,
+            'stream_summary': self.stream_summary
+        }
 
     def get_name(self):
         return self.name
