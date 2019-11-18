@@ -398,7 +398,8 @@ static gint64 _tgenstream_getTime(TGenStream* stream) {
     if(stream->time.nowCached > 0) {
         return stream->time.nowCached;
     } else {
-        return g_get_monotonic_time();
+        stream->time.nowCached = g_get_monotonic_time();
+        return stream->time.nowCached;
     }
 }
 
@@ -1592,7 +1593,8 @@ static void _tgenstream_log(TGenStream* stream, gboolean wasActive) {
     TGEN_ASSERT(stream);
 
     if(stream->recv.state == TGEN_STREAM_RECV_ERROR ||
-            stream->send.state == TGEN_STREAM_SEND_ERROR) {
+            stream->send.state == TGEN_STREAM_SEND_ERROR ||
+            stream->error != TGEN_STREAM_ERR_NONE) {
         /* we had an error at some point and will unlikely be able to complete.
          * only log an error once. */
         if(stream->time.lastTimeErrorReport == 0) {
@@ -1667,8 +1669,6 @@ static TGenIOResponse _tgenstream_runTransportEventLoop(TGenStream* stream, TGen
     if(retEvents == TGEN_EVENT_NONE) {
         /* proxy failed */
         tgen_critical("transport connection or proxy handshake failed, stream cannot begin");
-        _tgenstream_changeSendState(stream, TGEN_STREAM_SEND_ERROR);
-        _tgenstream_changeRecvState(stream, TGEN_STREAM_RECV_ERROR);
         _tgenstream_changeError(stream, TGEN_STREAM_ERR_PROXY);
         _tgenstream_log(stream, FALSE);
         _tgenstream_callNotifyComplete(stream);
@@ -1704,6 +1704,8 @@ static TGenEvent _tgenstream_computeWantedEvents(TGenStream* stream) {
     } else if(stream->recv.state == TGEN_STREAM_RECV_NONE &&
             stream->send.state == TGEN_STREAM_SEND_ERROR) {
         recvDone = TRUE;
+    } else if(stream->error != TGEN_STREAM_ERR_NONE) {
+        recvDone = TRUE;
     }
 
     /* check if we are done sending */
@@ -1714,6 +1716,8 @@ static TGenEvent _tgenstream_computeWantedEvents(TGenStream* stream) {
         sendDone = TRUE;
     } else if(stream->send.state == TGEN_STREAM_SEND_NONE &&
             stream->recv.state == TGEN_STREAM_RECV_ERROR) {
+        sendDone = TRUE;
+    } else if(stream->error != TGEN_STREAM_ERR_NONE) {
         sendDone = TRUE;
     }
 
@@ -1843,11 +1847,8 @@ TGenIOResponse tgenstream_onEvent(TGenStream* stream, gint descriptor, TGenEvent
     }
 }
 
-gboolean tgenstream_onCheckTimeout(TGenStream* stream, gint descriptor) {
+static gboolean _tgenstream_checkTimeout(TGenStream* stream) {
     TGEN_ASSERT(stream);
-
-    /* make sure we get a fresh time when we need to */
-    stream->time.nowCached = 0;
 
     /* the io module is checking to see if we are in a timeout state. if we are, then
      * the stream will be cancelled, de-registered and destroyed. */
@@ -1862,18 +1863,6 @@ gboolean tgenstream_onCheckTimeout(TGenStream* stream, gint descriptor) {
 
     if((stream->stalloutUSecs > 0 && stalled) ||
             (stream->timeoutUSecs > 0 && tookTooLong)) {
-        /* if the recv side is in a non-terminal state, change it to error */
-        if(stream->recv.state != TGEN_STREAM_RECV_SUCCESS &&
-                stream->recv.state != TGEN_STREAM_RECV_ERROR) {
-            _tgenstream_changeRecvState(stream, TGEN_STREAM_RECV_ERROR);
-        }
-
-        /* if the send side is in a non-terminal state, change it to error */
-        if(stream->send.state != TGEN_STREAM_SEND_SUCCESS &&
-                stream->send.state != TGEN_STREAM_SEND_ERROR) {
-            _tgenstream_changeSendState(stream, TGEN_STREAM_SEND_ERROR);
-        }
-
         /* it's either a stallout or timeout error */
         if(stream->stalloutUSecs > 0 && stalled) {
             _tgenstream_changeError(stream, TGEN_STREAM_ERR_STALLOUT);
@@ -1881,8 +1870,10 @@ gboolean tgenstream_onCheckTimeout(TGenStream* stream, gint descriptor) {
             _tgenstream_changeError(stream, TGEN_STREAM_ERR_TIMEOUT);
         }
 
-        /* log the error and notify driver before the stream is destroyed */
+        /* log the error while we still know the states we are in when the error occurred. */
         _tgenstream_log(stream, FALSE);
+
+        /* notify driver before the stream is destroyed */
         _tgenstream_callNotifyComplete(stream);
 
         /* this stream will be destroyed by the io module */
@@ -1890,6 +1881,34 @@ gboolean tgenstream_onCheckTimeout(TGenStream* stream, gint descriptor) {
     } else {
         /* this stream is still in progress */
         return FALSE;
+    }
+}
+
+gboolean tgenstream_onCheckTimeout(TGenStream* stream, gint descriptor) {
+    TGEN_ASSERT(stream);
+
+    /* make sure we get a fresh time when we need to */
+    stream->time.nowCached = 0;
+
+    if(stream->transport && stream->time.lastProgress <= 0) {
+        /* we are still waiting for the transport connection */
+        gboolean isTimeout = tgentransport_checkTimeout(stream->transport,
+                stream->stalloutUSecs, stream->timeoutUSecs);
+
+        if(isTimeout) {
+            _tgenstream_changeError(stream, TGEN_STREAM_ERR_PROXY);
+            _tgenstream_log(stream, FALSE);
+            _tgenstream_callNotifyComplete(stream);
+
+            /* this stream will be destroyed by the io module */
+            return TRUE;
+        } else {
+            /* proxy is still in progress */
+            return FALSE;
+        }
+    } else {
+        /* the stream was started, so check it for timeouts */
+        return _tgenstream_checkTimeout(stream);
     }
 }
 
