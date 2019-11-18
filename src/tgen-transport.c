@@ -21,7 +21,8 @@ typedef enum {
     TGEN_XPORT_ERR_PROXY_CHOICE, TGEN_XPORT_ERR_PROXY_AUTH,
     TGEN_XPORT_ERR_PROXY_RECONN, TGEN_XPORT_ERR_PROXY_ADDR,
     TGEN_XPORT_ERR_PROXY_VERSION, TGEN_XPORT_ERR_PROXY_STATUS,
-    TGEN_XPORT_ERR_WRITE, TGEN_XPORT_ERR_READ, TGEN_XPORT_ERR_MISC
+    TGEN_XPORT_ERR_WRITE, TGEN_XPORT_ERR_READ, TGEN_XPORT_ERR_MISC,
+    TGEN_XPORT_ERR_STALLOUT, TGEN_XPORT_ERR_TIMEOUT
 } TGenTransportError;
 
 struct _TGenTransport {
@@ -52,6 +53,7 @@ struct _TGenTransport {
         gint64 proxyChoice;
         gint64 proxyRequest;
         gint64 proxyResponse;
+        gint64 lastProgress;
     } time;
 
     /* a buffer used during the socks handshake */
@@ -140,6 +142,12 @@ static const gchar* _tgentransport_errorToString(TGenTransportError error) {
         }
         case TGEN_XPORT_ERR_READ: {
             return "READ";
+        }
+        case TGEN_XPORT_ERR_STALLOUT: {
+            return "STALLOUT";
+        }
+        case TGEN_XPORT_ERR_TIMEOUT: {
+            return "TIMEOUT";
         }
         case TGEN_XPORT_ERR_MISC:
         default: {
@@ -241,6 +249,8 @@ static TGenTransport* _tgentransport_newHelper(gint socketD, gint64 startedTime,
     transport->time.proxyChoice = -1;
     transport->time.proxyRequest = -1;
     transport->time.proxyResponse = -1;
+
+    transport->time.lastProgress = createdTime;
 
     transport->bytesCB = bytesCB;
     if(transport->bytesCB.arg && transport->bytesCB.argRef) {
@@ -564,6 +574,7 @@ static TGenEvent _tgentransport_sendSocksInit(TGenTransport* transport) {
         } else {
             /* we wrote it all, we can move on */
             transport->time.proxyInit = g_get_monotonic_time();
+            transport->time.lastProgress = transport->time.proxyInit;
             tgen_debug("sent socks init to proxy %s", tgenpeer_toString(transport->proxy));
 
             g_string_free(transport->socksBuffer, TRUE);
@@ -617,6 +628,7 @@ static TGenEvent _tgentransport_receiveSocksChoice(TGenTransport* transport) {
     } else {
         /* we read it all, we can move on */
         transport->time.proxyChoice = g_get_monotonic_time();
+        transport->time.lastProgress = transport->time.proxyChoice;
 
         gboolean versionSupported = (transport->socksBuffer->str[0] == 0x05) ? TRUE : FALSE;
         gboolean authSupported = FALSE;
@@ -868,6 +880,7 @@ static TGenEvent _tgentransport_sendSocksRequest(TGenTransport* transport) {
         } else {
             /* we wrote it all, we can move on */
             transport->time.proxyRequest = g_get_monotonic_time();
+            transport->time.lastProgress = transport->time.proxyRequest;
             tgen_debug("requested connection from %s through socks proxy %s to remote %s",
                     tgenpeer_toString(transport->local), tgenpeer_toString(transport->proxy), tgenpeer_toString(transport->remote));
 
@@ -913,6 +926,7 @@ static TGenEvent _tgentransport_receiveSocksResponseTypeName(TGenTransport* tran
                     tgenpeer_toString(transport->local), tgenpeer_toString(transport->proxy), tgenpeer_toString(transport->remote));
 
             transport->time.proxyResponse = g_get_monotonic_time();
+            transport->time.lastProgress = transport->time.proxyResponse;
             _tgentransport_changeState(transport, TGEN_XPORT_SUCCESSOPEN);
             return TGEN_EVENT_DONE;
         } else {
@@ -972,6 +986,7 @@ static TGenEvent _tgentransport_receiveSocksResponseTypeIPv4(TGenTransport* tran
                     tgenpeer_toString(transport->local), tgenpeer_toString(transport->proxy), tgenpeer_toString(transport->remote));
 
             transport->time.proxyResponse = g_get_monotonic_time();
+            transport->time.lastProgress = transport->time.proxyResponse;
             _tgentransport_changeState(transport, TGEN_XPORT_SUCCESSOPEN);
             return TGEN_EVENT_DONE;
         } else {
@@ -1153,6 +1168,7 @@ TGenEvent tgentransport_onEvent(TGenTransport* transport, TGenEvent events) {
         } else {
             /* we are now connected and can send the socks init */
             transport->time.socketConnect = g_get_monotonic_time();
+            transport->time.lastProgress = transport->time.socketConnect;
             if(transport->proxy) {
                 /* continue with SOCKS handshake next */
                 _tgentransport_changeState(transport, TGEN_XPORT_PROXY_INIT);
@@ -1255,5 +1271,37 @@ TGenEvent tgentransport_onEvent(TGenTransport* transport, TGenEvent events) {
     default: {
         return TGEN_EVENT_NONE;
     }
+    }
+}
+
+gboolean tgentransport_checkTimeout(TGenTransport* transport, gint64 stalloutUSecs, gint64 timeoutUSecs) {
+    TGEN_ASSERT(transport);
+
+    if(!tgentransport_wantsEvents(transport)) {
+        /* we already reached a terminal state correctly */
+        return FALSE;
+    }
+
+    gint64 now = g_get_monotonic_time();
+
+    gint64 stalloutCutoff = transport->time.lastProgress + stalloutUSecs;
+    gint64 timeoutCutoff = transport->time.start + timeoutUSecs;
+
+    gboolean stalled = (now >= stalloutCutoff) ? TRUE : FALSE;
+    gboolean tookTooLong = (now >= timeoutCutoff) ? TRUE : FALSE;
+
+    if((stalloutUSecs > 0 && stalled) || (timeoutUSecs > 0 && tookTooLong)) {
+        /* it's either a stallout or timeout error */
+        if(stalloutUSecs > 0 && stalled) {
+            _tgentransport_changeError(transport, TGEN_XPORT_ERR_STALLOUT);
+        } else {
+            _tgentransport_changeError(transport, TGEN_XPORT_ERR_TIMEOUT);
+        }
+
+        /* yes we had a stallout/timeout */
+        return TRUE;
+    } else {
+        /* we did not have a stallout/timeout yet */
+        return FALSE;
     }
 }

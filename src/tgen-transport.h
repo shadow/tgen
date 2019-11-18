@@ -39,4 +39,6 @@ gchar* tgentransport_getTimeStatusReport(TGenTransport* transport);
 gboolean tgentransport_wantsEvents(TGenTransport* transport);
 TGenEvent tgentransport_onEvent(TGenTransport* transport, TGenEvent events);
 
+gboolean tgentransport_checkTimeout(TGenTransport* transport, gint64 stalloutUSecs, gint64 timeoutUSecs);
+
 #endif /* TGEN_TRANSPORT_H_ */

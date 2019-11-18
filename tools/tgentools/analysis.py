@@ -414,6 +414,8 @@ class TGenParser(Parser):
 
             if error.stream_info != None and error.byte_info != None:
                 err_code = error.stream_info['error']
+                if err_code == "PROXY" and error.transport_info != None:
+                	err_code = "{}-{}".format(err_code, error.transport_info['error'])
                 recv_size = int(error.byte_info['payload-bytes-recv'])
                 send_size = int(error.byte_info['payload-bytes-send'])
                 second = int(error.unix_ts_end)
