@@ -1403,6 +1403,13 @@ static gboolean _tgenstream_writePayload(TGenStream* stream) {
 static gboolean _tgenstream_writeChecksum(TGenStream* stream) {
     TGEN_ASSERT(stream);
 
+    if(stream->send.requestedBytes == 0) {
+        /* we don't handle checksums if we don't know the total size, so just move on.
+         * TODO this needs to be updated if we support checksums on general streams. */
+        tgen_debug("Ignoring checksum on stream with no requested bytes");
+        return TRUE;
+    }
+
     /* buffer the checksum if we have not done that yet */
     if(!stream->send.buffer) {
         stream->send.buffer = g_string_new(NULL);
