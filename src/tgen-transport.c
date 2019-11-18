@@ -10,9 +10,9 @@ typedef enum {
     TGEN_XPORT_CONNECT,
     TGEN_XPORT_PROXY_INIT, TGEN_XPORT_PROXY_CHOICE,
     TGEN_XPORT_PROXY_AUTHREQUEST, TGEN_XPORT_PROXY_AUTHRESPONSE,
-    TGEN_XPORT_PROXY_REQUEST, TGEN_XPORT_PROXY_RESPONSEA,
-    TGEN_XPORT_PROXY_RESPONSEB, TGEN_XPORT_PROXY_RESPONSEC,
-    TGEN_XPORT_PROXY_RESPONSED, TGEN_XPORT_PROXY_RESPONSEE,
+    TGEN_XPORT_PROXY_REQUEST, TGEN_XPORT_PROXY_RESPONSE_STATUS,
+    TGEN_XPORT_PROXY_RESPONSE_TYPE, TGEN_XPORT_PROXY_RESPONSE_TYPE_IPV4,
+    TGEN_XPORT_PROXY_RESPONSE_TYPE_NAME_LEN, TGEN_XPORT_PROXY_RESPONSE_TYPE_NAME,
     TGEN_XPORT_SUCCESSEOF, TGEN_XPORT_SUCCESSOPEN, TGEN_XPORT_ERROR
 } TGenTransportState;
 
@@ -81,20 +81,20 @@ static const gchar* _tgentransport_stateToString(TGenTransportState state) {
         case TGEN_XPORT_PROXY_AUTHRESPONSE: {
             return "AUTHRESPONSE";
         }
-        case TGEN_XPORT_PROXY_RESPONSEA: {
-            return "RESPONSEA";
+        case TGEN_XPORT_PROXY_RESPONSE_STATUS: {
+            return "RESPONSESTATUS";
         }
-        case TGEN_XPORT_PROXY_RESPONSEB: {
-            return "RESPONSEB";
+        case TGEN_XPORT_PROXY_RESPONSE_TYPE: {
+            return "RESPONSETYPE";
         }
-        case TGEN_XPORT_PROXY_RESPONSEC: {
-            return "RESPONSEC";
+        case TGEN_XPORT_PROXY_RESPONSE_TYPE_IPV4: {
+            return "RESPONSEIPV4";
         }
-        case TGEN_XPORT_PROXY_RESPONSED: {
-            return "RESPONSED";
+        case TGEN_XPORT_PROXY_RESPONSE_TYPE_NAME_LEN: {
+            return "RESPONSENAMELEN";
         }
-        case TGEN_XPORT_PROXY_RESPONSEE: {
-            return "RESPONSEE";
+        case TGEN_XPORT_PROXY_RESPONSE_TYPE_NAME: {
+            return "RESPONSENAME";
         }
         case TGEN_XPORT_SUCCESSOPEN: {
             return "SUCCESSOPEN";
@@ -875,13 +875,13 @@ static TGenEvent _tgentransport_sendSocksRequest(TGenTransport* transport) {
             transport->socksBuffer = NULL;
 
             /* the next step is to read the response from the server */
-            _tgentransport_changeState(transport, TGEN_XPORT_PROXY_RESPONSEA);
+            _tgentransport_changeState(transport, TGEN_XPORT_PROXY_RESPONSE_STATUS);
             return TGEN_EVENT_READ;
         }
     }
 }
 
-static TGenEvent _tgentransport_receiveSocksResponseE(TGenTransport* transport) {
+static TGenEvent _tgentransport_receiveSocksResponseTypeName(TGenTransport* transport) {
     /* case 4b - domain name mode */
     guint8 nameLength = 0;
     g_memmove(&nameLength, &transport->socksBuffer->str[0], 1);
@@ -928,7 +928,7 @@ static TGenEvent _tgentransport_receiveSocksResponseE(TGenTransport* transport) 
     }
 }
 
-static TGenEvent _tgentransport_receiveSocksResponseD(TGenTransport* transport) {
+static TGenEvent _tgentransport_receiveSocksResponseTypeNameLen(TGenTransport* transport) {
     /* case 4b - domain name mode */
     _tgentransport_socksReceiveHelper(transport, 1);
 
@@ -940,12 +940,12 @@ static TGenEvent _tgentransport_receiveSocksResponseD(TGenTransport* transport) 
         tgen_debug("received partial socks response from proxy %s", tgenpeer_toString(transport->proxy));
         return TGEN_EVENT_READ;
     } else {
-        _tgentransport_changeState(transport, TGEN_XPORT_PROXY_RESPONSEE);
-        return _tgentransport_receiveSocksResponseE(transport);
+        _tgentransport_changeState(transport, TGEN_XPORT_PROXY_RESPONSE_TYPE_NAME);
+        return _tgentransport_receiveSocksResponseTypeName(transport);
     }
 }
 
-static TGenEvent _tgentransport_receiveSocksResponseC(TGenTransport* transport) {
+static TGenEvent _tgentransport_receiveSocksResponseTypeIPv4(TGenTransport* transport) {
     /* case 4a - IPV4 mode - get address server told us */
     _tgentransport_socksReceiveHelper(transport, 6);
 
@@ -987,7 +987,7 @@ static TGenEvent _tgentransport_receiveSocksResponseC(TGenTransport* transport) 
     }
 }
 
-static TGenEvent _tgentransport_receiveSocksResponseB(TGenTransport* transport) {
+static TGenEvent _tgentransport_receiveSocksResponseType(TGenTransport* transport) {
     _tgentransport_socksReceiveHelper(transport, 2);
 
     if(!transport->socksBuffer) {
@@ -1005,11 +1005,11 @@ static TGenEvent _tgentransport_receiveSocksResponseB(TGenTransport* transport) 
         transport->socksBuffer = NULL;
 
         if(addressType == 0x01) {
-            _tgentransport_changeState(transport, TGEN_XPORT_PROXY_RESPONSEC);
-            return _tgentransport_receiveSocksResponseC(transport);
+            _tgentransport_changeState(transport, TGEN_XPORT_PROXY_RESPONSE_TYPE_IPV4);
+            return _tgentransport_receiveSocksResponseTypeIPv4(transport);
         } else if (addressType == 0x03) {
-            _tgentransport_changeState(transport, TGEN_XPORT_PROXY_RESPONSED);
-            return _tgentransport_receiveSocksResponseD(transport);
+            _tgentransport_changeState(transport, TGEN_XPORT_PROXY_RESPONSE_TYPE_NAME_LEN);
+            return _tgentransport_receiveSocksResponseTypeNameLen(transport);
         } else {
             tgen_warning("connection from %s through socks proxy %s to %s failed: unsupported address type 0x%X",
                     tgenpeer_toString(transport->local), tgenpeer_toString(transport->proxy), tgenpeer_toString(transport->remote),
@@ -1022,7 +1022,7 @@ static TGenEvent _tgentransport_receiveSocksResponseB(TGenTransport* transport) 
     }
 }
 
-static TGenEvent _tgentransport_receiveSocksResponseA(TGenTransport* transport) {
+static TGenEvent _tgentransport_receiveSocksResponseStatus(TGenTransport* transport) {
     /*
     4 socks response client <-- server
     \x05 (version 5)
@@ -1060,8 +1060,8 @@ static TGenEvent _tgentransport_receiveSocksResponseA(TGenTransport* transport) 
         transport->socksBuffer = NULL;
 
         if(version == 0x05 && status == 0x00) {
-            _tgentransport_changeState(transport, TGEN_XPORT_PROXY_RESPONSEB);
-            return _tgentransport_receiveSocksResponseB(transport);
+            _tgentransport_changeState(transport, TGEN_XPORT_PROXY_RESPONSE_TYPE);
+            return _tgentransport_receiveSocksResponseType(transport);
         } else {
             GString* messageBuffer = g_string_new(NULL);
 
@@ -1206,43 +1206,43 @@ TGenEvent tgentransport_onEvent(TGenTransport* transport, TGenEvent events) {
         }
     }
 
-    case TGEN_XPORT_PROXY_RESPONSEA: {
+    case TGEN_XPORT_PROXY_RESPONSE_STATUS: {
         if(!(events & TGEN_EVENT_READ)) {
             return TGEN_EVENT_READ;
         } else {
-            return _tgentransport_receiveSocksResponseA(transport);
+            return _tgentransport_receiveSocksResponseStatus(transport);
         }
     }
 
-    case TGEN_XPORT_PROXY_RESPONSEB: {
+    case TGEN_XPORT_PROXY_RESPONSE_TYPE: {
         if(!(events & TGEN_EVENT_READ)) {
             return TGEN_EVENT_READ;
         } else {
-            return _tgentransport_receiveSocksResponseB(transport);
+            return _tgentransport_receiveSocksResponseType(transport);
         }
     }
 
-    case TGEN_XPORT_PROXY_RESPONSEC: {
+    case TGEN_XPORT_PROXY_RESPONSE_TYPE_IPV4: {
         if(!(events & TGEN_EVENT_READ)) {
             return TGEN_EVENT_READ;
         } else {
-            return _tgentransport_receiveSocksResponseC(transport);
+            return _tgentransport_receiveSocksResponseTypeIPv4(transport);
         }
     }
 
-    case TGEN_XPORT_PROXY_RESPONSED: {
+    case TGEN_XPORT_PROXY_RESPONSE_TYPE_NAME_LEN: {
         if(!(events & TGEN_EVENT_READ)) {
             return TGEN_EVENT_READ;
         } else {
-            return _tgentransport_receiveSocksResponseD(transport);
+            return _tgentransport_receiveSocksResponseTypeNameLen(transport);
         }
     }
 
-    case TGEN_XPORT_PROXY_RESPONSEE: {
+    case TGEN_XPORT_PROXY_RESPONSE_TYPE_NAME: {
         if(!(events & TGEN_EVENT_READ)) {
             return TGEN_EVENT_READ;
         } else {
-            return _tgentransport_receiveSocksResponseE(transport);
+            return _tgentransport_receiveSocksResponseTypeName(transport);
         }
     }
 
