@@ -86,7 +86,8 @@ typedef enum _TGenStreamHeaderFlags {
 
 struct _TGenStream {
     /* info to help describe this stream object */
-    gchar* id; /* the unique vertex id from the graph */
+    gsize id; /* global unique id for all streams created by this tgen instance */
+    gchar* vertexID; /* the unique vertex id from the graph */
     gchar* hostname; /* our hostname */
     GString* stringBuffer; /* a human-readable string for logging */
 
@@ -199,6 +200,8 @@ struct _TGenStream {
     gint refcount;
     guint magic;
 };
+
+gsize globalUniqueStreamIDCounter = 0;
 
 static const gchar* _tgenstream_recvStateToString(TGenStreamRecvState state) {
     switch(state) {
@@ -333,7 +336,10 @@ static const gchar* _tgenstream_toString(TGenStream* stream) {
 
     stream->stringBuffer = g_string_new(NULL);
 
-    g_string_printf(stream->stringBuffer, "[id=%s", stream->id);
+    g_string_printf(stream->stringBuffer, "[id=%"G_GSIZE_FORMAT, stream->id);
+
+    g_string_append_printf(stream->stringBuffer,
+            ",vertexid=%s", stream->vertexID);
 
     g_string_append_printf(stream->stringBuffer,
             ",name=%s", stream->hostname);
@@ -663,13 +669,13 @@ static gboolean _tgenstream_readHeader(TGenStream* stream) {
                 parsedKeys |= TGEN_HEADER_FLAG_HOSTNAME;
             } else if(!g_ascii_strcasecmp(key, "TRANSFER_ID")) {
                 if(!stream->isCommander) {
-                    if(stream->id) {
-                        GString* idBuffer = g_string_new(stream->id);
+                    if(stream->vertexID) {
+                        GString* idBuffer = g_string_new(stream->vertexID);
                         g_string_append_printf(idBuffer, ":%s", value);
-                        g_free(stream->id);
-                        stream->id = g_string_free(idBuffer, FALSE);
+                        g_free(stream->vertexID);
+                        stream->vertexID = g_string_free(idBuffer, FALSE);
                     } else {
-                        stream->id = g_strdup(value);
+                        stream->vertexID = g_strdup(value);
                     }
                 }
                 parsedKeys |= TGEN_HEADER_FLAG_ID;
@@ -1165,7 +1171,7 @@ static gboolean _tgenstream_writeCommand(TGenStream* stream) {
         g_string_append_printf(stream->send.buffer,
                 " HOSTNAME=%s", stream->hostname);
         g_string_append_printf(stream->send.buffer,
-                " TRANSFER_ID=%s", stream->id);
+                " TRANSFER_ID=%s", stream->vertexID);
         if(stream->send.requestedZero) {
             g_string_append_printf(stream->send.buffer,
                     " SEND_SIZE=~");
@@ -1917,6 +1923,7 @@ TGenStream* tgenstream_new(const gchar* idStr, TGenStreamOptions* options,
     TGenStream* stream = g_new0(TGenStream, 1);
     stream->magic = TGEN_MAGIC;
     stream->refcount = 1;
+    stream->id = globalUniqueStreamIDCounter++;
 
     stream->time.start = _tgenstream_getTime(stream);
 
@@ -1927,7 +1934,7 @@ TGenStream* tgenstream_new(const gchar* idStr, TGenStreamOptions* options,
 
     /* save the stream context values */
     if(idStr) {
-        stream->id = g_strdup(idStr);
+        stream->vertexID = g_strdup(idStr);
     }
 
     /* the timeout after which we abandon this stream */
@@ -2024,8 +2031,8 @@ static void _tgenstream_free(TGenStream* stream) {
         g_free(stream->hostname);
     }
 
-    if(stream->id) {
-        g_free(stream->id);
+    if(stream->vertexID) {
+        g_free(stream->vertexID);
     }
 
     if(stream->stringBuffer) {
