@@ -971,6 +971,7 @@ static TGenEvent _tgentransport_receiveSocksResponseC(TGenTransport* transport) 
             tgen_info("connection from %s through socks proxy %s to %s successful",
                     tgenpeer_toString(transport->local), tgenpeer_toString(transport->proxy), tgenpeer_toString(transport->remote));
 
+            transport->time.proxyResponse = g_get_monotonic_time();
             _tgentransport_changeState(transport, TGEN_XPORT_SUCCESSOPEN);
             return TGEN_EVENT_DONE;
         } else {
