@@ -1274,6 +1274,11 @@ TGenEvent tgentransport_onEvent(TGenTransport* transport, TGenEvent events) {
     }
 }
 
+gint64 tgentransport_getStartTimestamp(TGenTransport* transport) {
+    TGEN_ASSERT(transport);
+    return transport->time.start;
+}
+
 gboolean tgentransport_checkTimeout(TGenTransport* transport, gint64 stalloutUSecs, gint64 timeoutUSecs) {
     TGEN_ASSERT(transport);
 

@@ -1561,6 +1561,8 @@ static inline gint64 _tgenstream_computeTimeHelper(TGenStream* stream, gint64 en
 static gchar* _tgenstream_getTimeStatusReport(TGenStream* stream) {
     TGEN_ASSERT(stream);
 
+    gint64 now = _tgenstream_getTime(stream);
+
     gchar* proxyTimeStr = tgentransport_getTimeStatusReport(stream->transport);
 
     gint64 command = (stream->time.command > 0 && stream->time.start > 0) ?
@@ -1578,6 +1580,8 @@ static gchar* _tgenstream_getTimeStatusReport(TGenStream* stream) {
 
     GString* buffer = g_string_new("[");
 
+    g_string_append_printf(buffer, "created-ts=%"G_GINT64_FORMAT",", stream->time.start);
+
     g_string_append_printf(buffer, "%s", proxyTimeStr);
 
     /* print the times in milliseconds */
@@ -1586,8 +1590,10 @@ static gchar* _tgenstream_getTimeStatusReport(TGenStream* stream) {
             "usecs-to-first-byte-recv=%"G_GINT64_FORMAT",usecs-to-last-byte-recv=%"G_GINT64_FORMAT","
             "usecs-to-checksum-recv=%"G_GINT64_FORMAT","
             "usecs-to-first-byte-send=%"G_GINT64_FORMAT",usecs-to-last-byte-send=%"G_GINT64_FORMAT","
-            "usecs-to-checksum-send=%"G_GINT64_FORMAT,
+            "usecs-to-checksum-send=%"G_GINT64_FORMAT",",
             command, response, fbyteRecv, lbyteRecv, cksumRecv, fbyteSend, lbyteSend, cksumSend);
+
+    g_string_append_printf(buffer, "now-ts=%"G_GINT64_FORMAT, now);
 
     g_string_append_printf(buffer, "]");
 
@@ -1925,7 +1931,11 @@ TGenStream* tgenstream_new(const gchar* idStr, TGenStreamOptions* options,
     stream->refcount = 1;
     stream->id = globalUniqueStreamIDCounter++;
 
-    stream->time.start = _tgenstream_getTime(stream);
+    if(transport) {
+        stream->time.start = tgentransport_getStartTimestamp(transport);
+    } else {
+        stream->time.start = _tgenstream_getTime(stream);
+    }
 
     /* get the hostname */
     gchar nameBuffer[256];
