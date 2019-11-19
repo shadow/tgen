@@ -2006,7 +2006,7 @@ TGenStream* tgenstream_new(const gchar* idStr, TGenStreamOptions* options,
         _tgenstream_changeRecvState(stream, TGEN_STREAM_RECV_AUTHENTICATE);
     }
 
-    tgen_debug("Created new stream %s on transport %s",
+    tgen_info("Created new stream %s on transport %s",
             _tgenstream_toString(stream), tgentransport_toString(transport));
 
     stream->time.nowCached = 0;
