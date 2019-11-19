@@ -78,31 +78,31 @@ static const gchar* _tgentransport_stateToString(TGenTransportState state) {
             return "REQUEST";
         }
         case TGEN_XPORT_PROXY_AUTHREQUEST: {
-            return "AUTHREQUEST";
+            return "AUTH_REQUEST";
         }
         case TGEN_XPORT_PROXY_AUTHRESPONSE: {
-            return "AUTHRESPONSE";
+            return "AUTH_RESPONSE";
         }
         case TGEN_XPORT_PROXY_RESPONSE_STATUS: {
-            return "RESPONSESTATUS";
+            return "RESPONSE_STATUS";
         }
         case TGEN_XPORT_PROXY_RESPONSE_TYPE: {
-            return "RESPONSETYPE";
+            return "RESPONSE_TYPE";
         }
         case TGEN_XPORT_PROXY_RESPONSE_TYPE_IPV4: {
-            return "RESPONSEIPV4";
+            return "RESPONSE_IPV4";
         }
         case TGEN_XPORT_PROXY_RESPONSE_TYPE_NAME_LEN: {
-            return "RESPONSENAMELEN";
+            return "RESPONSE_NAMELEN";
         }
         case TGEN_XPORT_PROXY_RESPONSE_TYPE_NAME: {
-            return "RESPONSENAME";
+            return "RESPONSE_NAME";
         }
         case TGEN_XPORT_SUCCESSOPEN: {
-            return "SUCCESSOPEN";
+            return "SUCCESS_OPEN";
         }
         case TGEN_XPORT_SUCCESSEOF: {
-            return "SUCCESSEOF";
+            return "SUCCESS_EOF";
         }
         case TGEN_XPORT_ERROR:
         default: {
