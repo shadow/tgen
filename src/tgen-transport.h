@@ -32,6 +32,7 @@ gssize tgentransport_read(TGenTransport* transport, gpointer buffer, gsize lengt
 
 void tgentransport_shutdownWrites(TGenTransport* transport);
 
+gint64 tgentransport_getStartTimestamp(TGenTransport* transport);
 gint tgentransport_getDescriptor(TGenTransport* transport);
 const gchar* tgentransport_toString(TGenTransport* transport);
 gchar* tgentransport_getTimeStatusReport(TGenTransport* transport);
