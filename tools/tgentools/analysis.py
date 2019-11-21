@@ -312,7 +312,7 @@ class TGenParser(Parser):
         self.stream_summary = {'time_to_first_byte_recv':{}, 'time_to_last_byte_recv':{},
             'time_to_first_byte_send':{}, 'time_to_last_byte_send':{}, 'errors':{}}
         self.name = None
-        self.unix_ts_init = 0.0
+        self.unix_ts_init = 0
         self.date_filter = date_filter
         self.version_mismatch = False
 

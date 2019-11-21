@@ -603,7 +603,7 @@ class TGenVisualization(Visualization):
                             dls[code][sec] += len(d["errors"][code][secstr])
 
             if init_ts_min == None:
-                init_ts_min = 0.0
+                init_ts_min = 0
 
             for code in dls:
                 pyplot.figure(figs[code].number)
