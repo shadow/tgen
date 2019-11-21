@@ -16,11 +16,12 @@ class Visualization(object):
 
     __metaclass__ = ABCMeta
 
-    def __init__(self, hostpatterns, do_bytes, do_heartbeat_cdfs):
+    def __init__(self, hostpatterns, do_bytes, do_heartbeat_cdfs, do_stats_cdfs):
         self.datasets = []
         self.hostpatterns = hostpatterns
         self.do_bytes = do_bytes
         self.do_heartbeat_cdfs = do_heartbeat_cdfs
+        self.do_stats_cdfs = do_stats_cdfs
 
     def add_dataset(self, analysis, label, lineformat):
         self.datasets.append((analysis, label, lineformat))
@@ -53,14 +54,15 @@ class TGenVisualization(Visualization):
                 self.__plot_byte_timeseries("time_to_first_byte_recv")
                 logging.info("Plotting last byte for all transfers (for each file size)")
                 self.__plot_lastbyte_all()
-                logging.info("Plotting median last byte per client (for each file size)")
-                self.__plot_lastbyte_median()
-                logging.info("Plotting median last byte per client (for each file size)")
-                self.__plot_lastbyte_mean()
-                logging.info("Plotting median last byte per client (for each file size)")
-                self.__plot_lastbyte_max()
                 logging.info("Plotting last byte time series (for each file size)")
                 self.__plot_byte_timeseries("time_to_last_byte_recv")
+                if self.do_stats_cdfs:
+                    logging.info("Plotting median last byte per client (for each file size)")
+                    self.__plot_lastbyte_median()
+                    logging.info("Plotting median last byte per client (for each file size)")
+                    self.__plot_lastbyte_mean()
+                    logging.info("Plotting median last byte per client (for each file size)")
+                    self.__plot_lastbyte_max()
 
             logging.info("Plotting number of downloads CDF")
             self.__plot_downloads()
@@ -74,32 +76,43 @@ class TGenVisualization(Visualization):
                 self.__plot_downloads_timeseries_bytes()
 
             logging.info("Plotting heartbeat counter info")
-            if self.do_heartbeat_cdfs: self.__plot_heartbeat_cdf("bytes-read")
+            if self.do_heartbeat_cdfs:
+                self.__plot_heartbeat_cdf("bytes-read")
             self.__plot_heartbeat_timeseries('bytes-read')
-            if self.do_heartbeat_cdfs: self.__plot_heartbeat_cdf("bytes-written")
+            if self.do_heartbeat_cdfs:
+                self.__plot_heartbeat_cdf("bytes-written")
             self.__plot_heartbeat_timeseries('bytes-written')
 
-            if self.do_heartbeat_cdfs: self.__plot_heartbeat_cdf("traffics-created")
+            if self.do_heartbeat_cdfs:
+                self.__plot_heartbeat_cdf("traffics-created")
             self.__plot_heartbeat_timeseries('traffics-created')
-            if self.do_heartbeat_cdfs: self.__plot_heartbeat_cdf("traffics-succeeded")
+            if self.do_heartbeat_cdfs:
+                self.__plot_heartbeat_cdf("traffics-succeeded")
             self.__plot_heartbeat_timeseries('traffics-succeeded')
-            if self.do_heartbeat_cdfs: self.__plot_heartbeat_cdf("traffics-failed")
+            if self.do_heartbeat_cdfs:
+                self.__plot_heartbeat_cdf("traffics-failed")
             self.__plot_heartbeat_timeseries('traffics-failed')
             self.__plot_heartbeat_timeseries('total-traffics-pending')
 
-            if self.do_heartbeat_cdfs: self.__plot_heartbeat_cdf("flows-created")
+            if self.do_heartbeat_cdfs:
+                self.__plot_heartbeat_cdf("flows-created")
             self.__plot_heartbeat_timeseries('flows-created')
-            if self.do_heartbeat_cdfs: self.__plot_heartbeat_cdf("flows-succeeded")
+            if self.do_heartbeat_cdfs:
+                self.__plot_heartbeat_cdf("flows-succeeded")
             self.__plot_heartbeat_timeseries('flows-succeeded')
-            if self.do_heartbeat_cdfs: self.__plot_heartbeat_cdf("flows-failed")
+            if self.do_heartbeat_cdfs:
+                self.__plot_heartbeat_cdf("flows-failed")
             self.__plot_heartbeat_timeseries('flows-failed')
             self.__plot_heartbeat_timeseries('total-flows-pending')
 
-            if self.do_heartbeat_cdfs: self.__plot_heartbeat_cdf("streams-created")
+            if self.do_heartbeat_cdfs:
+                self.__plot_heartbeat_cdf("streams-created")
             self.__plot_heartbeat_timeseries('streams-created')
-            if self.do_heartbeat_cdfs: self.__plot_heartbeat_cdf("streams-succeeded")
+            if self.do_heartbeat_cdfs:
+                self.__plot_heartbeat_cdf("streams-succeeded")
             self.__plot_heartbeat_timeseries('streams-succeeded')
-            if self.do_heartbeat_cdfs: self.__plot_heartbeat_cdf("streams-failed")
+            if self.do_heartbeat_cdfs:
+                self.__plot_heartbeat_cdf("streams-failed")
             self.__plot_heartbeat_timeseries('streams-failed')
             self.__plot_heartbeat_timeseries('total-streams-pending')
 
@@ -113,10 +126,11 @@ class TGenVisualization(Visualization):
             self.__plot_errors_timeseries()
             logging.info("Plotting bytes downloaded before errors for all transfers")
             self.__plot_errsizes_all()
-            logging.info("Plotting median bytes downloaded before errors per client")
-            self.__plot_errsizes_median()
-            logging.info("Plotting mean bytes downloaded before errors per client")
-            self.__plot_errsizes_mean()
+            if self.do_stats_cdfs:
+                logging.info("Plotting median bytes downloaded before errors per client")
+                self.__plot_errsizes_median()
+                logging.info("Plotting mean bytes downloaded before errors per client")
+                self.__plot_errsizes_mean()
             self.page.close()
             logging.info("Saved PDF page {}".format(pagename))
 
