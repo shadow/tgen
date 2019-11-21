@@ -194,7 +194,7 @@ class TGenVisualization(Visualization):
                             fb[sec].extend(d["time_to_first_byte_recv"][b][secstr])
 
             if init_ts_min == None:
-                init_ts_min = 0.0
+                init_ts_min = 0
 
             if f is not None:
                 x = [sec for sec in fb]
@@ -362,7 +362,7 @@ class TGenVisualization(Visualization):
                             lb[bytes][sec].extend(d[bytekey][b][secstr])
 
             if init_ts_min == None:
-                init_ts_min = 0.0
+                init_ts_min = 0
 
             for bytes in lb:
                 pyplot.figure(figs[bytes].number)
@@ -438,7 +438,7 @@ class TGenVisualization(Visualization):
                             total_count += count
 
             if init_ts_min == None:
-                init_ts_min = 0.0
+                init_ts_min = 0
 
             if total_count > 0:
                 if f is None: f = pyplot.figure()
@@ -515,7 +515,7 @@ class TGenVisualization(Visualization):
                             dls[bytes][sec] += len(d["time_to_last_byte_recv"][b][secstr])
 
             if init_ts_min == None:
-                init_ts_min = 0.0
+                init_ts_min = 0
 
             for bytes in dls:
                 pyplot.figure(figs[bytes].number)
@@ -772,7 +772,7 @@ class TGenVisualization(Visualization):
                         hb[hbkey][sec].extend(d[hbkey][secstr])
 
             if init_ts_min == None:
-                init_ts_min = 0.0
+                init_ts_min = 0
 
             if hbkey in hb:
                 pyplot.figure(figs[hbkey].number)
