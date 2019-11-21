@@ -171,6 +171,12 @@ will override the default pattern 'tgen.*\.log'.""",
         action="store_true", dest="do_bytes",
         default=False)
 
+    visualize_parser.add_argument('-s', '--stats',
+        help="""Plot a set of additional cumulative distributions showing
+        mean, median, and max per-client statistics.""",
+        action="store_true", dest="do_stats",
+        default=False)
+
     visualize_parser.add_argument('-f', '--format',
         help="""A comma-separated LIST of color/line format strings to cycle to
                 matplotlib's plot command (see matplotlib.pyplot.plot)""",
@@ -281,7 +287,7 @@ def visualize(args):
     lflist = args.lineformats.strip().split(",")
     lfcycle = cycle(lflist)
 
-    tgen_viz = TGenVisualization(args.hostpatterns, args.do_bytes, args.do_heartbeat_cdfs)
+    tgen_viz = TGenVisualization(args.hostpatterns, args.do_bytes, args.do_heartbeat_cdfs, args.do_stats)
 
     for (path, label) in args.datasets:
         nextformat = next(lfcycle)
