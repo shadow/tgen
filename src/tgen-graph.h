@@ -25,7 +25,7 @@ typedef struct _TGenStreamOptions {
     TGenOptionUInt32 markovModelSeed;
     TGenOptionPool seedGenerator; /* using pool as a ref-counted container */
     TGenOptionPool peers;
-    TGenOptionPeer socksProxy;
+    TGenOptionPool socksProxies;
     TGenOptionString socksUsername;
     TGenOptionString socksPassword;
     TGenOptionUInt32 socksAuthSeed;
