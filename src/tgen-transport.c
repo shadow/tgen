@@ -330,7 +330,7 @@ TGenTransport* tgentransport_newActive(TGenStreamOptions* options, NotifyBytesCa
     master.sin_family = AF_INET;
 
     /* if there is a proxy, we connect there; otherwise connect to the peer */
-    TGenPeer* optProxy = options->socksProxy.isSet ? options->socksProxy.value : NULL;
+    TGenPeer* optProxy = options->socksProxies.isSet ? tgenpool_getRandom(options->socksProxies.value) : NULL;
     TGenPeer* envProxy = _tgentransport_getProxyFromEnvHelper();
     TGenPeer* proxy = envProxy ? envProxy : optProxy;
     TGenPeer* connectee = proxy ? proxy : peer;

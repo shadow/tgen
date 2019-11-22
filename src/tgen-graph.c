@@ -106,8 +106,8 @@ static void _tgengraph_freeActionHelper(TGenActionType type, gpointer optionsptr
             if(options->peers.value) {
                 tgenpool_unref(options->peers.value);
             }
-            if(options->socksProxy.value) {
-                tgenpeer_unref(options->socksProxy.value);
+            if(options->socksProxies.value) {
+                tgenpool_unref(options->socksProxies.value);
             }
             if(options->socksUsername.value) {
                 g_free(options->socksUsername.value);
@@ -555,7 +555,7 @@ static GError* _tgengraph_parseStreamAttributesHelper(TGenGraph* g, const gchar*
     if(g->knownAttributes & TGEN_VA_SOCKSPROXY) {
         const gchar* name = _tgengraph_attributeToString(TGEN_VA_SOCKSPROXY);
         const gchar* valueStr = VAS(g->graph, name, vertexIndex);
-        error = tgenoptionparser_parsePeer(name, valueStr, &options->socksProxy);
+        error = tgenoptionparser_parsePeerList(name, valueStr, &options->socksProxies);
         if(error) {
             return error;
         }
@@ -1552,10 +1552,10 @@ static void _tgengraph_copyDefaultStreamOptions(TGenGraph* g, TGenStreamOptions*
         options->sendSize.value = defaults->sendSize.value;
     }
 
-    if(!options->socksProxy.isSet && defaults->socksProxy.isSet) {
-        options->socksProxy.isSet = TRUE;
-        options->socksProxy.value = defaults->socksProxy.value;
-        tgenpeer_ref(defaults->socksProxy.value);
+    if(!options->socksProxies.isSet && defaults->socksProxies.isSet) {
+        options->socksProxies.isSet = TRUE;
+        options->socksProxies.value = defaults->socksProxies.value;
+        tgenpool_ref(defaults->socksProxies.value);
     }
 
     if(!options->socksUsername.isSet && defaults->socksUsername.isSet) {
