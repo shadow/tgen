@@ -29,6 +29,7 @@ struct _TGenGenerator {
     NotifyBytesCallback bytesCB;
     NotifyCallback notifyCB;
 
+    TGenPeer* socksProxy;
     gchar* socksUsername;
     gchar* socksPassword;
 
@@ -57,6 +58,10 @@ static void _tgengenerator_free(TGenGenerator* gen) {
 
     if(gen->socksPassword) {
         g_free(gen->socksPassword);
+    }
+
+    if(gen->socksProxy) {
+        tgenpeer_unref(gen->socksProxy);
     }
 
     if(gen->bytesCB.arg && gen->bytesCB.argUnref) {
@@ -171,6 +176,13 @@ static void _tgengenerator_initSocksAuthStrings(TGenGenerator* gen) {
             gen->socksPassword = g_strdup(gen->streamOptions->socksPassword.value);
         } else {
             gen->socksPassword = NULL;
+        }
+    }
+
+    if(gen->streamOptions->socksProxies.isSet) {
+        gen->socksProxy = tgenpool_getRandom(gen->streamOptions->socksProxies.value);
+        if(gen->socksProxy) {
+            tgenpeer_ref(gen->socksProxy);
         }
     }
 }
@@ -382,7 +394,7 @@ static gboolean _tgengenerator_createStream(TGenGenerator* gen) {
     /* create the transport connection over which we can start a stream.
      * the transport will ref++ driver and notify it when bytes are sent/recv'd */
     TGenTransport* transport = tgentransport_newActive(gen->streamOptions, gen->bytesCB,
-            gen->socksUsername, gen->socksPassword);
+            gen->socksProxy, gen->socksUsername, gen->socksPassword);
 
     if(!transport) {
         tgen_warning("failed to initialize transport for stream '%s'", gen->actionIDStr);

@@ -20,7 +20,7 @@ struct _NotifyBytesCallback {
 };
 
 TGenTransport* tgentransport_newActive(TGenStreamOptions* options, NotifyBytesCallback bytesCB,
-        const gchar* socksUsername, const gchar* socksPassword);
+        TGenPeer* socksProxy, const gchar* socksUsername, const gchar* socksPassword);
 TGenTransport* tgentransport_newPassive(gint socketD, gint64 started, gint64 created,
         TGenPeer* peer, NotifyBytesCallback bytesCB);
 
