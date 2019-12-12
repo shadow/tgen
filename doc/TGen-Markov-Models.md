@@ -87,9 +87,9 @@ use `+` to indicate new stream creation on stream models.
 ### Edges: Markov model state transitions and emissions
 
 Edges in the graph can either be Markov model "transitions" or "emissions",
-and the type us encoded in the graph using the _type_ attribute on the graph
+and the type is encoded in the graph using the _type_ attribute on the graph
 edge. Each edge must specify a _type_ and a _weight_. The source and target
-vertex _id_ must match those that were defined when creating the nodes.
+vertex _id_ must match those that were defined when creating the vertices.
 
 ```python
 G.add_edge('s0', 's1', type='transition', weight=1.0)
