@@ -15,7 +15,7 @@
       <data key="d3">1 second</data>
     </node>
     <node id="pause">
-      <data key="d3">1,2,3,4,5</data>
+      <data key="d3">1</data>
     </node>
     <node id="end">
       <data key="d4">10</data>

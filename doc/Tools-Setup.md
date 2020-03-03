@@ -1,7 +1,7 @@
 # TGenTools
 
 TGenTools is a toolkit to parse and plot `tgen` log files. TGenTools is
-not required to run `tgen`, but may be helpful to understand its output.
+not required to run `tgen`, but will be helpful to understand its output.
 
 ## Install system dependencies
 
@@ -20,8 +20,8 @@ use your OS package manager). We recommend using virtual environments to
 keep all of the dependencies self-contained and to avoid conflicts with
 your other python projects.
 
-    virtualenv --no-site-packages tgenenv
-    source tgenenv/bin/activate
+    virtualenv toolsenv
+    source toolsenv/bin/activate
     pip install -r path/to/tgen/tools/requirements.txt
     pip install -I path/to/tgen/tools
 
@@ -29,7 +29,7 @@ your other python projects.
 
 TGenTools has several modes of operation and a help menu for each. For a
 description of each mode, use the following (make sure you have activated
-the tgen virtual environment with `source tgenenv/bin/activate` first):
+the tgen virtual environment with `source toolsenv/bin/activate` first):
 
 ```
 tgentools -h

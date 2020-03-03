@@ -9,13 +9,13 @@
   <key attr.name="time" attr.type="string" for="node" id="d0" />
   <graph edgedefault="directed">
     <node id="pause">
-      <data key="d0">1,2,3,4,5,6,7,8,9,10</data>
+      <data key="d0">1,2,3</data>
     </node>
     <node id="end">
-      <data key="d1">30</data>
+      <data key="d1">20</data>
       <data key="d2">1 GiB</data>
       <data key="d3">1 GiB</data>
-      <data key="d0">1 minute</data>
+      <data key="d0">2 minutes</data>
     </node>
     <node id="streamA">
       <data key="d2">1 mib</data>

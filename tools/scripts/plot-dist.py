@@ -7,12 +7,13 @@ import scipy.stats as ss
 import numpy
 
 def main():
-    normal()
-    lognormal()
-    exponential()
-    pareto()
+    seed = int(sys.argv[1])
+    normal(seed)
+    lognormal(seed)
+    exponential(seed)
+    pareto(seed)
 
-def normal():
+def normal(seed):
     pyplot.figure()
 
     x = numpy.linspace(0, 50, 5000)
@@ -20,7 +21,7 @@ def normal():
     plot_normal(x, cdf=True, mu=25, sigma=10, label="Normal")
 
     empirical = []
-    with open("normal", 'r') as inf:
+    with open("normal-{}".format(seed), 'r') as inf:
         for line in inf:
             empirical.append(int(line.strip()))
     x, y = getcdf(empirical)
@@ -32,9 +33,9 @@ def normal():
     pyplot.ylabel("Cumulative Fraction")
     pyplot.legend(loc="best")
     pyplot.tight_layout(pad=0.3)
-    pyplot.savefig("normal-dist.pdf")
+    pyplot.savefig("normal-{}-dist.pdf".format(seed))
 
-def lognormal():
+def lognormal(seed):
     pyplot.figure()
 
     x = numpy.linspace(0.0, 10.0, 5000)
@@ -42,7 +43,7 @@ def lognormal():
     plot_lognormal(x, cdf=True, label="LogNormal")
 
     empirical = []
-    with open("lognormal", 'r') as inf:
+    with open("lognormal-{}".format(seed), 'r') as inf:
         for line in inf:
             empirical.append(int(line.strip()))
     x, y = getcdf(empirical)
@@ -54,9 +55,9 @@ def lognormal():
     pyplot.ylabel("Cumulative Fraction")
     pyplot.legend(loc="best")
     pyplot.tight_layout(pad=0.3)
-    pyplot.savefig("lognormal-dist.pdf")
+    pyplot.savefig("lognormal-{}-dist.pdf".format(seed))
 
-def exponential():
+def exponential(seed):
     pyplot.figure()
 
     x = numpy.linspace(0.0, 5.0, 5000)
@@ -64,7 +65,7 @@ def exponential():
     plot_exponential(x, cdf=True, label="Exponential")
 
     empirical = []
-    with open("exponential", 'r') as inf:
+    with open("exponential-{}".format(seed), 'r') as inf:
         for line in inf:
             empirical.append(int(line.strip()))
     x, y = getcdf(empirical)
@@ -76,9 +77,9 @@ def exponential():
     pyplot.ylabel("Cumulative Fraction")
     pyplot.legend(loc="best")
     pyplot.tight_layout(pad=0.3)
-    pyplot.savefig("exponential-dist.pdf")
+    pyplot.savefig("exponential-{}-dist.pdf".format(seed))
 
-def pareto():
+def pareto(seed):
     pyplot.figure()
 
     x = numpy.linspace(0.0, 20.0, 5000)
@@ -86,7 +87,7 @@ def pareto():
     plot_pareto(x, b=1, cdf=True, label="Pareto")
 
     empirical = []
-    with open("pareto", 'r') as inf:
+    with open("pareto-{}".format(seed), 'r') as inf:
         for line in inf:
             empirical.append(int(line.strip()))
     x, y = getcdf(empirical)
@@ -98,7 +99,7 @@ def pareto():
     pyplot.ylabel("Cumulative Fraction")
     pyplot.legend(loc="best")
     pyplot.tight_layout(pad=0.3)
-    pyplot.savefig("pareto-dist.pdf")
+    pyplot.savefig("pareto-{}-dist.pdf".format(seed))
 
 def plot_exponential(x_range, mu=0, sigma=1, cdf=False, **kwargs):
     '''

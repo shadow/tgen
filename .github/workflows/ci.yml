@@ -1,0 +1,36 @@
+# Syntax reference:
+# https://help.github.com/en/actions/automating-your-workflow-with-github-actions/workflow-syntax-for-github-actions
+
+name: Tests
+
+on:
+  push:
+    paths-ignore:
+      - '**.md'
+      - 'LICENSE'
+  pull_request:
+    paths-ignore:
+      - '**.md'
+      - 'LICENSE'
+
+jobs:
+  testing:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        cc: ['gcc', 'clang']
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v2
+
+      - name: Install tgen dependencies
+        run: sudo apt install -y ${{ matrix.cc }} cmake libglib2.0-0 libglib2.0-dev libigraph0v5 libigraph0-dev
+
+      - name: Build tgen
+        run: mkdir -p build && cd build && CC=${{ matrix.cc }} cmake .. && make
+
+      - name: Test mmodel
+        run: bash test/run_mmodel_tests.sh
+
+      - name: Test tgen
+        run: bash test/run_tgen_integration_tests.sh
