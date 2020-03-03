@@ -1,5 +1,7 @@
 ## TGen
 
+![](https://github.com/robgjansen/tgen/workflows/Tests/badge.svg)
+
 TGen is a C application that generates traffic flows between other
 TGen instances. The characteristics of the traffic (e.g., size, timing,
 number of parallel flows, etc.) can be configured by the user.
@@ -21,7 +23,7 @@ Dependencies in Fedora/RedHat:
 
 Dependencies in Ubuntu/Debian:
 
-    sudo apt-get install cmake libglib2.0 libglib2.0-dev libigraph0v5 libigraph0-dev
+    sudo apt-get install cmake libglib2.0-0 libglib2.0-dev libigraph0v5 libigraph0-dev
 
 Build with a custom install prefix:
 

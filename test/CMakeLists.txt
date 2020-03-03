@@ -1,11 +1,4 @@
-project(test C)
-cmake_minimum_required(VERSION 2.8.12 FATAL_ERROR)
-
-## dependencies
-set(CMAKE_MODULE_PATH "${CMAKE_SOURCE_DIR}/../cmake/" ${CMAKE_MODULE_PATH})
-find_package(M REQUIRED)
-find_package(IGRAPH REQUIRED)
-find_package(GLIB REQUIRED)
+## build the mmodel test binary
 
 include_directories(AFTER ../src/ ${M_INCLUDES} ${GLIB_INCLUDES} ${IGRAPH_INCLUDES})
 
