@@ -34,3 +34,12 @@ jobs:
 
       - name: Test tgen
         run: bash test/run_tgen_integration_tests.sh
+
+      - name: Install tgentools dependencies
+        run: sudo apt install -y python python-dev python-pip python-virtualenv libxml2 libxml2-dev libxslt1.1 libxslt1-dev libpng16-16 libpng-dev libfreetype6 libfreetype6-dev libblas-dev liblapack-dev
+
+      - name: Build tgentools
+        run: virtualenv build/toolsenv && source build/toolsenv/bin/activate && pip install -r tools/requirements.txt && pip install -I tools/
+
+      - name: Test tgentools
+        run: bash test/run_tgentools_integration_tests.sh
