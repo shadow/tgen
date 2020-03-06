@@ -359,7 +359,7 @@ static gboolean _tgengenerator_createFlow(TGenGenerator* gen) {
     /* make sure our child flow notifies *us* when it is complete, not the parent that
      * we notify as when bytes are sent. Pass a negative action id to indicate that
      * the child flow is not a graph action. */
-    NotifyCallback notifyCB = {};
+    NotifyCallback notifyCB = {0};
     _tgengenerator_initNotifyCB(gen, &notifyCB);
 
     /* NULL traffic options means generate streams for one flow. */

@@ -17,7 +17,7 @@ struct _TGenPeer {
 };
 
 static in_addr_t _tgenpeer_ipStrToIP(const gchar* string) {
-    struct sockaddr_in sa = {};
+    struct sockaddr_in sa = {0};
     int result = inet_pton(AF_INET, string, &(sa.sin_addr));
 
     if(result == 1) {
@@ -31,7 +31,7 @@ static gchar* _tgenpeer_ipToIPStr(in_addr_t netIP) {
     gchar* ipStr = NULL;
 
     if(netIP != htonl(INADDR_NONE)) {
-        gchar netbuf[INET_ADDRSTRLEN+1] = {};
+        gchar netbuf[INET_ADDRSTRLEN+1] = {0};
 
         const gchar* netresult = inet_ntop(AF_INET, &netIP, netbuf, INET_ADDRSTRLEN);
 
@@ -66,11 +66,11 @@ static in_addr_t _tgenpeer_lookupIP(const gchar* hostname) {
 static gchar* _tgenpeer_lookupName(in_addr_t networkIP) {
     gchar* name = NULL;
 
-    struct sockaddr_in addrbuf = {};
+    struct sockaddr_in addrbuf = {0};
     addrbuf.sin_addr.s_addr = networkIP;
     addrbuf.sin_family = AF_INET;
 
-    gchar namebuf[256] = "";
+    gchar namebuf[256] = {0};
 
     /* this call does the network query */
     gint result = getnameinfo((struct sockaddr*)&addrbuf, (socklen_t) sizeof(struct sockaddr_in),

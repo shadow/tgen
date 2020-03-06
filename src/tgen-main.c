@@ -28,7 +28,7 @@ static gint _tgenmain_returnError(gint flushLogCache) {
 
 static gint _tgenmain_run(gint argc, gchar *argv[]) {
     /* get our hostname for logging */
-    gchar hostname[128] = "";
+    gchar hostname[128] = {0};
     tgenconfig_gethostname(hostname, 128);
 
     /* note: messages will not be flushed by the logger until after we read the config
@@ -119,7 +119,7 @@ static gint _tgenmain_run(gint argc, gchar *argv[]) {
     }
 
     /* register the tgen epoll descriptor so we can watch its events */
-    struct epoll_event mainevent = {};
+    struct epoll_event mainevent = {0};
     mainevent.events = EPOLLIN|EPOLLOUT;
     epoll_ctl(mainepolld, EPOLL_CTL_ADD, tgenepolld, &mainevent);
 

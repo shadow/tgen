@@ -1674,7 +1674,7 @@ static void _tgenstream_callNotifyComplete(TGenStream* stream) {
 }
 
 static TGenIOResponse _tgenstream_runTransportEventLoop(TGenStream* stream, TGenEvent events) {
-    TGenIOResponse response = {};
+    TGenIOResponse response = {0};
 
     TGenEvent retEvents = tgentransport_onEvent(stream->transport, events);
     if(retEvents == TGEN_EVENT_NONE) {
@@ -1825,7 +1825,7 @@ static TGenIOResponse _tgenstream_runStreamEventLoop(TGenStream* stream, TGenEve
     gboolean wasActive = (recvActive || sendActive) ? TRUE : FALSE;
 
     /* figure out which events we want next time */
-    TGenIOResponse response = {};
+    TGenIOResponse response = {0};
     response.events = _tgenstream_computeWantedEvents(stream);
 
     /* log progress, success, or error */
@@ -1936,7 +1936,7 @@ TGenStream* tgenstream_new(const gchar* idStr, TGenStreamOptions* options,
     }
 
     /* get the hostname */
-    gchar nameBuffer[256] = "";
+    gchar nameBuffer[256] = {0};
     stream->hostname = (0 == tgenconfig_gethostname(nameBuffer, 255)) ? g_strdup(nameBuffer) : NULL;
 
     /* save the stream context values */

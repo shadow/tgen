@@ -23,7 +23,7 @@ static gint _tgenserver_acceptPeer(TGenServer* server) {
     TGEN_ASSERT(server);
 
     /* we have a peer connecting to our listening socket */
-    struct sockaddr_in peerAddress = {};
+    struct sockaddr_in peerAddress = {0};
     socklen_t addressLength = (socklen_t)sizeof(struct sockaddr_in);
 
     gint64 started = g_get_monotonic_time();
@@ -93,7 +93,7 @@ TGenIOResponse tgenserver_onEvent(TGenServer* server, gint descriptor, TGenEvent
     tgen_debug("accepted %i peer connection(s), and now the listen port is blocked", acceptedCount);
 
     /* we will only ever accept and never write */
-    TGenIOResponse response = {};
+    TGenIOResponse response = {0};
     response.events = TGEN_EVENT_READ;
     return response;
 }
@@ -127,7 +127,7 @@ TGenServer* tgenserver_new(in_port_t serverPort, TGenServer_notifyNewPeerFunc no
 #endif
 
     /* setup the listener address information */
-    struct sockaddr_in listener = {};
+    struct sockaddr_in listener = {0};
     listener.sin_family = AF_INET;
     gchar* tgenip = tgenconfig_getIP();
     if (tgenip != NULL) {
@@ -156,7 +156,7 @@ TGenServer* tgenserver_new(in_port_t serverPort, TGenServer_notifyNewPeerFunc no
     }
 
     /* if we got here, everything worked correctly! */
-    gchar ipStringBuffer[INET_ADDRSTRLEN + 1] = "";
+    gchar ipStringBuffer[INET_ADDRSTRLEN + 1] = {0};
     inet_ntop(AF_INET, &listener.sin_addr.s_addr, ipStringBuffer, INET_ADDRSTRLEN);
     tgen_message("server listening at %s:%u", ipStringBuffer, ntohs(listener.sin_port));
 

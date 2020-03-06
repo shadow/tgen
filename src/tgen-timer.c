@@ -74,7 +74,7 @@ void tgentimer_setExpireTimeMicros(TGenTimer *timer, guint64 micros) {
 TGenIOResponse tgentimer_onEvent(TGenTimer* timer, gint descriptor, TGenEvent events) {
     TGEN_ASSERT(timer);
 
-    TGenIOResponse response = {};
+    TGenIOResponse response = {0};
 
     /* our timerD is readable, so our timer has expired */
     g_assert((events & TGEN_EVENT_READ) && descriptor == timer->timerD);
