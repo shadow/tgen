@@ -1,4 +1,8 @@
+#!/bin/bash
 
+# run from base tgen directory
+
+set -euo pipefail
 
 ./build/src/tgen resource/server.tgenrc.graphml > build/tgen.server.log &
 server_pid=$!
