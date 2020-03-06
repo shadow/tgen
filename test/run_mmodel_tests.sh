@@ -2,6 +2,8 @@
 
 # run from base tgen directory
 
+set -euo pipefail
+
 # you must have already built tgen in the build dir
 if [ -d "build" ] 
 then
