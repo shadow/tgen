@@ -235,7 +235,7 @@ static TGenTransport* _tgentransport_newHelper(gint socketD, gint64 startedTime,
         }
     }
 
-    struct sockaddr_in addrBuf = {};
+    struct sockaddr_in addrBuf = {0};
     socklen_t addrBufLen = (socklen_t)sizeof(struct sockaddr_in);
     if(getsockname(socketD, (struct sockaddr*) &addrBuf, &addrBufLen) == 0) {
         transport->local = tgenpeer_newFromIP(addrBuf.sin_addr.s_addr, addrBuf.sin_port);
@@ -266,7 +266,7 @@ static TGenPeer* _tgentransport_getProxyFromEnvHelper(){
         return NULL;
     }
 
-    TGenOptionPeer peerOption = {};
+    TGenOptionPeer peerOption = {0};
 
     GError* error = tgenoptionparser_parsePeer("TGENSOCKS", socksProxyStr, &peerOption);
     if(error) {
@@ -307,7 +307,7 @@ TGenTransport* tgentransport_newActive(TGenStreamOptions* options, NotifyBytesCa
     gchar* tgenip = tgenconfig_getIP();
     /* bind()'ing here is only neccessary if we specify our IP */
     if (tgenip != NULL) {
-        struct sockaddr_in localaddr = {};
+        struct sockaddr_in localaddr = {0};
         localaddr.sin_family = AF_INET;
         localaddr.sin_addr.s_addr = inet_addr(tgenip);
         localaddr.sin_port = 0;
@@ -322,7 +322,7 @@ TGenTransport* tgentransport_newActive(TGenStreamOptions* options, NotifyBytesCa
     }
 
     /* connect to another host */
-    struct sockaddr_in master = {};
+    struct sockaddr_in master = {0};
     master.sin_family = AF_INET;
 
     /* if there is a proxy, we connect there; otherwise connect to the peer */
@@ -695,7 +695,7 @@ static TGenEvent _tgentransport_sendSocksAuth(TGenTransport* transport) {
         guint8 passlen = transport->password ? _tgentransport_getTruncatedStrLen(transport->password) : 1;
         gchar* pass = transport->password ? transport->password : "\x00";
 
-        gchar buffer[255+255+3] = "";
+        gchar buffer[255+255+3] = {0};
 
         g_memmove(&buffer[0], "\x01", 1);
         g_memmove(&buffer[1], &userlen, 1);
@@ -843,7 +843,7 @@ static TGenEvent _tgentransport_sendSocksRequest(TGenTransport* transport) {
             in_addr_t ip = tgenpeer_getNetworkIP(transport->remote);
             in_addr_t port = tgenpeer_getNetworkPort(transport->remote);
 
-            gchar buffer[16] = "";
+            gchar buffer[16] = {0};
 
             g_memmove(&buffer[0], "\x05\x01\x00\x01", 4);
             g_memmove(&buffer[4], &ip, 4);
