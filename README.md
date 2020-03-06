@@ -1,6 +1,6 @@
 ## TGen
 
-![](https://github.com/robgjansen/tgen/workflows/Tests/badge.svg)
+![](https://github.com/shadow/tgen/workflows/Tests/badge.svg)
 
 TGen is a C application that generates traffic flows between other
 TGen instances. The characteristics of the traffic (e.g., size, timing,
