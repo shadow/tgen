@@ -24,7 +24,7 @@ jobs:
         uses: actions/checkout@v2
 
       - name: Install tgen dependencies
-        run: sudo apt install -y ${{ matrix.cc }} cmake libglib2.0-0 libglib2.0-dev libigraph0v5 libigraph0-dev
+        run: sudo apt-get install -y ${{ matrix.cc }} cmake libglib2.0-0 libglib2.0-dev libigraph0v5 libigraph0-dev
 
       - name: Build tgen
         run: mkdir -p build && cd build && CC=${{ matrix.cc }} cmake .. && make
