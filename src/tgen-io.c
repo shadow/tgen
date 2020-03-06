@@ -191,8 +191,7 @@ gboolean tgenio_register(TGenIO* io, gint descriptor, TGenIO_notifyEventFunc not
 
     /* start watching */
     uint32_t ev = EPOLLIN|EPOLLOUT;
-    struct epoll_event ee;
-    memset(&ee, 0, sizeof(struct epoll_event));
+    struct epoll_event ee = {};
     ee.events = ev;
     ee.data.fd = descriptor;
 
@@ -219,8 +218,7 @@ static void _tgenio_syncEpollEvents(TGenIO* io, TGenIOChild* child, uint32_t new
     /* only modify the epoll if the events we are watching should change.
      * note that the ready events may only be a subset of the events we are watching.*/
     if(child->currentEvents != newEvents) {
-        struct epoll_event ee;
-        memset(&ee, 0, sizeof(struct epoll_event));
+        struct epoll_event ee = {};
         ee.events = newEvents;
         ee.data.fd = child->descriptor;
 
