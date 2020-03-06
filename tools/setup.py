@@ -3,7 +3,7 @@
 from distutils.core import setup
 
 setup(name='TGenTools',
-      version="0.0.1",
+      version="1.0.0",
       description='A utility to analyze and visualize TGen output',
       author='Rob Jansen',
       url='https://github.com/shadow/tgen/',
