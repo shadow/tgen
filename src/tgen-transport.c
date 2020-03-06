@@ -235,8 +235,7 @@ static TGenTransport* _tgentransport_newHelper(gint socketD, gint64 startedTime,
         }
     }
 
-    struct sockaddr_in addrBuf;
-    memset(&addrBuf, 0, sizeof(struct sockaddr_in));
+    struct sockaddr_in addrBuf = {};
     socklen_t addrBufLen = (socklen_t)sizeof(struct sockaddr_in);
     if(getsockname(socketD, (struct sockaddr*) &addrBuf, &addrBufLen) == 0) {
         transport->local = tgenpeer_newFromIP(addrBuf.sin_addr.s_addr, addrBuf.sin_port);
@@ -267,8 +266,7 @@ static TGenPeer* _tgentransport_getProxyFromEnvHelper(){
         return NULL;
     }
 
-    TGenOptionPeer peerOption;
-    memset(&peerOption, 0, sizeof(TGenOptionPeer));
+    TGenOptionPeer peerOption = {};
 
     GError* error = tgenoptionparser_parsePeer("TGENSOCKS", socksProxyStr, &peerOption);
     if(error) {
@@ -309,8 +307,7 @@ TGenTransport* tgentransport_newActive(TGenStreamOptions* options, NotifyBytesCa
     gchar* tgenip = tgenconfig_getIP();
     /* bind()'ing here is only neccessary if we specify our IP */
     if (tgenip != NULL) {
-        struct sockaddr_in localaddr;
-        memset(&localaddr, 0, sizeof(localaddr));
+        struct sockaddr_in localaddr = {};
         localaddr.sin_family = AF_INET;
         localaddr.sin_addr.s_addr = inet_addr(tgenip);
         localaddr.sin_port = 0;
@@ -325,8 +322,7 @@ TGenTransport* tgentransport_newActive(TGenStreamOptions* options, NotifyBytesCa
     }
 
     /* connect to another host */
-    struct sockaddr_in master;
-    memset(&master, 0, sizeof(master));
+    struct sockaddr_in master = {};
     master.sin_family = AF_INET;
 
     /* if there is a proxy, we connect there; otherwise connect to the peer */
@@ -699,8 +695,7 @@ static TGenEvent _tgentransport_sendSocksAuth(TGenTransport* transport) {
         guint8 passlen = transport->password ? _tgentransport_getTruncatedStrLen(transport->password) : 1;
         gchar* pass = transport->password ? transport->password : "\x00";
 
-        gchar buffer[255+255+3];
-        memset(buffer, 0, 255+255+3);
+        gchar buffer[255+255+3] = "";
 
         g_memmove(&buffer[0], "\x01", 1);
         g_memmove(&buffer[1], &userlen, 1);
@@ -848,8 +843,7 @@ static TGenEvent _tgentransport_sendSocksRequest(TGenTransport* transport) {
             in_addr_t ip = tgenpeer_getNetworkIP(transport->remote);
             in_addr_t port = tgenpeer_getNetworkPort(transport->remote);
 
-            gchar buffer[16];
-            memset(buffer, 0, 16);
+            gchar buffer[16] = "";
 
             g_memmove(&buffer[0], "\x05\x01\x00\x01", 4);
             g_memmove(&buffer[4], &ip, 4);
@@ -911,7 +905,7 @@ static TGenEvent _tgentransport_receiveSocksResponseTypeName(TGenTransport* tran
         return TGEN_EVENT_READ;
     } else {
         gchar namebuf[nameLength+1];
-        memset(namebuf, 0, nameLength);
+        memset(namebuf, 0, nameLength+1);
         in_port_t socksBindPort = 0;
 
         g_memmove(namebuf, &transport->socksBuffer->str[1], nameLength);

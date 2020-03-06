@@ -274,7 +274,6 @@ static gboolean _tgendriver_onHeartbeat(TGenDriver* driver, gpointer nullData) {
 }
 
 static void _tgendriver_initBytesCB(TGenDriver* driver, NotifyBytesCallback* bytesCB) {
-    memset(bytesCB, 0, sizeof(NotifyBytesCallback));
     bytesCB->func = (TGenTransport_notifyBytesFunc) _tgendriver_onBytesTransferred;
     bytesCB->arg = driver;
     bytesCB->argRef = (GDestroyNotify)tgendriver_ref;
@@ -282,7 +281,6 @@ static void _tgendriver_initBytesCB(TGenDriver* driver, NotifyBytesCallback* byt
 }
 
 static void _tgendriver_initNotifyCB(TGenDriver* driver, NotifyCallback* notifyCB) {
-    memset(notifyCB, 0, sizeof(NotifyCallback));
     notifyCB->func = (TGen_notifyFunc) _tgendriver_onNotify;
     notifyCB->arg = driver;
     notifyCB->argRef = (GDestroyNotify)tgendriver_ref;
@@ -300,7 +298,7 @@ static void _tgendriver_onNewPeer(TGenDriver* driver, gint socketD, gint64 start
     }
 
     /* set up the callback function and args for the transport */
-    NotifyBytesCallback bytesCB;
+    NotifyBytesCallback bytesCB = {};
     _tgendriver_initBytesCB(driver, &bytesCB);
 
     /* this connect was initiated by the other end.
@@ -316,7 +314,7 @@ static void _tgendriver_onNewPeer(TGenDriver* driver, gint socketD, gint64 start
     TGenStreamOptions* options = &driver->startOptions->defaultTrafficOpts.flowOpts.streamOpts;
 
     /* set up the callback function and args for the stream */
-    NotifyCallback notifyCB;
+    NotifyCallback notifyCB = {};
     _tgendriver_initNotifyCB(driver, &notifyCB);
 
     /* don't send a Markov model on passive streams. sending an action id of -1 means
@@ -349,9 +347,9 @@ static gboolean _tgendriver_startGenerator(TGenDriver* driver, TGenActionID acti
     const gchar* actionIDStr = tgengraph_getActionName(driver->actionGraph, actionID);
 
     /* setup the callback functions */
-    NotifyBytesCallback bytesCB;
+    NotifyBytesCallback bytesCB = {};
     _tgendriver_initBytesCB(driver, &bytesCB);
-    NotifyCallback notifyCB;
+    NotifyCallback notifyCB = {};
     _tgendriver_initNotifyCB(driver, &notifyCB);
 
     notifyCB.actionID = actionID;
@@ -637,8 +635,7 @@ void tgendriver_unref(TGenDriver* driver) {
 }
 
 //static gchar* _tgendriver_makeTempFile() {
-//    gchar nameBuffer[256];
-//    memset(nameBuffer, 0, 256);
+//    gchar nameBuffer[256] = "";
 //    tgenconfig_gethostname(nameBuffer, 255);
 //
 //    GString* templateBuffer = g_string_new("XXXXXX-shadow-tgen-");

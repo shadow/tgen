@@ -342,7 +342,6 @@ static void _tgengenerator_onNotify(TGenGenerator* gen, TGenActionID actionID, T
 }
 
 static void _tgengenerator_initNotifyCB(TGenGenerator* gen, NotifyCallback* notifyCB) {
-    memset(notifyCB, 0, sizeof(NotifyCallback));
     notifyCB->func = (TGen_notifyFunc) _tgengenerator_onNotify;
     notifyCB->arg = gen;
     notifyCB->argRef = (GDestroyNotify)_tgengenerator_ref;
@@ -360,7 +359,7 @@ static gboolean _tgengenerator_createFlow(TGenGenerator* gen) {
     /* make sure our child flow notifies *us* when it is complete, not the parent that
      * we notify as when bytes are sent. Pass a negative action id to indicate that
      * the child flow is not a graph action. */
-    NotifyCallback notifyCB;
+    NotifyCallback notifyCB = {};
     _tgengenerator_initNotifyCB(gen, &notifyCB);
 
     /* NULL traffic options means generate streams for one flow. */
