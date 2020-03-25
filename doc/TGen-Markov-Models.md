@@ -24,7 +24,7 @@ streams are created. TGen uses Markov models for three distinct processes:
     to all TCP streams generated the associated flows.
 
 More information about how to set up a Markov model in your TGen configuration
-file can be found in the [doc/TGen-Options.md](doc/TGen-Options.md) file.
+file can be found in the [doc/TGen-Options.md](TGen-Options.md) file.
 
 The remainder of this document explains the Markov model file format that TGen
 supports, and provides examples of how to generate Markov models that will
