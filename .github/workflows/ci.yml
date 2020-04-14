@@ -20,6 +20,9 @@ jobs:
       matrix:
         cc: ['gcc', 'clang']
     steps:
+      - name: Update packages
+        run: sudo apt-get update
+
       - name: Checkout
         uses: actions/checkout@v2
 
