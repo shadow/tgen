@@ -266,12 +266,10 @@ class Stream(object):
     def __set_progress_helper(self, status_event, bytes_key, progress_dict):
         progress = status_event.byte_info[bytes_key].strip('%')
         if progress != '?':
-            frac = float(progress)
-            # set only the highest decile that we meet or exceed
-            for decile in sorted(progress_dict.keys(), reverse=True):
-                if frac >= decile:
-                    if progress_dict[decile] is None:
-                        progress_dict[decile] = status_event.unix_ts_end
+            progress_instance = float(progress)
+            for item in sorted(progress_dict.keys()):
+                if progress_instance >= item and progress_dict[item] is None:
+                    progress_dict[item] = status_event.unix_ts_end
                     return
 
     def add_event(self, status_event):
