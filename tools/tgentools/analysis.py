@@ -264,14 +264,17 @@ class Stream(object):
         self.payload_send_progress = {decile:None for decile in [0.0, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 1.0]}
 
     def __set_progress_helper(self, status_event, bytes_key, progress_dict):
-        progress = status_event.byte_info[bytes_key].strip('%')
+        divide = 1
+        if '%' in status_event.byte_info[bytes_key]:
+            progress = status_event.byte_info[bytes_key].strip('%')
+            divide = 100
+        else:
+            progress = status_event.byte_info[bytes_key]
         if progress != '?':
-            frac = float(progress)
-            # set only the highest decile that we meet or exceed
-            for decile in sorted(progress_dict.keys(), reverse=True):
-                if frac >= decile:
-                    if progress_dict[decile] is None:
-                        progress_dict[decile] = status_event.unix_ts_end
+            progress_instance = float(progress)/divide
+            for item in sorted(progress_dict.keys(), reverse=True):
+                if progress_instance >= item and progress_dict[item] is None:
+                    progress_dict[item] = status_event.unix_ts_end
                     return
 
     def add_event(self, status_event):
