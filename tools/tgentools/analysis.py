@@ -234,9 +234,9 @@ class StreamCompleteEvent(StreamStatusEvent):
         time_usec_max = 0.0
         if self.time_info != None:
             for key in self.time_info:
-                val = int(self.time_info[key])
-                time_usec_max = max(time_usec_max, val)
-
+                if 'usecs' in key:
+                    val = int(self.time_info[key])
+                    time_usec_max = max(time_usec_max, val)
         self.unix_ts_start = self.unix_ts_end - (time_usec_max / 1000000.0)  # usecs to secs
 
 class StreamSuccessEvent(StreamCompleteEvent):
