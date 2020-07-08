@@ -4,7 +4,7 @@
   See LICENSE for licensing information
 '''
 
-import sys, os, socket, logging, random, re, shutil, datetime, urllib
+import sys, os, socket, logging, random, re, shutil, datetime, urllib, gzip
 from subprocess import Popen, PIPE, STDOUT
 from threading import Lock
 from abc import ABCMeta, abstractmethod
@@ -167,6 +167,9 @@ class DataSource(object):
                 cmd = "xz --decompress --stdout {0}".format(self.filename)
                 xzproc = Popen(cmd.split(), stdout=PIPE)
                 self.source = xzproc.stdout
+            elif self.filename.endswith(".gz"):
+                self.compress = True
+                self.source = gzip.open(self.filename, 'rt')
             else:
                 self.source = open(self.filename, 'r')
 

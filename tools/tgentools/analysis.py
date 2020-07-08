@@ -234,9 +234,9 @@ class StreamCompleteEvent(StreamStatusEvent):
         time_usec_max = 0.0
         if self.time_info != None:
             for key in self.time_info:
-                val = int(self.time_info[key])
-                time_usec_max = max(time_usec_max, val)
-
+                if 'usecs' in key:
+                    val = int(self.time_info[key])
+                    time_usec_max = max(time_usec_max, val)
         self.unix_ts_start = self.unix_ts_end - (time_usec_max / 1000000.0)  # usecs to secs
 
 class StreamSuccessEvent(StreamCompleteEvent):
@@ -262,21 +262,28 @@ class Stream(object):
         self.last_event = None
         self.payload_recv_progress = {decile:None for decile in [0.0, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 1.0]}
         self.payload_send_progress = {decile:None for decile in [0.0, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 1.0]}
+        self.payload_recv_bytes = {partial:None for partial in [10240, 20480, 51200, 102400, 204800, 512000, 1048576, 2097152, 5242880]}
+        self.payload_send_bytes = {partial:None for partial in [10240, 20480, 51200, 102400, 204800, 512000, 1048576, 2097152, 5242880]}
 
     def __set_progress_helper(self, status_event, bytes_key, progress_dict):
-        progress = status_event.byte_info[bytes_key].strip('%')
+        divide = 1
+        if '%' in status_event.byte_info[bytes_key]:
+            progress = status_event.byte_info[bytes_key].strip('%')
+            divide = 100
+        else:
+            progress = status_event.byte_info[bytes_key]
         if progress != '?':
-            frac = float(progress)
-            # set only the highest decile that we meet or exceed
-            for decile in sorted(progress_dict.keys(), reverse=True):
-                if frac >= decile:
-                    if progress_dict[decile] is None:
-                        progress_dict[decile] = status_event.unix_ts_end
+            progress_instance = float(progress)/divide
+            for item in sorted(progress_dict.keys()):
+                if progress_instance >= item and progress_dict[item] is None:
+                    progress_dict[item] = status_event.unix_ts_end
                     return
 
     def add_event(self, status_event):
         self.__set_progress_helper(status_event, 'payload-progress-recv', self.payload_recv_progress)
         self.__set_progress_helper(status_event, 'payload-progress-send', self.payload_send_progress)
+        self.__set_progress_helper(status_event, 'payload-bytes-recv', self.payload_recv_bytes)
+        self.__set_progress_helper(status_event, 'payload-bytes-send', self.payload_send_bytes)
         self.last_event = status_event
 
     def get_data(self):
@@ -284,9 +291,17 @@ class Stream(object):
         if e is None or not e.is_complete:
             return None
         d = e.__dict__
-        d['elapsed_seconds'] = {}
-        d['elapsed_seconds']['payload_progress_recv'] = {decile: self.payload_recv_progress[decile] - e.unix_ts_start for decile in self.payload_recv_progress if self.payload_recv_progress[decile] is not None}
-        d['elapsed_seconds']['payload_progress_send'] = {decile: self.payload_send_progress[decile] - e.unix_ts_start for decile in self.payload_send_progress if self.payload_send_progress[decile] is not None}
+        if not e.is_error:
+            d['elapsed_seconds'] = {
+                'payload_progress_recv': {
+                  decile: round((self.payload_recv_progress[decile] - e.unix_ts_start), 6) for decile in self.payload_recv_progress if self.payload_recv_progress[decile] is not None},
+                'payload_progress_send': {
+                  decile: round((self.payload_send_progress[decile] - e.unix_ts_start), 6) for decile in self.payload_send_progress if self.payload_send_progress[decile] is not None},
+                'payload_bytes_recv' : {
+                  partial: round((self.payload_recv_bytes[partial] - e.unix_ts_start), 6) for partial in self.payload_recv_bytes if self.payload_recv_bytes[partial] is not None},
+                'payload_bytes_send' : {
+                  partial: round((self.payload_send_bytes[partial] - e.unix_ts_start), 6) for partial in self.payload_send_bytes if self.payload_send_bytes[partial] is not None}
+                 }
         return d
 
 class Parser(object):
