@@ -274,7 +274,7 @@ class Stream(object):
             progress = status_event.byte_info[bytes_key]
         if progress != '?':
             progress_instance = float(progress)/divide
-            for item in sorted(progress_dict.keys(), reverse=True):
+            for item in sorted(progress_dict.keys()):
                 if progress_instance >= item and progress_dict[item] is None:
                     progress_dict[item] = status_event.unix_ts_end
                     return
