@@ -276,7 +276,7 @@ class Stream(object):
             for item in sorted(progress_dict.keys()):
                 if progress_instance >= item and progress_dict[item] is None:
                     progress_dict[item] = status_event.unix_ts_end
-                    return
+            return
 
     def add_event(self, status_event):
         self.__set_progress_helper(status_event, 'payload-progress-recv', self.payload_recv_progress)
