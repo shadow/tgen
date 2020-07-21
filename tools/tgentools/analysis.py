@@ -231,13 +231,12 @@ class StreamCompleteEvent(StreamStatusEvent):
         super(StreamCompleteEvent, self).__init__(line)
         self.is_complete = True
 
-        time_usec_max = 0.0
-        if self.time_info != None:
-            for key in self.time_info:
-                if 'usecs' in key:
-                    val = int(self.time_info[key])
-                    time_usec_max = max(time_usec_max, val)
-        self.unix_ts_start = self.unix_ts_end - (time_usec_max / 1000000.0)  # usecs to secs
+        if self.time_info is not None and all (key in self.time_info for key in ('created-ts', 'now-ts')):
+            created_ts = int(self.time_info['created-ts'])
+            now_ts = int(self.time_info['now-ts'])
+            self.unix_ts_start = self.unix_ts_end - (now_ts - created_ts) / 1000000.0 # usecs to secs
+        else:
+            self.unix_ts_start = self.unix_ts_end
 
 class StreamSuccessEvent(StreamCompleteEvent):
     def __init__(self, line):
