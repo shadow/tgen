@@ -324,7 +324,8 @@ class TGenParser(Parser):
         self.heartbeat_seconds = set()
         self.streams = {}
         self.stream_summary = {'time_to_first_byte_recv':{}, 'time_to_last_byte_recv':{},
-            'time_to_first_byte_send':{}, 'time_to_last_byte_send':{}, 'errors':{}}
+            'time_to_first_byte_send':{}, 'time_to_last_byte_send':{},
+            'round_trip_time':{}, 'errors':{}}
         self.name = None
         self.unix_ts_init = 0
         self.date_filter = date_filter
@@ -386,6 +387,16 @@ class TGenParser(Parser):
             if complete.byte_info != None:
                 recv_size = int(complete.byte_info['payload-bytes-recv'])
                 send_size = int(complete.byte_info['payload-bytes-send'])
+
+                if complete.time_info != None:
+                    cmd = int(complete.time_info['usecs-to-command'])
+                    rsp = int(complete.time_info['usecs-to-response'])
+
+                    rtt_secs = (rsp - cmd) / 1000000.0  # usecs to secs
+
+                    if rtt_secs >= 0:
+                        rtt_list = self.stream_summary['round_trip_time'].setdefault(second, [])
+                        rtt_list.append(rtt_secs)
 
                 if recv_size > 0 and complete.time_info != None:
                     cmd = int(complete.time_info['usecs-to-command'])
