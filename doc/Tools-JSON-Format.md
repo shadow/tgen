@@ -1,10 +1,10 @@
 # JSON DB Structure for Analysis Results
 
-The `tgentools` python toolkit can be run in `parse` mode to parse a set of
+The `tgentools` python3 toolkit can be run in `parse` mode to parse a set of
 tgen log files. It writes useful statistics to a json file.
 
 This document describes the structure of the json database file that gets exported
-when running the `tgentools` python toolkit in `parse` mode.
+when running the `tgentools` python3 toolkit in `parse` mode.
 
 The structure is given here with variable keys marked as such.
 

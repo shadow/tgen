@@ -13,9 +13,9 @@ Dependencies in Ubuntu/Debian:
 
     sudo apt-get install python3 python3-pip libxml2 libxml2-dev libxslt1.1 libxslt1-dev libpng-dev libfreetype6 libfreetype6-dev libblas-dev liblapack-dev
 
-## Install TGenTools Python modules
+## Install TGenTools Python3 modules
 
-We show how to install python modules using `pip3` (although you can also
+We show how to install python3 modules using `pip3` (although you can also
 use your OS package manager). We recommend using virtual environments to
 keep all of the dependencies self-contained and to avoid conflicts with
 your other python projects.
