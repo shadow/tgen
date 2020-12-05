@@ -40,7 +40,7 @@ Be warned that edge weights must be used carefully, especially when combined wit
 
 # Examples
 
-An easy way to generate TGen behavior graphs is to use python and the networkx python module.
+An easy way to generate TGen behavior graphs is to use python3 and the networkx python3 module.
 The scripts are simple, but capable of generating complex behavior profiles.
 
 Example scripts for generating TGen configuration files can be found in the

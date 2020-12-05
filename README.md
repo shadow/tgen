@@ -7,7 +7,7 @@ TGen instances. The characteristics of the traffic (e.g., size, timing,
 number of parallel flows, etc.) can be configured by the user.
 
 TGen can generate complex traffic patterns. Users write relatively simple
-python scripts to generate `graphml` files that are then used as TGen
+python3 scripts to generate `graphml` files that are then used as TGen
 configuration files that instruct TGen how to generate traffic. TGen also
 supports the use of Markov models in order to generate TCP flows and packet
 streams according to common probability distributions.

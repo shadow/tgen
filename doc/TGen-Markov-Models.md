@@ -35,7 +35,7 @@ pass TGen's Markov model validation.
 As with the config file, TGen uses the `graphml` file format to represent
 Markov models. As we explain the structure supported by TGen, we provide
 examples of generating the corresponding `graphml` elements and atrributes
-using `python` and the `networkx` python module (installing the TGenTools
+using `python3` and the `networkx` python3 module (installing the TGenTools
 toolkit will install the networkx module).
 
 Models are constructed as directed graphs:
