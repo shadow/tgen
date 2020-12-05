@@ -11,7 +11,7 @@ Dependencies in Fedora/RedHat:
 
 Dependencies in Ubuntu/Debian:
 
-    sudo apt-get install python3 python3-dev python3-pip python3-virtualenv libxml2 libxml2-dev libxslt1.1 libxslt1-dev libpng16-16 libpng-dev libfreetype6 libfreetype6-dev libblas-dev liblapack-dev
+    sudo apt-get install python3 python3-dev python3-pip python3-venv libxml2 libxml2-dev libxslt1.1 libxslt1-dev libpng16-16 libpng-dev libfreetype6 libfreetype6-dev libblas-dev liblapack-dev
 
 ## Install TGenTools Python3 modules
 
@@ -20,7 +20,7 @@ use your OS package manager). We recommend using virtual environments to
 keep all of the dependencies self-contained and to avoid conflicts with
 your other python projects.
 
-    virtualenv toolsenv
+    python3 -m venv toolsenv
     source toolsenv/bin/activate
     pip3 install -r path/to/tgen/tools/requirements.txt
     pip3 install -I path/to/tgen/tools
