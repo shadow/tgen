@@ -1,4 +1,4 @@
-#!/usr/bin/python
+#!/usr/bin/env python3
 
 import sys, os, argparse, re, json
 from multiprocessing import Pool, cpu_count
@@ -15,19 +15,19 @@ need never be stored on disk decompressed, which is useful when log file
 sizes reach tens of gigabytes.
 
 Use the help menu to understand usage:
-$ python parse-tgen.py -h
+$ python3 parse-tgen.py -h
 
 The standard way to run the script is to give the path to a directory tree
 under which one or several tgen log files exist:
-$ python parse-tgen.py shadow.data/hosts/
-$ python parse-tgen.py ./
+$ python3 parse-tgen.py shadow.data/hosts/
+$ python3 parse-tgen.py ./
 
 This path will be searched for log files whose names match those created
 by shadow; additional patterns can be added with the '-e' option.
 
 A single tgen log file can also be passed on STDIN with the special '-' path:
-$ cat tgen.log | python parse-tgen.py -
-$ xzcat tgen.log.xz | python parse-tgen.py -
+$ cat tgen.log | python3 parse-tgen.py -
+$ xzcat tgen.log.xz | python3 parse-tgen.py -
 
 The default mode is to filter and parse the log files using a single
 process; this will be done with multiple worker processes when passing
@@ -87,7 +87,7 @@ def run(args):
         while not mr.ready(): mr.wait(1)
         r = mr.get()
     except KeyboardInterrupt:
-        print >> sys.stderr, "interrupted, terminating process pool"
+        print("interrupted, terminating process pool", file=sys.stderr)
         p.terminate()
         p.join()
         sys.exit()
@@ -106,10 +106,10 @@ def run(args):
         success_count += item[2]
         error_count += item[3]
 
-    print >> sys.stderr, "done processing input: {0} total successes, {1} total errors, {2} files with names, {3} files without names".format(success_count, error_count, name_count, noname_count)
-    print >> sys.stderr, "dumping stats in {0}".format(args.prefix)
+    print("done processing input: {0} total successes, {1} total errors, {2} files with names, {3} files without names".format(success_count, error_count, name_count, noname_count), file=sys.stderr)
+    print("dumping stats in {0}".format(args.prefix), file=sys.stderr)
     dump(d, args.prefix, TGENJSON)
-    print >> sys.stderr, "all done!"
+    print("all done!", file=sys.stderr)
 
 def process_tgen_log(filename):
     signal(SIGINT, SIG_IGN) # ignore interrupts

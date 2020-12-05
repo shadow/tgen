@@ -1,4 +1,4 @@
-#!/usr/bin/env python
+#!/usr/bin/env python3
 
 import networkx
 
@@ -143,7 +143,7 @@ def print_as_c_string(filename):
     with open(filename, 'r') as inf:
         for line in inf:
             escaped = line.replace('"', '\\"')
-            print '"{}"'.format(escaped.rstrip())
+            print('"{}"'.format(escaped.rstrip()))
 
 if __name__ == "__main__":
     main()
