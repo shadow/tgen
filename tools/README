@@ -23,14 +23,18 @@ your other python projects.
     python3 -m venv toolsenv
     source toolsenv/bin/activate
     pip3 install -r path/to/tgen/tools/requirements.txt
-    pip3 install -I path/to/tgen/tools
 
 ## Install TGenTools
 
-Build then install locally
+Install into the virtual environment:
+
+    source toolsenv/bin/activate
+    pip3 install -I path/to/tgen/tools
+
+Or build/install locally (outside of the virtual environment):
+
    python3 setup.py build
    python3 setup.py install
-
 
 ## Run TGenTools
 
