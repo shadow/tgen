@@ -1062,7 +1062,7 @@ static TGenEvent _tgentransport_receiveSocksResponseStatus(TGenTransport* transp
         return TGEN_EVENT_READ;
     } else {
         gchar version = transport->socksBuffer->str[0];
-        gchar status = transport->socksBuffer->str[1];
+        guchar status = transport->socksBuffer->str[1];
 
         g_string_free(transport->socksBuffer, TRUE);
         transport->socksBuffer = NULL;
@@ -1087,7 +1087,10 @@ static TGenEvent _tgentransport_receiveSocksResponseStatus(TGenTransport* transp
                 g_string_append_printf(messageBuffer, "our request was not granted by "
                         "the SOCKS server: error status %X: ", status);
 
-                /* error codes: https://en.wikipedia.org/wiki/SOCKS#SOCKS5 */
+                /* error codes: https://en.wikipedia.org/wiki/SOCKS#SOCKS5
+                 * we also include non-standard tor error codes (enabled with the 'ExtendedErrors'
+                 * torrc flag), which could potentially have different meanings for non-tor
+                 * proxies */
                 switch(status) {
                     case 0x01: {
                         g_string_append_printf(messageBuffer, "general failure");
@@ -1119,6 +1122,38 @@ static TGenEvent _tgentransport_receiveSocksResponseStatus(TGenTransport* transp
                     }
                     case 0x08: {
                         g_string_append_printf(messageBuffer, "address type not supported");
+                        break;
+                    }
+                    case 0xF0: {
+                        g_string_append_printf(messageBuffer, "(tor) onion service descriptor can not be found");
+                        break;
+                    }
+                    case 0xF1: {
+                        g_string_append_printf(messageBuffer, "(tor) onion service descriptor is invalid");
+                        break;
+                    }
+                    case 0xF2: {
+                        g_string_append_printf(messageBuffer, "(tor) onion service introduction failed");
+                        break;
+                    }
+                    case 0xF3: {
+                        g_string_append_printf(messageBuffer, "(tor) onion service rendezvous failed");
+                        break;
+                    }
+                    case 0xF4: {
+                        g_string_append_printf(messageBuffer, "(tor) onion service missing client authorization");
+                        break;
+                    }
+                    case 0xF5: {
+                        g_string_append_printf(messageBuffer, "(tor) onion service wrong client authorization");
+                        break;
+                    }
+                    case 0xF6: {
+                        g_string_append_printf(messageBuffer, "(tor) onion service invalid address");
+                        break;
+                    }
+                    case 0xF7: {
+                        g_string_append_printf(messageBuffer, "(tor) onion service introduction timed out");
                         break;
                     }
                     default: {
