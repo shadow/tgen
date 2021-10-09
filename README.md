@@ -50,7 +50,7 @@ See the [resource/](resource) directory for example config files.
 
 ## More documentation
 
-See [tools/README](tools/README) for setup instructions for
+See [tools/README.md](tools/README.md) for setup instructions for
 the TGenTools toolkit that can be used to parse and plot `tgen` log output.
 
 See [doc/TGen-Overview.md](doc/TGen-Overview.md) for an overview of how to use
