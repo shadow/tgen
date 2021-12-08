@@ -19,15 +19,44 @@ jobs:
     strategy:
       matrix:
         cc: ['gcc', 'clang']
+        container:
+          - 'ubuntu:18.04'
+          - 'ubuntu:20.04'
+          - 'debian:10-slim'
+          - 'debian:11-slim'
+          - 'fedora:34'
+          - 'quay.io/centos/centos:stream8'
     steps:
       - name: Update packages
-        run: sudo apt-get update
+        run: apt-get update
 
       - name: Checkout
         uses: actions/checkout@v2
 
       - name: Install tgen dependencies
-        run: sudo apt-get install -y ${{ matrix.cc }} cmake libglib2.0-0 libglib2.0-dev libigraph0v5 libigraph0-dev
+        run: |
+          case $container in
+            ubuntu* | debian*)
+              apt-get install -y \
+                ${{ matrix.cc }} \
+                cmake \
+                libglib2.0-0 \
+                libglib2.0-dev \
+                libigraph0v5 \
+                libigraph0-dev
+              ;;
+            fedora* | *centos*)
+              dnf install -y \
+                cmake \
+                glib2 \
+                glib2-devel \
+                igraph \
+                igraph-devel
+              ;;
+            *)
+              echo "Unhandled container $container"
+              exit 1
+          esac
 
       - name: Build tgen
         run: mkdir -p build && cd build && CC=${{ matrix.cc }} cmake .. && make
@@ -39,10 +68,44 @@ jobs:
         run: bash test/run_tgen_integration_tests.sh
 
       - name: Install tgentools dependencies
-        run: sudo apt install -y python3 python3-dev python3-pip python3-venv libxml2 libxml2-dev libxslt1.1 libxslt1-dev libpng16-16 libpng-dev libfreetype6 libfreetype6-dev libblas-dev liblapack-dev
+        run: |
+          case $container in
+            ubuntu* | debian*)
+              apt install -y \
+                python3 \
+                python3-dev \
+                python3-pip \
+                python3-venv \
+                libxml2 \
+                libxml2-dev \
+                libxslt1.1 \
+                libxslt1-dev \
+                libpng16-16 \
+                libpng-dev \
+                libfreetype6 \
+                libfreetype6-dev \
+                libblas-dev \
+                liblapack-dev 
+              ;;
+            fedora* | *centos*)
+              dnf install -y \
+                cmake \
+                glib2 \
+                glib2-devel \
+                igraph \
+                igraph-devel
+              ;;
+            *)
+              echo "Unhandled container $container"
+              exit 1
+          esac
 
       - name: Build tgentools
-        run: python3 -m venv build/toolsenv && source build/toolsenv/bin/activate && pip3 install -r tools/requirements.txt && pip3 install -I tools/
+        run: |
+          python3 -m venv build/toolsenv
+          source build/toolsenv/bin/activate
+          pip3 install -r tools/requirements.txt
+          pip3 install -I tools/
 
       - name: Test tgentools
         run: bash test/run_tgentools_integration_tests.sh
