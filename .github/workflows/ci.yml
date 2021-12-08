@@ -83,6 +83,15 @@ jobs:
       - name: Build tgen
         run: mkdir -p build && cd build && CC=${{ matrix.cc }} cmake .. && make
 
+      - name: Install test dependencies
+        run: |
+          case ${{ matrix.container }} in
+            fedora* | *centos*)
+              dnf install -y \
+                diffutils
+              ;;
+          esac
+
       - name: Test mmodel
         run: bash test/run_mmodel_tests.sh
 
@@ -129,13 +138,5 @@ jobs:
           pip3 install -r tools/requirements.txt
           pip3 install -I tools/
 
-      - name: Install test dependencies
-        run: |
-          case ${{ matrix.container }} in
-            fedora* | *centos*)
-              dnf install -y \
-                diffutils
-              ;;
-          esac
       - name: Test tgentools
         run: bash test/run_tgentools_integration_tests.sh
