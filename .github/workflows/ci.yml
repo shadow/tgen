@@ -63,6 +63,7 @@ jobs:
               ;;
             fedora* | *centos*)
               dnf install -y \
+                ${{ matrix.cc }} \
                 cmake \
                 glib2 \
                 glib2-devel \
