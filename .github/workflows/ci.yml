@@ -27,7 +27,8 @@ jobs:
           - 'debian:10-slim'
           - 'debian:11-slim'
           - 'fedora:34'
-          - 'quay.io/centos/centos:stream8'
+          # igraph not (easily) available
+          # - 'quay.io/centos/centos:stream8'
     steps:
       - name: Update packages
         run: |
