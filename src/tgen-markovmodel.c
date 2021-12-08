@@ -92,6 +92,36 @@ struct _TGenMarkovModel {
     guint magic;
 };
 
+// igraph_i_attribute_gettype was removed from igraph in 0.9. The closest
+// replacement appears to be `igraph_cattribute_table.gettype`, though it's
+// unclear from the documentation whether it's guaranteed to be non-NULL nor
+// whether it's intended to be callable by users of the library.
+//
+// Therefore we make a best-effort to detect type mismatches, but may not
+// always be able to do so.
+static gboolean tgenmarkovmodel_attributeTypeMismatch(const igraph_t *graph, igraph_attribute_type_t desiredType,
+        igraph_attribute_elemtype_t elemtype, const char *name) {
+    if (!igraph_cattribute_table.gettype) {
+        // We don't know whether there's a type mismatch. No harm done if the
+        // types are correct, but potentially surprising behavior if they're
+        // not.
+        tgen_warning("Internal error: igraph_cattribute_table.gettype missing; unable to validate attribute types");
+        return FALSE;
+    }
+    igraph_attribute_type_t type = IGRAPH_ATTRIBUTE_DEFAULT;
+    if (igraph_cattribute_table.gettype(graph, &type, elemtype, name) != IGRAPH_SUCCESS) {
+        // The igraph documentation says it'll abort on any error, but in case
+        // it doesn't, error out here.
+        tgen_warning("igraph_cattribute_table.gettype failed; unable to validate attribute type");
+        return TRUE;
+    }
+    if (type != desiredType) {
+        tgen_warning("got type %d instead of %d for attribute '%s'", type, desiredType, name);
+        return TRUE;
+    }
+    return FALSE;
+}
+
 static const gchar* _tgenmarkovmodel_vertexAttributeToString(VertexAttribute attr) {
     if(attr == VERTEX_ATTR_ID) {
         return "name";
@@ -226,7 +256,7 @@ static gboolean _tgenmarkovmodel_vertexIDIsEmission(const gchar* idStr) {
     }
 }
 
-/* if the value is found and not NULL, it's value is returned in valueOut.
+/* if the value is found and not NULL, its value is returned in valueOut.
  * returns true if valueOut has been set, false otherwise */
 static gboolean _tgenmarkovmodel_findVertexAttributeString(TGenMarkovModel* mmodel, igraph_integer_t vertexIndex,
         VertexAttribute attr, const gchar** valueOut) {
@@ -239,16 +269,14 @@ static gboolean _tgenmarkovmodel_findVertexAttributeString(TGenMarkovModel* mmod
     const gchar* name = _tgenmarkovmodel_vertexAttributeToString(attr);
 
     if(igraph_cattribute_has_attr(mmodel->graph, IGRAPH_ATTRIBUTE_VERTEX, name)) {
-        igraph_attribute_type_t type = IGRAPH_ATTRIBUTE_DEFAULT;
-        igraph_i_attribute_gettype(mmodel->graph, &type, IGRAPH_ATTRIBUTE_VERTEX, name);
-
-        if(type == IGRAPH_ATTRIBUTE_STRING) {
-            const gchar* value = igraph_cattribute_VAS(mmodel->graph, name, vertexIndex);
-            if(value != NULL && value[0] != '\0') {
-                if(valueOut != NULL) {
-                    *valueOut = value;
-                    return TRUE;
-                }
+        if (tgenmarkovmodel_attributeTypeMismatch(mmodel->graph, IGRAPH_ATTRIBUTE_STRING, IGRAPH_ATTRIBUTE_VERTEX, name)) {
+            return FALSE;
+        }
+        const gchar* value = igraph_cattribute_VAS(mmodel->graph, name, vertexIndex);
+        if(value != NULL && value[0] != '\0') {
+            if(valueOut != NULL) {
+                *valueOut = value;
+                return TRUE;
             }
         }
     }
@@ -256,7 +284,7 @@ static gboolean _tgenmarkovmodel_findVertexAttributeString(TGenMarkovModel* mmod
     return FALSE;
 }
 
-/* if the value is found and not NULL, it's value is returned in valueOut.
+/* if the value is found and not NULL, its value is returned in valueOut.
  * returns true if valueOut has been set, false otherwise */
 static gboolean _tgenmarkovmodel_findEdgeAttributeDouble(TGenMarkovModel* mmodel, igraph_integer_t edgeIndex,
         EdgeAttribute attr, gdouble* valueOut) {
@@ -265,25 +293,22 @@ static gboolean _tgenmarkovmodel_findEdgeAttributeDouble(TGenMarkovModel* mmodel
     const gchar* name = _tgenmarkovmodel_edgeAttributeToString(attr);
 
     if(igraph_cattribute_has_attr(mmodel->graph, IGRAPH_ATTRIBUTE_EDGE, name)) {
-        igraph_attribute_type_t type = IGRAPH_ATTRIBUTE_DEFAULT;
-        igraph_i_attribute_gettype(mmodel->graph, &type, IGRAPH_ATTRIBUTE_EDGE, name);
-
-        if(type == IGRAPH_ATTRIBUTE_NUMERIC) {
-            gdouble value = (gdouble) igraph_cattribute_EAN(mmodel->graph, name, edgeIndex);
-            if(isnan(value) == 0) {
-                if(valueOut != NULL) {
-                    *valueOut = value;
-                    return TRUE;
-                }
+        if (tgenmarkovmodel_attributeTypeMismatch(mmodel->graph, IGRAPH_ATTRIBUTE_NUMERIC, IGRAPH_ATTRIBUTE_EDGE, name)) {
+            return FALSE;
+        }
+        gdouble value = (gdouble) igraph_cattribute_EAN(mmodel->graph, name, edgeIndex);
+        if(isnan(value) == 0) {
+            if(valueOut != NULL) {
+                *valueOut = value;
+                return TRUE;
             }
         }
-
     }
 
     return FALSE;
 }
 
-/* if the value is found and not NULL, it's value is returned in valueOut.
+/* if the value is found and not NULL, its value is returned in valueOut.
  * returns true if valueOut has been set, false otherwise */
 static gboolean _tgenmarkovmodel_findEdgeAttributeString(TGenMarkovModel* mmodel, igraph_integer_t edgeIndex,
         EdgeAttribute attr, const gchar** valueOut) {
@@ -296,16 +321,14 @@ static gboolean _tgenmarkovmodel_findEdgeAttributeString(TGenMarkovModel* mmodel
     const gchar* name = _tgenmarkovmodel_edgeAttributeToString(attr);
 
     if(igraph_cattribute_has_attr(mmodel->graph, IGRAPH_ATTRIBUTE_EDGE, name)) {
-        igraph_attribute_type_t type = IGRAPH_ATTRIBUTE_DEFAULT;
-        igraph_i_attribute_gettype(mmodel->graph, &type, IGRAPH_ATTRIBUTE_EDGE, name);
-
-        if(type == IGRAPH_ATTRIBUTE_STRING) {
-            const gchar* value = igraph_cattribute_EAS(mmodel->graph, name, edgeIndex);
-            if(value != NULL && value[0] != '\0') {
-                if(valueOut != NULL) {
-                    *valueOut = value;
-                    return TRUE;
-                }
+        if (tgenmarkovmodel_attributeTypeMismatch(mmodel->graph, IGRAPH_ATTRIBUTE_STRING, IGRAPH_ATTRIBUTE_EDGE, name)) {
+            return FALSE;
+        }
+        const gchar* value = igraph_cattribute_EAS(mmodel->graph, name, edgeIndex);
+        if(value != NULL && value[0] != '\0') {
+            if(valueOut != NULL) {
+                *valueOut = value;
+                return TRUE;
             }
         }
     }
