@@ -240,7 +240,8 @@ static gboolean _tgenmarkovmodel_findVertexAttributeString(TGenMarkovModel* mmod
 
     if(igraph_cattribute_has_attr(mmodel->graph, IGRAPH_ATTRIBUTE_VERTEX, name)) {
         igraph_attribute_type_t type = IGRAPH_ATTRIBUTE_DEFAULT;
-        igraph_i_attribute_gettype(mmodel->graph, &type, IGRAPH_ATTRIBUTE_VERTEX, name);
+        g_assert(igraph_cattribute_table.gettype);
+        igraph_cattribute_table.gettype(mmodel->graph, &type, IGRAPH_ATTRIBUTE_VERTEX, name);
 
         if(type == IGRAPH_ATTRIBUTE_STRING) {
             const gchar* value = igraph_cattribute_VAS(mmodel->graph, name, vertexIndex);
@@ -266,7 +267,8 @@ static gboolean _tgenmarkovmodel_findEdgeAttributeDouble(TGenMarkovModel* mmodel
 
     if(igraph_cattribute_has_attr(mmodel->graph, IGRAPH_ATTRIBUTE_EDGE, name)) {
         igraph_attribute_type_t type = IGRAPH_ATTRIBUTE_DEFAULT;
-        igraph_i_attribute_gettype(mmodel->graph, &type, IGRAPH_ATTRIBUTE_EDGE, name);
+        g_assert(igraph_cattribute_table.gettype);
+        igraph_cattribute_table.gettype(mmodel->graph, &type, IGRAPH_ATTRIBUTE_EDGE, name);
 
         if(type == IGRAPH_ATTRIBUTE_NUMERIC) {
             gdouble value = (gdouble) igraph_cattribute_EAN(mmodel->graph, name, edgeIndex);
@@ -297,7 +299,8 @@ static gboolean _tgenmarkovmodel_findEdgeAttributeString(TGenMarkovModel* mmodel
 
     if(igraph_cattribute_has_attr(mmodel->graph, IGRAPH_ATTRIBUTE_EDGE, name)) {
         igraph_attribute_type_t type = IGRAPH_ATTRIBUTE_DEFAULT;
-        igraph_i_attribute_gettype(mmodel->graph, &type, IGRAPH_ATTRIBUTE_EDGE, name);
+        g_assert(igraph_cattribute_table.gettype);
+        igraph_cattribute_table.gettype(mmodel->graph, &type, IGRAPH_ATTRIBUTE_EDGE, name);
 
         if(type == IGRAPH_ATTRIBUTE_STRING) {
             const gchar* value = igraph_cattribute_EAS(mmodel->graph, name, edgeIndex);
