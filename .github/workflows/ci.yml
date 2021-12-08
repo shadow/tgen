@@ -16,6 +16,8 @@ on:
 jobs:
   testing:
     runs-on: ubuntu-latest
+    container:
+      image: ${{ matrix.container }}
     strategy:
       matrix:
         cc: ['gcc', 'clang']
