@@ -30,7 +30,12 @@ jobs:
           - 'quay.io/centos/centos:stream8'
     steps:
       - name: Update packages
-        run: apt-get update
+        run: |
+          case ${{ matrix.container }} in
+            ubuntu* | debian*)
+            apt-get update
+            ;;
+          esac
 
       - name: Checkout
         uses: actions/checkout@v2
