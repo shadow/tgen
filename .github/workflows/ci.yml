@@ -125,7 +125,8 @@ jobs:
                 glib2 \
                 glib2-devel \
                 igraph \
-                igraph-devel
+                igraph-devel \
+                xz
               ;;
             *)
               echo "Unhandled container ${{ matrix.container }}"
