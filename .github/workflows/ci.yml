@@ -138,6 +138,7 @@ jobs:
                 glib2-devel \
                 igraph \
                 igraph-devel \
+                libdeflate \
                 python3 \
                 python3-pip \
                 xz
