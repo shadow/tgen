@@ -35,8 +35,7 @@ jobs:
           - 'debian:10-slim'
           - 'debian:11-slim'
           - 'fedora:34'
-          # igraph not (easily) available
-          # - 'quay.io/centos/centos:stream8'
+          - 'quay.io/centos/centos:stream8'
     steps:
       - name: Update packages
         run: |
@@ -69,7 +68,7 @@ jobs:
                 libglib2.0-dev \
                 libigraph-dev
               ;;
-            fedora* | *centos*)
+            fedora*)
               dnf install -y \
                 ${{ matrix.cc }} \
                 cmake \
@@ -77,6 +76,15 @@ jobs:
                 glib2-devel \
                 igraph \
                 igraph-devel
+              ;;
+            *centos*stream8)
+              dnf install -y \
+                ${{ matrix.cc }} \
+                cmake \
+                glib2 \
+                glib2-devel
+              dnf install -y https://dl.fedoraproject.org/pub/archive/epel/7.7/x86_64/Packages/i/igraph-0.7.1-12.el7.x86_64.rpm
+              dnf install -y https://dl.fedoraproject.org/pub/archive/epel/7.7/x86_64/Packages/i/igraph-devel-0.7.1-12.el7.x86_64.rpm
               ;;
             *)
               echo "Unhandled container ${{ matrix.container }}"
