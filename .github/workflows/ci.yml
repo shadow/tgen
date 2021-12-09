@@ -18,7 +18,8 @@ on:
       - '**.md'
       - 'LICENSE'
 
-env: DEBIAN_FRONTEND=noninteractive
+env:
+  DEBIAN_FRONTEND: noninteractive
 
 jobs:
   testing:
