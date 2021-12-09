@@ -149,6 +149,7 @@ jobs:
                 glib2-devel \
                 libjpeg-turbo \
                 libjpeg-turbo-devel \
+                platform-python-devel \
                 python3 \
                 python3-pip \
                 xz \
