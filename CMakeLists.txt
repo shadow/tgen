@@ -10,11 +10,14 @@ endif()
 ## cmake module path is used for both main and tests
 set(CMAKE_MODULE_PATH "${CMAKE_SOURCE_DIR}/cmake/" ${CMAKE_MODULE_PATH})
 
+include(FindPkgConfig)
+
 ## dependencies
 find_package(RT REQUIRED)
 find_package(M REQUIRED)
-find_package(IGRAPH REQUIRED)
-find_package(GLIB REQUIRED)
+
+pkg_check_modules(IGRAPH REQUIRED igraph)
+pkg_check_modules(GLIB REQUIRED glib-2.0)
 
 ## recurse our project tree
 add_subdirectory(${CMAKE_SOURCE_DIR}/src/)

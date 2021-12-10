@@ -1,6 +1,6 @@
 ## build the mmodel test binary
 
-include_directories(AFTER ../src/ ${M_INCLUDES} ${GLIB_INCLUDES} ${IGRAPH_INCLUDES})
+include_directories(AFTER ../src/ ${M_INCLUDES} ${GLIB_INCLUDE_DIRS} ${IGRAPH_INCLUDE_DIRS})
 
 ## build as position-independent so it can run in Shadow
 add_definitions(-D_GNU_SOURCE)

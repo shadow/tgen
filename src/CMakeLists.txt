@@ -1,5 +1,5 @@
 ## build the tgen binary
-include_directories(AFTER src/ ${RT_INCLUDES} ${M_INCLUDES} ${GLIB_INCLUDES} ${IGRAPH_INCLUDES})
+include_directories(AFTER src/ ${RT_INCLUDES} ${M_INCLUDES} ${GLIB_INCLUDE_DIRS} ${IGRAPH_INCLUDE_DIRS})
 
 ## build as position-independent so it can run in Shadow
 add_compile_options(-std=gnu11 -fPIC -fno-omit-frame-pointer -ggdb)
