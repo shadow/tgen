@@ -89,14 +89,6 @@ GError* tgenoptionparser_parsePeer(const gchar* attributeName,
             return error;
         }
 
-        /* dont add my own address to the server pool */
-        char myname[128];
-        if (!tgenconfig_gethostname(&myname[0], 128)
-                && !g_ascii_strcasecmp(myname, tokens[0])) {
-            tgen_info("refusing to place my address in server pool for attribute '%s'", attributeName);
-            return NULL;
-        }
-
         gchar* name = tokens[0];
         in_port_t port = 0;
         guint64 portNum = g_ascii_strtoull(tokens[1], NULL, 10);
