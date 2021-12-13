@@ -4,11 +4,21 @@
 
 set -euo pipefail
 
-./build/src/tgen resource/server.tgenrc.graphml > build/tgen.server.log &
+# Allow TGEN to optionally be specified by caller. If it isn't,
+# then assume it's in ./build/src/tgen.
+TGEN=./build/src/tgen
+while [[ ${1:-} ]]; do
+  case "$1" in
+    --tgen ) TGEN="$2"; shift 2 ;;
+    * ) echo Unrecognized arg $1; exit 1; break ;;
+  esac
+done
+
+$TGEN resource/server.tgenrc.graphml > build/tgen.server.log &
 server_pid=$!
 
-./build/src/tgen resource/client-singlefile.tgenrc.graphml > build/tgen.client-singlefile.log
-./build/src/tgen resource/client-web.tgenrc.graphml > build/tgen.client-web.log
+$TGEN resource/client-singlefile.tgenrc.graphml | tee build/tgen.client-singlefile.log
+$TGEN resource/client-web.tgenrc.graphml | tee build/tgen.client-web.log
 
 kill -9 ${server_pid}
 
