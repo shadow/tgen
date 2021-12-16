@@ -1,6 +1,26 @@
 # This is a nix flake. See https://nixos.wiki/wiki/Flakes
 #
-# nix support is currently experimental.
+# Use with caution - nix support is experimental and may be removed without
+# warning.
+#
+# Maintainer notes:
+#
+# Some tasks that we ought to automate if we support nix in the long term, but
+# are manual for now:
+#
+#  * Version is currently hard-coded, and should be updated below
+#    when the version number changes.
+#  * We might want to occasionally bump to the latest versions in the current
+#    release, using `nix flake update`.
+#
+# Other notes:
+#  * We might want to occasionally bump the nixpkgs to the latest release
+#    branch.  If we create flakes for other shadow projects, we should probably
+#    try to keep them on the same nix release so that they can share
+#    dependencies.
+#  * This is currently tested in the github CI, so can mostly be ignored unless
+#    it breaks. A likely cause of breakage is adding a new dependency without
+#    adding it to the dependencies here.
 {
   description = "tgen: traffic generator";
 
