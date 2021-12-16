@@ -176,3 +176,25 @@ jobs:
 
       - name: Test tgentools
         run: bash test/run_tgentools_integration_tests.sh
+
+  test-nix:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v2
+
+      - name: Install nix
+        uses: cachix/install-nix-action@v15
+
+      # Not strictly required as a separate step, since `check` already builds
+      # if needed. Might be easier to debug as a distinct step, though.
+      - name: Build tgen
+        run: nix --print-build-logs build .#tgen
+
+      # Not strictly required as a separate step, since `check` already builds
+      # if needed. Might be easier to debug as a distinct step, though.
+      - name: Build tgentools
+        run: nix --print-build-logs build .#tgentools
+
+      - name: Test
+        run: nix --print-build-logs flake check

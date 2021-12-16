@@ -1,17 +1,30 @@
 #!/bin/bash
 
 # run from base tgen directory
+
 # tgentools must have already been installed in a virtual environment
-# in build/toolsenv
+# in build/toolsenv, or passed in via --tgentools.
 
-source build/toolsenv/bin/activate
+TGENTOOLS=
+while [[ ${1:-} ]]; do
+  case "$1" in
+    --tgentools ) TGENTOOLS="$2"; shift 2 ;;
+    * ) echo Unrecognized arg $1; exit 1; break ;;
+  esac
+done
 
-# must set these options *after* sourcing the above environment
+if [ ! "$TGENTOOLS" ]
+then
+  source build/toolsenv/bin/activate
+  TGENTOOLS=$(command -v tgentools)
+fi
+
+# Run after build/toolsenv/bin/activate, which this breaks.
 set -euo pipefail
 
 fail=0
 
-tgentools parse -p build build/tgen.client-web.log
+$TGENTOOLS parse -p build build/tgen.client-web.log
 error=$?
 
 if [ $error -eq 0 ]
@@ -22,7 +35,7 @@ else
    fail=1
 fi
 
-tgentools plot --counter-cdfs --prefix build/test -d build/tgen.analysis.json.xz test
+$TGENTOOLS plot --counter-cdfs --prefix build/test -d build/tgen.analysis.json.xz test
 error=$?
 
 if [ $error -eq 0 ]
