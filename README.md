@@ -28,7 +28,7 @@ Dependencies in Ubuntu/Debian:
 Build with a custom install prefix:
 
     mkdir build && cd build
-    cmake .. -DCMAKE_INSTALL_PREFIX=/home/$USER/.local
+    cmake .. -DCMAKE_INSTALL_PREFIX=$HOME/.local
     make
 
 Optionally install to the prefix:
