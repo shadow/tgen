@@ -14,9 +14,6 @@ on:
       - '**.md'
       - 'LICENSE'
   pull_request:
-    paths-ignore:
-      - '**.md'
-      - 'LICENSE'
 
 env:
   DEBIAN_FRONTEND: noninteractive
