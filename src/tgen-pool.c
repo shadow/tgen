@@ -61,6 +61,6 @@ void tgenpool_add(TGenPool* pool, gpointer item) {
 gpointer tgenpool_getRandom(TGenPool* pool) {
     TGEN_ASSERT(pool);
     gint numNodes = g_tree_nnodes(pool->items);
-    gint position = (numNodes > 1) ? ((gint)(rand() % numNodes)) : 0;
+    gint position = (numNodes > 1) ? ((gint)(g_random_int() % numNodes)) : 0;
     return g_tree_lookup(pool->items, &position);
 }

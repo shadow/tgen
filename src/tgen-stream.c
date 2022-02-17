@@ -1097,8 +1097,8 @@ static void _tgenstream_onReadable(TGenStream* stream) {
 }
 
 static GString* _tgenstream_getRandomString(gsize size) {
-    /* call rand() once to limit overhead */
-    gint r = rand() % 26;
+    /* call once to limit overhead */
+    gint r = g_random_int() % 26;
     gchar c = (gchar)('a' + r);
     /* fill the buffer. this was more efficient than malloc/memset and then g_string_new  */
     GString* buffer = g_string_new_len(NULL, (gssize)size);
