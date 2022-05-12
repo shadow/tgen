@@ -421,7 +421,7 @@ static gsize _tgenstream_readBuffered(TGenStream* stream, guchar* buffer, gsize 
     if(stream->recv.buffer->len <= limit) {
         /* take all of the recv buffer */
         gsize amount = stream->recv.buffer->len;
-        g_memmove(buffer, stream->recv.buffer->str, amount);
+        memmove(buffer, stream->recv.buffer->str, amount);
 
         /* don't need the recv buffer any more */
         g_string_free(stream->recv.buffer, TRUE);
@@ -431,7 +431,7 @@ static gsize _tgenstream_readBuffered(TGenStream* stream, guchar* buffer, gsize 
         return amount;
     } else {
         /* we already have more buffered than the caller wants */
-        g_memmove(buffer, stream->recv.buffer->str, limit);
+        memmove(buffer, stream->recv.buffer->str, limit);
 
         /* we want to keep the remaining bytes that we did not return */
         GString* newBuffer = g_string_new(&stream->recv.buffer->str[limit]);
