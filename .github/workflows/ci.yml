@@ -69,16 +69,13 @@ jobs:
               dnf install -y \
                 ${{ matrix.cc }} \
                 cmake \
-                glib2 \
                 glib2-devel \
-                igraph \
                 igraph-devel
               ;;
             *centos*stream8)
               dnf install -y \
                 ${{ matrix.cc }} \
                 cmake \
-                glib2 \
                 glib2-devel
               dnf install -y https://dl.fedoraproject.org/pub/archive/epel/7.7/x86_64/Packages/i/igraph-0.7.1-12.el7.x86_64.rpm
               dnf install -y https://dl.fedoraproject.org/pub/archive/epel/7.7/x86_64/Packages/i/igraph-devel-0.7.1-12.el7.x86_64.rpm
@@ -131,7 +128,6 @@ jobs:
             fedora*)
               dnf install -y \
                 cmake \
-                glib2 \
                 glib2-devel \
                 libdeflate \
                 python3 \
@@ -142,15 +138,12 @@ jobs:
             *centos*)
               dnf install -y \
                 cmake \
-                glib2 \
                 glib2-devel \
-                libjpeg-turbo \
                 libjpeg-turbo-devel \
                 platform-python-devel \
                 python3 \
                 python3-pip \
                 xz \
-                zlib \
                 zlib-devel
 
               pip3 install virtualenv
