@@ -697,11 +697,11 @@ static TGenEvent _tgentransport_sendSocksAuth(TGenTransport* transport) {
 
         gchar buffer[255+255+3] = {0};
 
-        g_memmove(&buffer[0], "\x01", 1);
-        g_memmove(&buffer[1], &userlen, 1);
-        g_memmove(&buffer[2], user, userlen);
-        g_memmove(&buffer[2+userlen], &passlen, 1);
-        g_memmove(&buffer[3+userlen], pass, passlen);
+        memmove(&buffer[0], "\x01", 1);
+        memmove(&buffer[1], &userlen, 1);
+        memmove(&buffer[2], user, userlen);
+        memmove(&buffer[2+userlen], &passlen, 1);
+        memmove(&buffer[3+userlen], pass, passlen);
 
         /* use g_string_new_len to make sure the NULL gets written */
         transport->socksBuffer = g_string_new_len(&buffer[0], (gssize)3+userlen+passlen);
@@ -829,10 +829,10 @@ static TGenEvent _tgentransport_sendSocksRequest(TGenTransport* transport) {
             gchar buffer[nameLength+8];
             memset(buffer, 0, nameLength+8);
 
-            g_memmove(&buffer[0], "\x05\x01\x00\x03", 4);
-            g_memmove(&buffer[4], &nameLength, 1);
-            g_memmove(&buffer[5], name, nameLength);
-            g_memmove(&buffer[5+nameLength], &port, 2);
+            memmove(&buffer[0], "\x05\x01\x00\x03", 4);
+            memmove(&buffer[4], &nameLength, 1);
+            memmove(&buffer[5], name, nameLength);
+            memmove(&buffer[5+nameLength], &port, 2);
 
             /* use g_string_new_len to make sure the NULL gets written */
             transport->socksBuffer = g_string_new_len(&buffer[0], nameLength+7);
@@ -845,9 +845,9 @@ static TGenEvent _tgentransport_sendSocksRequest(TGenTransport* transport) {
 
             gchar buffer[16] = {0};
 
-            g_memmove(&buffer[0], "\x05\x01\x00\x01", 4);
-            g_memmove(&buffer[4], &ip, 4);
-            g_memmove(&buffer[8], &port, 2);
+            memmove(&buffer[0], "\x05\x01\x00\x01", 4);
+            memmove(&buffer[4], &ip, 4);
+            memmove(&buffer[8], &port, 2);
 
             transport->socksBuffer = g_string_new_len(&buffer[0], 10);
             g_assert(transport->socksBuffer->len == 10);
@@ -890,7 +890,7 @@ static TGenEvent _tgentransport_sendSocksRequest(TGenTransport* transport) {
 static TGenEvent _tgentransport_receiveSocksResponseTypeName(TGenTransport* transport) {
     /* case 4b - domain name mode */
     guint8 nameLength = 0;
-    g_memmove(&nameLength, &transport->socksBuffer->str[0], 1);
+    memmove(&nameLength, &transport->socksBuffer->str[0], 1);
 
     /* len is left over from prev read - now we want to read the name+port so
      * that we have the full len+name+port */
@@ -908,8 +908,8 @@ static TGenEvent _tgentransport_receiveSocksResponseTypeName(TGenTransport* tran
         memset(namebuf, 0, nameLength+1);
         in_port_t socksBindPort = 0;
 
-        g_memmove(namebuf, &transport->socksBuffer->str[1], nameLength);
-        g_memmove(&socksBindPort, &transport->socksBuffer->str[1+nameLength], 2);
+        memmove(namebuf, &transport->socksBuffer->str[1], nameLength);
+        memmove(&socksBindPort, &transport->socksBuffer->str[1+nameLength], 2);
 
         g_string_free(transport->socksBuffer, TRUE);
         transport->socksBuffer = NULL;
@@ -967,8 +967,8 @@ static TGenEvent _tgentransport_receiveSocksResponseTypeIPv4(TGenTransport* tran
         /* check if they want us to connect elsewhere */
         in_addr_t socksBindAddress = 0;
         in_port_t socksBindPort = 0;
-        g_memmove(&socksBindAddress, &transport->socksBuffer->str[0], 4);
-        g_memmove(&socksBindPort, &transport->socksBuffer->str[4], 2);
+        memmove(&socksBindAddress, &transport->socksBuffer->str[0], 4);
+        memmove(&socksBindPort, &transport->socksBuffer->str[4], 2);
 
         g_string_free(transport->socksBuffer, TRUE);
         transport->socksBuffer = NULL;
