@@ -382,9 +382,9 @@ static gboolean _tgenmarkovmodel_checkVertexAttributes(TGenMarkovModel* mmodel, 
                             "but you gave %s='%s'",
                             _tgenmarkovmodel_vertexTypeToString(VERTEX_TYPE_OBSERVATION),
                             (glong)vertexIndex,
-                            _tgenmarkovmodel_vertexTypeToString(VERTEX_ID_TO_SERVER),
-                            _tgenmarkovmodel_vertexTypeToString(VERTEX_ID_TO_ORIGIN),
-                            _tgenmarkovmodel_vertexTypeToString(VERTEX_ID_END),
+                            _tgenmarkovmodel_vertexIDToString(VERTEX_ID_TO_SERVER),
+                            _tgenmarkovmodel_vertexIDToString(VERTEX_ID_TO_ORIGIN),
+                            _tgenmarkovmodel_vertexIDToString(VERTEX_ID_END),
                             idKey, idStr);
                     isSuccess = FALSE;
                 }
