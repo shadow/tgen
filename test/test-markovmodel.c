@@ -54,7 +54,7 @@ static void generate(TGenMarkovModel* mmodel) {
                 numServerPackets++;
 
                 tgen_info("Found packet to origin observation with packet delay "
-                        "%"G_GUINT64_FORMAT", next origin-bound delay is %"G_GUINT64_FORMAT,
+                        "%"G_GUINT64_FORMAT", next origin-bound delay is %d",
                         delay, nextServerPacketDelay);
 
                 nextServerPacketDelay = 0;
@@ -63,7 +63,7 @@ static void generate(TGenMarkovModel* mmodel) {
                 numOriginPackets++;
 
                 tgen_info("Found packet to server observation with packet delay "
-                        "%"G_GUINT64_FORMAT", next server-bound delay is %"G_GUINT64_FORMAT,
+                        "%"G_GUINT64_FORMAT", next server-bound delay is %d",
                         delay, nextOriginpacketDelay);
 
                 nextOriginpacketDelay = 0;

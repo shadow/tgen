@@ -392,7 +392,7 @@ static GError* _tgengraph_parseGraphEdges(TGenGraph* g) {
     if(!error) {
         g->edgeCount = igraph_ecount(g->graph);
         if(g->edgeCount != edgeCount) {
-            tgen_warning("igraph_vcount %f does not match iterator count %f", g->edgeCount, edgeCount);
+            tgen_warning("igraph_vcount %d does not match iterator count %d", g->edgeCount, edgeCount);
         }
 
         tgen_info("%u graph edges ok", (guint) g->edgeCount);
@@ -1067,7 +1067,7 @@ static GError* _tgengraph_parseGraphVertices(TGenGraph* g) {
     if(!error) {
         g->vertexCount = igraph_vcount(g->graph);
         if(g->vertexCount != vertexCount) {
-            tgen_warning("igraph_vcount %f does not match iterator count %f", g->vertexCount, vertexCount);
+            tgen_warning("igraph_vcount %d does not match iterator count %d", g->vertexCount, vertexCount);
         }
 
         tgen_info("%u graph vertices ok", (guint) g->vertexCount);
