@@ -101,7 +101,7 @@ void tgenlog_printMessage(GLogLevelFlags level, const gchar* fileName, const gin
             g_date_time_get_year(dt), g_date_time_get_month(dt), g_date_time_get_day_of_month(dt),
             g_date_time_get_hour(dt), g_date_time_get_minute(dt), g_date_time_get_second(dt),
             g_date_time_to_unix(dt), g_date_time_get_microsecond(dt),
-            _tgenlog_logLevelToString(level), fileStr, lineNum, functionName, format);
+            _tgenlog_logLevelToString(level), fileStr, lineNum, functionStr, format);
 
     gchar* messageStr = g_strdup_vprintf(newformat->str, vargs);
 
