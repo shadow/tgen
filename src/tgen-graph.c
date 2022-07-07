@@ -1090,7 +1090,6 @@ static GError* _tgengraph_parseGraphProperties(TGenGraph* g) {
                 "igraph_is_connected return non-success code %i", result);
     }
 
-    igraph_integer_t clusterCount;
     result = igraph_clusters(g->graph, NULL, NULL, &(g->clusterCount), IGRAPH_WEAK);
     if(result != IGRAPH_SUCCESS) {
         return g_error_new(G_MARKUP_ERROR, G_MARKUP_ERROR_PARSE,
