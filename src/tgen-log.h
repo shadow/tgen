@@ -11,6 +11,11 @@
 
 void tgenlog_setLogFilterLevel(GLogLevelFlags level);
 
+// The `__format__` attribute tells the compiler to apply the same format-string
+// diagnostics that it does for `printf`.
+// https://clang.llvm.org/docs/AttributeReference.html#format
+// https://gcc.gnu.org/onlinedocs/gcc/Common-Function-Attributes.html#Common-Function-Attributes
+__attribute__((__format__(__printf__, 5, 6)))
 void tgenlog_printMessage(GLogLevelFlags level, const gchar* fileName, const gint lineNum,
         const gchar* functionName, const gchar* format, ...);
 
