@@ -659,6 +659,9 @@ static gboolean _tgenstream_readHeader(TGenStream* stream) {
                         tgen_info("Client running protocol version %s is unsupported", value);
                         theError = TGEN_STREAM_ERR_HEADER_VERSION;
                     }
+
+                    // Minor version number needn't match.
+                    (void)minor;
                 }
 
                 if(versions != NULL) {
