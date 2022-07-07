@@ -1016,6 +1016,7 @@ static TGenEvent _tgentransport_receiveSocksResponseType(TGenTransport* transpor
         return TGEN_EVENT_READ;
     } else {
         gchar reserved = transport->socksBuffer->str[0];
+        (void)reserved;
         gchar addressType = transport->socksBuffer->str[1];
 
         g_string_free(transport->socksBuffer, TRUE);
