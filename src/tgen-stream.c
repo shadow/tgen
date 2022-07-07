@@ -528,9 +528,9 @@ static GString* _tgenstream_getLine(TGenStream* stream) {
         }
 
         if(lineBuffer) {
-            lineBuffer = g_string_append_len(lineBuffer, &buffer[0], bytes);
+            lineBuffer = g_string_append_len(lineBuffer, (char*)&buffer[0], bytes);
         } else {
-            lineBuffer = g_string_new_len(&buffer[0], bytes);
+            lineBuffer = g_string_new_len((char*)&buffer[0], bytes);
         }
 
     }
