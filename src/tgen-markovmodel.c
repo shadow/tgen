@@ -1338,12 +1338,24 @@ static guint64 _tgenmarkovmodel_generateDelay(TGenMarkovModel* mmodel,
         g_assert_not_reached();
     }
 
-    if(generatedValue > UINT64_MAX) {
-        return (guint64)UINT64_MAX;
-    } else if(generatedValue < 0) {
-        return (guint64)0;
+    double rounded = round(generatedValue);
+    if (rounded < 0) {
+        return 0;
+    /* Naively we'd check for > UINT64_MAX, but UINT64_MAX can't be precisely
+     * represented as a double. 2**64 *can* be precisely represented as a double,
+     * so we can check if it's >= that.
+     *
+     * See https://stackoverflow.com/a/17822304
+     */
+    } else if (rounded >= ldexp(1.0, 64)) {
+        return UINT64_MAX;
     } else {
-        return (guint64)round(generatedValue);
+        guint64 rv = (guint64)rounded;
+
+        /* Should "round-trip" */
+        g_assert((double)rv == rounded);
+
+        return rv;
     }
 }
 
