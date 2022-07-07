@@ -86,7 +86,7 @@ jobs:
           esac
 
       - name: Build tgen
-        run: mkdir -p build && cd build && CC=${{ matrix.cc }} cmake .. && make
+        run: mkdir -p build && cd build && CC=${{ matrix.cc }} cmake -DCMAKE_C_FLAGS="-Wall -Werror" .. && make
 
       - name: Install test dependencies
         run: |
