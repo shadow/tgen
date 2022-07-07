@@ -10,6 +10,7 @@
 
 #include <igraph.h>
 
+#include "tgen-igraph-compat.h"
 #include "tgen-log.h"
 #include "tgen-markovmodel.h"
 
@@ -881,7 +882,7 @@ static igraph_t* _tgenmarkovmodel_loadGraph(FILE* graphFileStream, const gchar* 
     igraph_t* graph = g_new0(igraph_t, 1);
 
     /* make sure we use the correct attribute handler */
-    igraph_i_set_attribute_table(&igraph_cattribute_table);
+    igraph_set_attribute_table(&igraph_cattribute_table);
 
     result = igraph_read_graph_graphml(graph, graphFileStream, 0);
 

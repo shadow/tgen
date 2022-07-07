@@ -6,6 +6,7 @@
 #include <igraph.h>
 
 #include "tgen.h"
+#include "tgen-igraph-compat.h"
 
 typedef enum {
     TGEN_A_NONE = 0,
@@ -1271,7 +1272,7 @@ TGenGraph* tgengraph_new(gchar* path) {
          * uses dlmopen to get a private namespace for each plugin. */
 
         /* use the built-in C attribute handler */
-        igraph_attribute_table_t* oldHandler = igraph_i_set_attribute_table(&igraph_cattribute_table);
+        igraph_attribute_table_t* oldHandler = igraph_set_attribute_table(&igraph_cattribute_table);
 
         g->graph = _tgengraph_loadNewGraph(g->graphPath);
         if(!g->graph) {
@@ -1291,7 +1292,7 @@ TGenGraph* tgengraph_new(gchar* path) {
         }
 
         /* replace the old handler */
-        igraph_i_set_attribute_table(oldHandler);
+        igraph_set_attribute_table(oldHandler);
     }
 
     if(error) {
