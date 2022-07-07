@@ -378,7 +378,7 @@ static gboolean _tgenmarkovmodel_checkVertexAttributes(TGenMarkovModel* mmodel, 
                 /* pass, nothing to do for now */
             } else if(_tgenmarkovmodel_vertexTypeIsEqual(typeStr, VERTEX_TYPE_OBSERVATION)) {
                 if(!_tgenmarkovmodel_vertexIDIsEmission(idStr)) {
-                    tgen_warning("'$s' type on vertex %li must be one of '%s', '%s', or '%s', "
+                    tgen_warning("'%s' type on vertex %li must be one of '%s', '%s', or '%s', "
                             "but you gave %s='%s'",
                             _tgenmarkovmodel_vertexTypeToString(VERTEX_TYPE_OBSERVATION),
                             (glong)vertexIndex,

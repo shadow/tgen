@@ -38,6 +38,8 @@ static gchar* _tgenpeer_ipToIPStr(in_addr_t netIP) {
         if(netresult != NULL) {
             ipStr = g_strdup(netresult);
         }
+    } else {
+        ipStr = g_strdup("<INADDR_NONE>");
     }
 
     return ipStr;

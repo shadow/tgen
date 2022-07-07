@@ -820,7 +820,7 @@ static TGenEvent _tgentransport_sendSocksRequest(TGenTransport* transport) {
             guint8 guint8max = -1;
             if(nameLength > guint8max) {
                 nameLength = (glong)guint8max;
-                tgen_warning("truncated name '%s' in socks request from %i to %u bytes",
+                tgen_warning("truncated name '%s' in socks request from %ld to %u bytes",
                         name, nameLength, (guint)guint8max);
             }
 
@@ -924,7 +924,7 @@ static TGenEvent _tgentransport_receiveSocksResponseTypeName(TGenTransport* tran
             return TGEN_EVENT_DONE;
         } else {
             tgen_warning("connection from %s through socks proxy %s to %s failed: "
-                    "proxy requested unsupported reconnection to %s:u",
+                    "proxy requested unsupported reconnection to %s:%u",
                     tgenpeer_toString(transport->local), tgenpeer_toString(transport->proxy), tgenpeer_toString(transport->remote),
                     namebuf, (guint)ntohs(socksBindPort));
 
@@ -984,7 +984,7 @@ static TGenEvent _tgentransport_receiveSocksResponseTypeIPv4(TGenTransport* tran
             return TGEN_EVENT_DONE;
         } else {
             tgen_warning("connection from %s through socks proxy %s to %s failed: "
-                    "proxy requested unsupported reconnection to %i:u",
+                    "proxy requested unsupported reconnection to %i:%u",
                     tgenpeer_toString(transport->local), tgenpeer_toString(transport->proxy), tgenpeer_toString(transport->remote),
                     (gint)socksBindAddress, (guint)ntohs(socksBindPort));
 
