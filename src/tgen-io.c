@@ -387,6 +387,10 @@ gint tgenio_loopOnce(TGenIO* io, gint maxEvents) {
          * even though we don't set them, so we must handle them gracefully. */
         gboolean done = ((epevs[i].events & EPOLLERR) || (epevs[i].events & EPOLLHUP)) ? TRUE : FALSE;
 
+        if (!in && !out && !done) {
+            tgen_error("Unexpected event: %d", epevs[i].events);
+        }
+
         gint eventDescriptor = epevs[i].data.fd;
         TGenIOChild* child = g_hash_table_lookup(io->children, GINT_TO_POINTER(eventDescriptor));
 
