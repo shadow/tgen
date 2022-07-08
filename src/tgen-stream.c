@@ -401,12 +401,7 @@ static void _tgenstream_changeError(TGenStream* stream, TGenStreamErrorType erro
 }
 
 static gint64 _tgenstream_getTime(TGenStream* stream) {
-    if(stream->time.nowCached > 0) {
-        return stream->time.nowCached;
-    } else {
-        stream->time.nowCached = g_get_monotonic_time();
-        return stream->time.nowCached;
-    }
+    return g_get_monotonic_time();
 }
 
 static gsize _tgenstream_readBuffered(TGenStream* stream, guchar* buffer, gsize limit) {
