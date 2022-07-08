@@ -1446,6 +1446,9 @@ static void _tgenstream_onWritable(TGenStream* stream) {
 
     /* if we previously wanted to defer writes, reset the cache */
     if(stream->send.deferBarrierMicros > 0) {
+        if (_tgenstream_getTime(stream) < stream->send.deferBarrierMicros) {
+            tgen_error("Time is %ld but was supposed to defer until %ld", _tgenstream_getTime(stream), stream->send.deferBarrierMicros);
+        }
         g_assert(_tgenstream_getTime(stream) >= stream->send.deferBarrierMicros);
         stream->send.deferBarrierMicros = 0;
     }
