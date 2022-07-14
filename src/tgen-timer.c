@@ -108,6 +108,14 @@ TGenIOResponse tgentimer_onEvent(TGenTimer* timer, gint descriptor, TGenEvent ev
     g_assert(numExpirations > 0);
 
     timer->totalExpirations += numExpirations;
+
+    // XXX loud
+    tgen_warning(
+        "Timer fd %i armed at %ld with interval %ld expired %lu times (%lu "
+        "since last handled).",
+        timer->timerD, timer->armedInstantMicros, timer->intervalMicros,
+        timer->totalExpirations, numExpirations);
+
     gint64 minimumExpectedTime = timer->armedInstantMicros + timer->totalExpirations * timer->intervalMicros;
     gint64 earlyMicros = minimumExpectedTime - now;
     if (earlyMicros > 0) {
