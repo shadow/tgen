@@ -390,7 +390,7 @@ gint tgenio_loopOnce(TGenIO* io, gint maxEvents) {
         if (!in && !out && !done) {
             tgen_error("Unexpected event: %d", epevs[i].events);
         }
-
+        
         gint eventDescriptor = epevs[i].data.fd;
         TGenIOChild* child = g_hash_table_lookup(io->children, GINT_TO_POINTER(eventDescriptor));
 

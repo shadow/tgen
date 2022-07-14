@@ -18,6 +18,9 @@ struct _TGenTimer {
     gint timerD;
     gboolean isPersistent;
 
+    gint64 armedInstantMicros;
+    gint64 intervalMicros;
+
     gint refcount;
     guint magic;
 };
@@ -33,6 +36,8 @@ static void _tgentimer_disarm(TGenTimer* timer) {
         disarm.it_interval.tv_sec = 0;
         disarm.it_interval.tv_nsec = 0;
 
+        timer->armedInstantMicros = 0;
+        timer->intervalMicros = 0;
         timerfd_settime(timer->timerD, 0, &disarm, NULL);
     }
 }
@@ -63,6 +68,8 @@ void tgentimer_setExpireTimeMicros(TGenTimer *timer, guint64 micros) {
         arm.it_interval.tv_sec = 0;
         arm.it_interval.tv_nsec = 0;
     }
+    timer->intervalMicros = micros;
+    timer->armedInstantMicros = g_get_monotonic_time();
     gint result = timerfd_settime(timer->timerD, 0, &arm, NULL);
     if (result < 0) {
         tgen_critical("timerfd_settime(): returned %i error %i: %s", result,
@@ -83,12 +90,28 @@ TGenIOResponse tgentimer_onEvent(TGenTimer* timer, gint descriptor, TGenEvent ev
     guint64 numExpirations = 0;
     gssize result = read(timer->timerD, &numExpirations, sizeof(guint64));
 
-    if(result < 0 && (errno == EAGAIN || errno == EWOULDBLOCK)) {
-    	/* the timer actually wasn't ready to read yet */
-    	tgen_debug("We thought timer fd %i was ready, but it returned EAGAIN", timer->timerD);
-    	/* keep waiting for read */
-    	response.events = TGEN_EVENT_READ;
-    	return response;
+    if(result < 0) {
+        if (errno == EAGAIN || errno == EWOULDBLOCK) {
+            /* the timer actually wasn't ready to read yet */
+            tgen_debug("We thought timer fd %i was ready, but it returned EAGAIN", timer->timerD);
+            /* keep waiting for read */
+            response.events = TGEN_EVENT_READ;
+            return response;
+        }
+        tgen_error("reading from timer fd %i: %s", timer->timerD, g_strerror(errno));
+        abort();
+    }
+    g_assert(numExpirations > 0);
+
+    gint64 minimumExpectedTime = timer->armedInstantMicros + numExpirations * timer->intervalMicros;
+    gint64 now = g_get_monotonic_time();
+    gint64 earlyMicros = minimumExpectedTime - now;
+    if (earlyMicros > 0) {
+      tgen_error("Timer armed at %ld with interval %ld expired %lu times. Time "
+                 "should be > %ld but is %ld. early-micros:%ld",
+                 timer->armedInstantMicros, timer->intervalMicros,
+                 numExpirations, minimumExpectedTime, now, earlyMicros);
+      abort();
     }
 
     /* call the registered notification function */
@@ -154,6 +177,7 @@ TGenTimer* tgentimer_new(guint64 microseconds, gboolean isPersistent,
     }
 
     /* arm the timer, flags=0 -> relative time, NULL -> ignore previous setting */
+    gint64 armedInstantMicros = g_get_monotonic_time();
     gint result = timerfd_settime(timerD, 0, &arm, NULL);
 
     if (result < 0) {
@@ -171,6 +195,8 @@ TGenTimer* tgentimer_new(guint64 microseconds, gboolean isPersistent,
     timer->data2 = data2;
     timer->destructData1 = destructData1;
     timer->destructData2 = destructData2;
+    timer->armedInstantMicros = armedInstantMicros;
+    timer->intervalMicros = microseconds;
 
     timer->timerD = timerD;
     timer->isPersistent = isPersistent;
