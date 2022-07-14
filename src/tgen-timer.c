@@ -20,6 +20,7 @@ struct _TGenTimer {
 
     gint64 armedInstantMicros;
     gint64 intervalMicros;
+    guint64 totalExpirations;
 
     gint refcount;
     guint magic;
@@ -38,6 +39,7 @@ static void _tgentimer_disarm(TGenTimer* timer) {
 
         timer->armedInstantMicros = 0;
         timer->intervalMicros = 0;
+        timer->totalExpirations = 0;
         timerfd_settime(timer->timerD, 0, &disarm, NULL);
     }
 }
@@ -70,6 +72,7 @@ void tgentimer_setExpireTimeMicros(TGenTimer *timer, guint64 micros) {
     }
     timer->intervalMicros = micros;
     timer->armedInstantMicros = g_get_monotonic_time();
+    timer->totalExpirations = 0;
     gint result = timerfd_settime(timer->timerD, 0, &arm, NULL);
     if (result < 0) {
         tgen_critical("timerfd_settime(): returned %i error %i: %s", result,
@@ -87,6 +90,7 @@ TGenIOResponse tgentimer_onEvent(TGenTimer* timer, gint descriptor, TGenEvent ev
     g_assert((events & TGEN_EVENT_READ) && descriptor == timer->timerD);
 
     /* clear the event from the descriptor */
+    gint64 now = g_get_monotonic_time();
     guint64 numExpirations = 0;
     gssize result = read(timer->timerD, &numExpirations, sizeof(guint64));
 
@@ -103,14 +107,16 @@ TGenIOResponse tgentimer_onEvent(TGenTimer* timer, gint descriptor, TGenEvent ev
     }
     g_assert(numExpirations > 0);
 
-    gint64 minimumExpectedTime = timer->armedInstantMicros + numExpirations * timer->intervalMicros;
-    gint64 now = g_get_monotonic_time();
+    timer->totalExpirations += numExpirations;
+    gint64 minimumExpectedTime = timer->armedInstantMicros + timer->totalExpirations * timer->intervalMicros;
     gint64 earlyMicros = minimumExpectedTime - now;
     if (earlyMicros > 0) {
-      tgen_error("Timer armed at %ld with interval %ld expired %lu times. Time "
+      tgen_error("Timer armed at %ld with interval %ld expired %lu times (%lu "
+                 "since last handled). Time "
                  "should be > %ld but is %ld. early-micros:%ld",
                  timer->armedInstantMicros, timer->intervalMicros,
-                 numExpirations, minimumExpectedTime, now, earlyMicros);
+                 timer->totalExpirations, numExpirations, minimumExpectedTime,
+                 now, earlyMicros);
       abort();
     }
 
@@ -197,6 +203,7 @@ TGenTimer* tgentimer_new(guint64 microseconds, gboolean isPersistent,
     timer->destructData2 = destructData2;
     timer->armedInstantMicros = armedInstantMicros;
     timer->intervalMicros = microseconds;
+    timer->totalExpirations = 0;
 
     timer->timerD = timerD;
     timer->isPersistent = isPersistent;
