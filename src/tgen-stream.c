@@ -528,9 +528,9 @@ static GString* _tgenstream_getLine(TGenStream* stream) {
         }
 
         if(lineBuffer) {
-            lineBuffer = g_string_append_len(lineBuffer, &buffer[0], bytes);
+            lineBuffer = g_string_append_len(lineBuffer, (char*)&buffer[0], bytes);
         } else {
-            lineBuffer = g_string_new_len(&buffer[0], bytes);
+            lineBuffer = g_string_new_len((char*)&buffer[0], bytes);
         }
 
     }
@@ -659,6 +659,9 @@ static gboolean _tgenstream_readHeader(TGenStream* stream) {
                         tgen_info("Client running protocol version %s is unsupported", value);
                         theError = TGEN_STREAM_ERR_HEADER_VERSION;
                     }
+
+                    // Minor version number needn't match.
+                    (void)minor;
                 }
 
                 if(versions != NULL) {
@@ -1329,7 +1332,6 @@ static gboolean _tgenstream_writePayload(TGenStream* stream) {
     }
 
     gsize cumulativeSize = 0;
-    guint64 cumulativeDelay = 0;
     guint64 interPacketDelay = 0;
 
     while(cumulativeSize < limit) {
@@ -1343,7 +1345,6 @@ static gboolean _tgenstream_writePayload(TGenStream* stream) {
             /* the other end is sending us a packet, we have nothing to do.
              * but this delay should be included in the delay for our next outgoing packet. */
             interPacketDelay += obsDelay;
-            cumulativeDelay += obsDelay;
         } else if((stream->isCommander && obs == OBSERVATION_TO_SERVER)
                 || (!stream->isCommander && obs == OBSERVATION_TO_ORIGIN)) {
             /* this means we should send a packet */
@@ -1351,7 +1352,6 @@ static gboolean _tgenstream_writePayload(TGenStream* stream) {
             stream->send.expectedBytes += TGEN_MMODEL_PACKET_DATA_SIZE;
             /* since we sent a packet, now we reset the delay */
             interPacketDelay = obsDelay;
-            cumulativeDelay += obsDelay;
         } else if(obs == OBSERVATION_END) {
             /* if we have a specific requested send size, we need to reset and keep sending.
              * we never reset when requestedBytes is 0 (it either means no bytes, or end

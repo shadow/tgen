@@ -761,22 +761,22 @@ static TGenEvent _tgentransport_receiveSocksAuth(TGenTransport* transport) {
         return TGEN_EVENT_READ;
     } else {
         /* we read it all, we can move on */
-        gboolean versionMatch = (transport->socksBuffer->str[0] == 0x01) ? TRUE : FALSE;
+        int version = transport->socksBuffer->str[0];
+        gboolean versionMatch = (version == 0x01) ? TRUE : FALSE;
         gboolean authSuccess = (transport->socksBuffer->str[1] == 0x00) ? TRUE : FALSE;
 
         g_string_free(transport->socksBuffer, TRUE);
         transport->socksBuffer = NULL;
 
-        if(authSuccess) {
-            tgen_info("socks server %s authentication succeeded with username='%s' and password='%s'",
-                    tgenpeer_toString(transport->proxy),
-                    transport->username ? transport->username : "",
-                    transport->password ? transport->password : "");
+        if (!versionMatch) {
+            tgen_warning("socks server %s returned unexpected version %d", 
+                    tgenpeer_toString(transport->proxy), version);
+            _tgentransport_changeState(transport, TGEN_XPORT_ERROR);
+            _tgentransport_changeError(transport, TGEN_XPORT_ERR_PROXY_VERSION);
+            return TGEN_EVENT_NONE;
+        }
 
-            /* now we can move on to the request */
-            _tgentransport_changeState(transport, TGEN_XPORT_PROXY_REQUEST);
-            return TGEN_EVENT_WRITE;
-        } else {
+        if (!authSuccess){
             tgen_warning("socks server %s authentication failed with username='%s' and password='%s'",
                     tgenpeer_toString(transport->proxy),
                     transport->username ? transport->username : "",
@@ -786,6 +786,15 @@ static TGenEvent _tgentransport_receiveSocksAuth(TGenTransport* transport) {
             _tgentransport_changeError(transport, TGEN_XPORT_ERR_PROXY_AUTH);
             return TGEN_EVENT_NONE;
         }
+
+        tgen_info("socks server %s authentication succeeded with username='%s' and password='%s'",
+                tgenpeer_toString(transport->proxy),
+                transport->username ? transport->username : "",
+                transport->password ? transport->password : "");
+
+        /* now we can move on to the request */
+        _tgentransport_changeState(transport, TGEN_XPORT_PROXY_REQUEST);
+        return TGEN_EVENT_WRITE;
     }
 }
 
@@ -1007,6 +1016,7 @@ static TGenEvent _tgentransport_receiveSocksResponseType(TGenTransport* transpor
         return TGEN_EVENT_READ;
     } else {
         gchar reserved = transport->socksBuffer->str[0];
+        (void)reserved;
         gchar addressType = transport->socksBuffer->str[1];
 
         g_string_free(transport->socksBuffer, TRUE);

@@ -6,6 +6,7 @@
 #include <igraph.h>
 
 #include "tgen.h"
+#include "tgen-igraph-compat.h"
 
 typedef enum {
     TGEN_A_NONE = 0,
@@ -1090,7 +1091,6 @@ static GError* _tgengraph_parseGraphProperties(TGenGraph* g) {
                 "igraph_is_connected return non-success code %i", result);
     }
 
-    igraph_integer_t clusterCount;
     result = igraph_clusters(g->graph, NULL, NULL, &(g->clusterCount), IGRAPH_WEAK);
     if(result != IGRAPH_SUCCESS) {
         return g_error_new(G_MARKUP_ERROR, G_MARKUP_ERROR_PARSE,
@@ -1272,7 +1272,7 @@ TGenGraph* tgengraph_new(gchar* path) {
          * uses dlmopen to get a private namespace for each plugin. */
 
         /* use the built-in C attribute handler */
-        igraph_attribute_table_t* oldHandler = igraph_i_set_attribute_table(&igraph_cattribute_table);
+        igraph_attribute_table_t* oldHandler = igraph_set_attribute_table(&igraph_cattribute_table);
 
         g->graph = _tgengraph_loadNewGraph(g->graphPath);
         if(!g->graph) {
@@ -1292,7 +1292,7 @@ TGenGraph* tgengraph_new(gchar* path) {
         }
 
         /* replace the old handler */
-        igraph_i_set_attribute_table(oldHandler);
+        igraph_set_attribute_table(oldHandler);
     }
 
     if(error) {
