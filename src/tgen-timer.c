@@ -41,6 +41,7 @@ static void _tgentimer_disarm(TGenTimer* timer) {
         timer->intervalMicros = 0;
         timer->totalExpirations = 0;
         timerfd_settime(timer->timerD, 0, &disarm, NULL);
+        tgen_debug("timer fd %d disarmed", timer->timerD);
     }
 }
 
@@ -79,6 +80,7 @@ void tgentimer_setExpireTimeMicros(TGenTimer *timer, guint64 micros) {
                 errno, g_strerror(errno));
         return;
     }
+    tgen_debug("timer fd %d set to expire in %lu micros", timer->timerD, micros);
 }
 
 TGenIOResponse tgentimer_onEvent(TGenTimer* timer, gint descriptor, TGenEvent events) {
@@ -109,8 +111,7 @@ TGenIOResponse tgentimer_onEvent(TGenTimer* timer, gint descriptor, TGenEvent ev
 
     timer->totalExpirations += numExpirations;
 
-    // XXX loud
-    tgen_warning(
+    tgen_debug(
         "Timer fd %i armed at %ld with interval %ld expired %lu times (%lu "
         "since last handled).",
         timer->timerD, timer->armedInstantMicros, timer->intervalMicros,
@@ -119,9 +120,10 @@ TGenIOResponse tgentimer_onEvent(TGenTimer* timer, gint descriptor, TGenEvent ev
     gint64 minimumExpectedTime = timer->armedInstantMicros + timer->totalExpirations * timer->intervalMicros;
     gint64 earlyMicros = minimumExpectedTime - now;
     if (earlyMicros > 0) {
-      tgen_error("Timer armed at %ld with interval %ld expired %lu times (%lu "
+      tgen_error("Timer fd %d armed at %ld with interval %ld expired %lu times (%lu "
                  "since last handled). Time "
                  "should be > %ld but is %ld. early-micros:%ld",
+                 timer->timerD,
                  timer->armedInstantMicros, timer->intervalMicros,
                  timer->totalExpirations, numExpirations, minimumExpectedTime,
                  now, earlyMicros);
@@ -193,11 +195,11 @@ TGenTimer* tgentimer_new(guint64 microseconds, gboolean isPersistent,
     /* arm the timer, flags=0 -> relative time, NULL -> ignore previous setting */
     gint64 armedInstantMicros = g_get_monotonic_time();
     gint result = timerfd_settime(timerD, 0, &arm, NULL);
-
     if (result < 0) {
         tgen_critical("timerfd_settime(): returned %i error %i: %s", result, errno, g_strerror(errno));
         return NULL;
     }
+    tgen_debug("timer fd %d created and set to expire in %lu micros", timerD, microseconds);
 
     /* allocate the new server object and return it */
     TGenTimer* timer = g_new0(TGenTimer, 1);
@@ -237,6 +239,8 @@ static void _tgentimer_free(TGenTimer* timer) {
 
     timer->magic = 0;
     g_free(timer);
+
+    tgen_debug("timer fd %d freed while still armed", timer->timerD);
 }
 
 void tgentimer_ref(TGenTimer* timer) {
