@@ -368,7 +368,7 @@ class TGenParser(Parser):
             if not self.__is_date_valid(line_date):
                 return True
 
-        elif do_complete and re.search("stream-status", line) is not None:
+        if do_complete and re.search("stream-status", line) is not None:
             status = StreamStatusEvent(line)
             stream = self.state.setdefault(status.stream_id, Stream(status.stream_id))
             stream.add_event(status)
