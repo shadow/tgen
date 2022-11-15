@@ -33,8 +33,8 @@ Install into the virtual environment:
 
 Or build/install locally (outside of the virtual environment):
 
-   python3 setup.py build
-   python3 setup.py install
+    python3 setup.py build
+    python3 setup.py install
 
 ## Run TGenTools
 
