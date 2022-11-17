@@ -36,7 +36,7 @@ Each edge may contain a 'weight' attribute with a floating point 'double' value,
 
 A weighted choice is used to select which weighted outgoing edge of a vertex to follow, based on the sum of weights of all weighted outgoing edges. Therefore, if all weighted outgoing edges have the same weight, the choice will essentially be a uniform random choice.
 
-Be warned that edge weights must be used carefully, especially when combined with the synchronize action. A synchronize action expects that all incoming edges will visit it, which may not be the case if weighted edges were used at some point in a path leading to the synchronize action.
+Be warned that edge weights must be used carefully, especially when combined with the pause action. A pause action expects that all incoming edges will visit it, which may not be the case if weighted edges were used at some point in a path leading to the pause action.
 
 # Examples
 
