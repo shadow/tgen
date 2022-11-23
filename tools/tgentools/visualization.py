@@ -9,19 +9,29 @@ matplotlib.use('Agg') # for systems without X11
 import matplotlib.pyplot as pyplot
 from matplotlib.backends.backend_pdf import PdfPages
 
-import numpy, time, logging, re
+import numpy, time, logging, os, re
 from abc import abstractmethod, ABCMeta
 
 class Visualization(object):
 
     __metaclass__ = ABCMeta
 
-    def __init__(self, hostpatterns, do_bytes, do_heartbeat_cdfs, do_stats_cdfs):
+    def __init__(self, hostpatterns, do_bytes, do_heartbeat_cdfs, do_stats_cdfs, do_plot_pngs, do_plot_pdfs, prefix):
         self.datasets = []
         self.hostpatterns = hostpatterns
         self.do_bytes = do_bytes
         self.do_heartbeat_cdfs = do_heartbeat_cdfs
         self.do_stats_cdfs = do_stats_cdfs
+
+        self.do_plot_pngs = do_plot_pngs
+        self.do_plot_pdfs = do_plot_pdfs
+
+        if prefix is None:
+            self.prefix = ""
+        elif os.path.isdir(prefix):
+            self.prefix = prefix if prefix.endswith('/') else prefix + '/'
+        else:
+            self.prefix = prefix + '.'
 
     def add_dataset(self, analysis, label, lineformat):
         self.datasets.append((analysis, label, lineformat))
@@ -32,11 +42,17 @@ class Visualization(object):
 
 class TGenVisualization(Visualization):
 
-    def plot_all(self, output_prefix):
+    def __save_fig(self, name):
+        if self.do_plot_pngs:
+            pyplot.savefig(f"{self.prefix}{name}.png")
+        if self.do_plot_pdfs:
+            pyplot.savefig(f"{self.prefix}{name}.pdf")
+        self.page.savefig()
+
+    def plot_all(self):
         if len(self.datasets) > 0:
-            prefix = output_prefix + '.' if output_prefix is not None else ''
             ts = time.strftime("%Y-%m-%d_%H:%M:%S")
-            pagename = "{0}tgen.viz.{1}.pdf".format(prefix, ts)
+            pagename = "{0}tgen.viz.{1}.pdf".format(self.prefix, ts)
 
             matplotlib.rcParams.update({'figure.max_open_warning': 0})
 
@@ -167,7 +183,7 @@ class TGenVisualization(Visualization):
             pyplot.title("time to download first byte, all clients")
             pyplot.legend(loc="best")
             pyplot.tight_layout(pad=0.3)
-            self.page.savefig()
+            self.__save_fig("time_to_first_byte_recv_cdf")
             pyplot.close()
 
     def __plot_firstbyte_timeseries(self):
@@ -211,7 +227,7 @@ class TGenVisualization(Visualization):
             pyplot.title("moving avg. time to download first byte, all clients over time")
             pyplot.legend(loc="best")
             pyplot.tight_layout(pad=0.3)
-            self.page.savefig()
+            self.__save_fig("time_to_first_byte_recv_timeseries")
             pyplot.close()
 
     def __plot_lastbyte_all(self):
@@ -240,7 +256,7 @@ class TGenVisualization(Visualization):
             pyplot.title("time to download {0} bytes, all downloads".format(bytes))
             pyplot.legend(loc="best")
             pyplot.tight_layout(pad=0.3)
-            self.page.savefig()
+            self.__save_fig("time_to_last_byte_recv_cdf")
             pyplot.close()
 
     def __plot_lastbyte_median(self):
@@ -271,7 +287,7 @@ class TGenVisualization(Visualization):
             pyplot.title("median time to download {0} bytes, each client".format(bytes))
             pyplot.legend(loc="best")
             pyplot.tight_layout(pad=0.3)
-            self.page.savefig()
+            self.__save_fig("time_to_last_byte_recv_median_cdf")
             pyplot.close()
 
     def __plot_lastbyte_mean(self):
@@ -302,7 +318,7 @@ class TGenVisualization(Visualization):
             pyplot.title("mean time to download {0} bytes, each client".format(bytes))
             pyplot.legend(loc="best")
             pyplot.tight_layout(pad=0.3)
-            self.page.savefig()
+            self.__save_fig("time_to_last_byte_recv_mean_cdf")
             pyplot.close()
 
     def __plot_lastbyte_max(self):
@@ -333,7 +349,7 @@ class TGenVisualization(Visualization):
             pyplot.title("max time to download {0} bytes, each client".format(bytes))
             pyplot.legend(loc="best")
             pyplot.tight_layout(pad=0.3)
-            self.page.savefig()
+            self.__save_fig("time_to_last_byte_recv_max_cdf")
             pyplot.close()
 
     def __plot_byte_timeseries(self, bytekey="time_to_last_byte_recv"):
@@ -381,7 +397,7 @@ class TGenVisualization(Visualization):
             pyplot.title("moving avg. time to download {0} of {1} bytes, all clients over time".format('first' if 'first' in bytekey else 'last', bytes))
             pyplot.legend(loc="best")
             pyplot.tight_layout(pad=0.3)
-            self.page.savefig()
+            self.__save_fig("time_to_last_byte_recv_timeseries")
             pyplot.close()
 
     def __plot_downloads(self):
@@ -409,7 +425,7 @@ class TGenVisualization(Visualization):
             pyplot.title("number of total downloads completed, each client")
             pyplot.legend(loc="best")
             pyplot.tight_layout(pad=0.3)
-            self.page.savefig()
+            self.__save_fig("time_to_last_byte_recv_count_cdf")
             pyplot.close()
 
     def __plot_downloads_timeseries(self):
@@ -456,7 +472,7 @@ class TGenVisualization(Visualization):
             pyplot.title("moving avg. number of downloads completed, all clients over time")
             pyplot.legend(loc="best")
             pyplot.tight_layout(pad=0.3)
-            self.page.savefig()
+            self.__save_fig("time_to_last_byte_recv_count_timeseries")
             pyplot.close()
 
     def __plot_downloads_bytes(self):
@@ -486,7 +502,7 @@ class TGenVisualization(Visualization):
             pyplot.title("number of {0} byte downloads completed, each client".format(bytes))
             pyplot.legend(loc="best")
             pyplot.tight_layout(pad=0.3)
-            self.page.savefig()
+            self.__save_fig(f"time_to_last_byte_recv_{bytes}_count_cdf")
             pyplot.close()
 
     def __plot_downloads_timeseries_bytes(self):
@@ -534,7 +550,7 @@ class TGenVisualization(Visualization):
             pyplot.title("moving avg. num. {0} byte downloads completed, all clients over time".format(bytes))
             pyplot.legend(loc="best")
             pyplot.tight_layout(pad=0.3)
-            self.page.savefig()
+            self.__save_fig(f"time_to_last_byte_recv_{bytes}_count_timeseries")
             pyplot.close()
 
     def __plot_errors(self):
@@ -576,7 +592,7 @@ class TGenVisualization(Visualization):
             pyplot.title("number of transfer {0} errors, each client".format(code))
             pyplot.legend(loc="best")
             pyplot.tight_layout(pad=0.3)
-            self.page.savefig()
+            self.__save_fig("errors_cdf")
             pyplot.close()
 
     def __plot_errors_timeseries(self):
@@ -627,7 +643,7 @@ class TGenVisualization(Visualization):
             pyplot.title("moving avg. num. transfer {0} errors, all clients over time".format(code))
             pyplot.legend(loc="best")
             pyplot.tight_layout(pad=0.3)
-            self.page.savefig()
+            self.__save_fig("errors_timeseries")
             pyplot.close()
 
     def __plot_errsizes_all(self):
@@ -657,7 +673,7 @@ class TGenVisualization(Visualization):
             pyplot.title("bytes transferred before {0} error, all downloads".format(code))
             pyplot.legend(loc="best")
             pyplot.tight_layout(pad=0.3)
-            self.page.savefig()
+            self.__save_fig("errors_bytes_cdf")
             pyplot.close()
 
     def __plot_errsizes_median(self):
@@ -687,7 +703,7 @@ class TGenVisualization(Visualization):
             pyplot.title("median bytes transferred before {0} error, each client".format(code))
             pyplot.legend(loc="best")
             pyplot.tight_layout(pad=0.3)
-            self.page.savefig()
+            self.__save_fig("errors_bytes_median_cdf")
             pyplot.close()
 
     def __plot_errsizes_mean(self):
@@ -717,7 +733,7 @@ class TGenVisualization(Visualization):
             pyplot.title("mean bytes transferred before {0} error, each client".format(code))
             pyplot.legend(loc="best")
             pyplot.tight_layout(pad=0.3)
-            self.page.savefig()
+            self.__save_fig("errors_bytes_mean_cdf")
             pyplot.close()
 
     def __plot_heartbeat_cdf(self, hbkey='streams-created'):
@@ -746,7 +762,7 @@ class TGenVisualization(Visualization):
             pyplot.title("sum of heartbeat '{}' count, each client".format(hbkey))
             pyplot.legend(loc="best")
             pyplot.tight_layout(pad=0.3)
-            self.page.savefig()
+            self.__save_fig(f"{hbkey.replace('-', '_')}_count_cdf")
             pyplot.close()
 
     def __plot_heartbeat_timeseries(self, hbkey='streams-created'):
@@ -791,7 +807,7 @@ class TGenVisualization(Visualization):
             pyplot.title("moving avg. sum of heartbeat '{}', all clients over time".format(hbkey))
             pyplot.legend(loc="best")
             pyplot.tight_layout(pad=0.3)
-            self.page.savefig()
+            self.__save_fig(f"{hbkey.replace('-', '_')}_count_timeseries")
             pyplot.close()
 
 # helper - compute the window_size moving average over the data in interval
