@@ -256,7 +256,7 @@ class TGenVisualization(Visualization):
             pyplot.title("time to download {0} bytes, all downloads".format(bytes))
             pyplot.legend(loc="best")
             pyplot.tight_layout(pad=0.3)
-            self.__save_fig("time_to_last_byte_recv_cdf")
+            self.__save_fig(f"time_to_last_byte_recv_{bytes.replace('-', '_')}_cdf")
             pyplot.close()
 
     def __plot_lastbyte_median(self):
@@ -287,7 +287,7 @@ class TGenVisualization(Visualization):
             pyplot.title("median time to download {0} bytes, each client".format(bytes))
             pyplot.legend(loc="best")
             pyplot.tight_layout(pad=0.3)
-            self.__save_fig("time_to_last_byte_recv_median_cdf")
+            self.__save_fig(f"time_to_last_byte_recv_{bytes.replace('-', '_')}_median_cdf")
             pyplot.close()
 
     def __plot_lastbyte_mean(self):
@@ -318,7 +318,7 @@ class TGenVisualization(Visualization):
             pyplot.title("mean time to download {0} bytes, each client".format(bytes))
             pyplot.legend(loc="best")
             pyplot.tight_layout(pad=0.3)
-            self.__save_fig("time_to_last_byte_recv_mean_cdf")
+            self.__save_fig(f"time_to_last_byte_recv_{bytes.replace('-', '_')}_mean_cdf")
             pyplot.close()
 
     def __plot_lastbyte_max(self):
@@ -349,7 +349,7 @@ class TGenVisualization(Visualization):
             pyplot.title("max time to download {0} bytes, each client".format(bytes))
             pyplot.legend(loc="best")
             pyplot.tight_layout(pad=0.3)
-            self.__save_fig("time_to_last_byte_recv_max_cdf")
+            self.__save_fig(f"time_to_last_byte_recv_{bytes.replace('-', '_')}_max_cdf")
             pyplot.close()
 
     def __plot_byte_timeseries(self, bytekey="time_to_last_byte_recv"):
@@ -397,7 +397,7 @@ class TGenVisualization(Visualization):
             pyplot.title("moving avg. time to download {0} of {1} bytes, all clients over time".format('first' if 'first' in bytekey else 'last', bytes))
             pyplot.legend(loc="best")
             pyplot.tight_layout(pad=0.3)
-            self.__save_fig("time_to_last_byte_recv_timeseries")
+            self.__save_fig(f"time_to_last_byte_recv_{bytes.replace('-', '_')}_timeseries")
             pyplot.close()
 
     def __plot_downloads(self):
@@ -592,7 +592,7 @@ class TGenVisualization(Visualization):
             pyplot.title("number of transfer {0} errors, each client".format(code))
             pyplot.legend(loc="best")
             pyplot.tight_layout(pad=0.3)
-            self.__save_fig("errors_cdf")
+            self.__save_fig(f"errors_{code.replace('-', '_')}_cdf")
             pyplot.close()
 
     def __plot_errors_timeseries(self):
@@ -643,7 +643,7 @@ class TGenVisualization(Visualization):
             pyplot.title("moving avg. num. transfer {0} errors, all clients over time".format(code))
             pyplot.legend(loc="best")
             pyplot.tight_layout(pad=0.3)
-            self.__save_fig("errors_timeseries")
+            self.__save_fig(f"errors_{code.replace('-', '_')}_timeseries")
             pyplot.close()
 
     def __plot_errsizes_all(self):
@@ -673,7 +673,7 @@ class TGenVisualization(Visualization):
             pyplot.title("bytes transferred before {0} error, all downloads".format(code))
             pyplot.legend(loc="best")
             pyplot.tight_layout(pad=0.3)
-            self.__save_fig("errors_bytes_cdf")
+            self.__save_fig(f"errors_{code.replace('-', '_')}_bytes_cdf")
             pyplot.close()
 
     def __plot_errsizes_median(self):
@@ -703,7 +703,7 @@ class TGenVisualization(Visualization):
             pyplot.title("median bytes transferred before {0} error, each client".format(code))
             pyplot.legend(loc="best")
             pyplot.tight_layout(pad=0.3)
-            self.__save_fig("errors_bytes_median_cdf")
+            self.__save_fig(f"errors_{code.replace('-', '_')}_bytes_median_cdf")
             pyplot.close()
 
     def __plot_errsizes_mean(self):
@@ -733,7 +733,7 @@ class TGenVisualization(Visualization):
             pyplot.title("mean bytes transferred before {0} error, each client".format(code))
             pyplot.legend(loc="best")
             pyplot.tight_layout(pad=0.3)
-            self.__save_fig("errors_bytes_mean_cdf")
+            self.__save_fig(f"errors_{code.replace('-', '_')}_bytes_mean_cdf")
             pyplot.close()
 
     def __plot_heartbeat_cdf(self, hbkey='streams-created'):
