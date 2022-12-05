@@ -61,7 +61,7 @@ G.add_node('s1', type="state", name='anything_you_want')
 ```
 
 The graph must contain one and only one vertex of _type_ `state` whose _name_
-is `start`. This instructs TGen in which state the Marov model begins. The
+is `start`. This instructs TGen in which state the Markov model begins. The
 _name_ of the other vertices of _type_ `state` are insignificant and can be
 set to any string.
 
