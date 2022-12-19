@@ -23,7 +23,7 @@ Dependencies in Fedora/RedHat:
 
 Dependencies in Ubuntu/Debian:
 
-    sudo apt-get install cmake libglib2.0-0 libglib2.0-dev libigraph1 libigraph-dev
+    sudo apt-get install cmake libglib2.0-0 libglib2.0-dev libigraph-dev
 
 Build with a custom install prefix:
 
