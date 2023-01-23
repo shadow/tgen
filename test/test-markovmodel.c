@@ -74,6 +74,8 @@ static void generate(TGenMarkovModel* mmodel) {
             }
         }
     }
+
+    tgen_info("%d server packets and %d origin packets", numServerPackets, numOriginPackets);
 }
 
 gint main(gint argc, gchar *argv[]) {

@@ -73,8 +73,9 @@ TGenIOResponse tgenserver_onEvent(TGenServer* server, gint descriptor, TGenEvent
     g_assert((events & TGEN_EVENT_READ) && descriptor == server->socketD);
 
     gboolean blocked = FALSE;
+#ifdef DEBUG
     gint acceptedCount = 0;
-
+#endif
     /* accept as many connections as we have available, until we get EWOULDBLOCK error */
     while(!blocked) {
         gint result = _tgenserver_acceptPeer(server);
@@ -86,7 +87,9 @@ TGenIOResponse tgenserver_onEvent(TGenServer* server, gint descriptor, TGenEvent
                         server->socketD, result, errno, g_strerror(errno));
             }
         } else {
+#ifdef DEBUG
             acceptedCount++;
+#endif
         }
     }
 
