@@ -27,11 +27,17 @@ jobs:
       matrix:
         cc: ['gcc', 'clang']
         container:
+          # We generally try to support the same set of platforms as shadow does.
+          # See https://shadow.github.io/docs/guide/supported_platforms.html
           - 'ubuntu:18.04'
           - 'ubuntu:20.04'
+          - 'ubuntu:22.04'
           - 'debian:10-slim'
           - 'debian:11-slim'
           - 'fedora:34'
+          - 'fedora:35'
+          - 'fedora:36'
+          - 'fedora:37'
           - 'quay.io/centos/centos:stream8'
     steps:
       - name: Update packages
