@@ -58,16 +58,13 @@ jobs:
               apt-get install -y \
                 ${{ matrix.cc }} \
                 cmake \
-                libglib2.0-0 \
                 libglib2.0-dev \
-                libigraph0v5 \
-                libigraph0-dev
+                libigraph-dev
               ;;
             debian*)
               apt-get install -y \
                 ${{ matrix.cc }} \
                 cmake \
-                libglib2.0-0 \
                 libglib2.0-dev \
                 libigraph-dev
               ;;
