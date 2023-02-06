@@ -182,7 +182,7 @@ will override the default pattern 'tgen.*\.log'.""",
                 matplotlib's plot command (see matplotlib.pyplot.plot)""",
         metavar="LIST", type=str,
         action="store", dest="lineformats",
-        default=util.LINEFORMATS)
+        default=util.LINE_FORMATS)
 
     visualize_parser.add_argument('-e', '--expression',
         help="""Append a regex PATTERN to a custom list of strings used with
