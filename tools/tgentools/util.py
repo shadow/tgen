@@ -34,9 +34,10 @@ def find_file_paths(searchpath, patterns):
             for name in files:
                 found = False
                 fpath = os.path.join(root, name)
-                fbase = os.path.basename(fpath)
+                # search only the relative path + filename (relative to the original search path)
+                frelpath = os.path.relpath(fpath, searchpath)
                 for pattern in patterns:
-                    if re.search(pattern, fbase): found = True
+                    if re.search(pattern, frelpath): found = True
                 if found: paths.append(fpath)
     return paths
 
