@@ -19,7 +19,7 @@ typedef enum {
 typedef enum {
     TGEN_XPORT_ERR_NONE, TGEN_XPORT_ERR_CONNECT,
     TGEN_XPORT_ERR_PROXY_CHOICE, TGEN_XPORT_ERR_PROXY_AUTH,
-    TGEN_XPORT_ERR_PROXY_RECONN, TGEN_XPORT_ERR_PROXY_ADDR,
+    TGEN_XPORT_ERR_PROXY_ADDR,
     TGEN_XPORT_ERR_PROXY_VERSION, TGEN_XPORT_ERR_PROXY_STATUS,
     TGEN_XPORT_ERR_WRITE, TGEN_XPORT_ERR_READ, TGEN_XPORT_ERR_MISC,
     TGEN_XPORT_ERR_STALLOUT, TGEN_XPORT_ERR_TIMEOUT
@@ -124,9 +124,6 @@ static const gchar* _tgentransport_errorToString(TGenTransportError error) {
         }
         case TGEN_XPORT_ERR_PROXY_AUTH: {
             return "AUTH";
-        }
-        case TGEN_XPORT_ERR_PROXY_RECONN: {
-            return "RECONN";
         }
         case TGEN_XPORT_ERR_PROXY_ADDR: {
             return "ADDR";
@@ -923,24 +920,17 @@ static TGenEvent _tgentransport_receiveSocksResponseTypeName(TGenTransport* tran
         g_string_free(transport->socksBuffer, TRUE);
         transport->socksBuffer = NULL;
 
-        if(!g_ascii_strncasecmp(namebuf, "\0", (gsize) 1) && socksBindPort == 0) {
-            tgen_info("connection from %s through socks proxy %s to %s successful",
-                    tgenpeer_toString(transport->local), tgenpeer_toString(transport->proxy), tgenpeer_toString(transport->remote));
+        /* Since we sent a CONNECT request, the response name and port are mostly informational
+         * and can just be logged and ignored. */
+        tgen_debug("received socks response with name='%s' and port=%u", namebuf, (guint)ntohs(socksBindPort));
 
-            transport->time.proxyResponse = g_get_monotonic_time();
-            transport->time.lastProgress = transport->time.proxyResponse;
-            _tgentransport_changeState(transport, TGEN_XPORT_SUCCESSOPEN);
-            return TGEN_EVENT_DONE;
-        } else {
-            tgen_warning("connection from %s through socks proxy %s to %s failed: "
-                    "proxy requested unsupported reconnection to %s:%u",
-                    tgenpeer_toString(transport->local), tgenpeer_toString(transport->proxy), tgenpeer_toString(transport->remote),
-                    namebuf, (guint)ntohs(socksBindPort));
+        tgen_info("connection from %s through socks proxy %s to %s successful",
+                tgenpeer_toString(transport->local), tgenpeer_toString(transport->proxy), tgenpeer_toString(transport->remote));
 
-            _tgentransport_changeState(transport, TGEN_XPORT_ERROR);
-            _tgentransport_changeError(transport, TGEN_XPORT_ERR_PROXY_RECONN);
-            return TGEN_EVENT_NONE;
-        }
+        transport->time.proxyResponse = g_get_monotonic_time();
+        transport->time.lastProgress = transport->time.proxyResponse;
+        _tgentransport_changeState(transport, TGEN_XPORT_SUCCESSOPEN);
+        return TGEN_EVENT_DONE;
     }
 }
 
@@ -982,25 +972,19 @@ static TGenEvent _tgentransport_receiveSocksResponseTypeIPv4(TGenTransport* tran
         g_string_free(transport->socksBuffer, TRUE);
         transport->socksBuffer = NULL;
 
-        /* reconnect not supported */
-        if(socksBindAddress == 0 && socksBindPort == 0) {
-            tgen_info("connection from %s through socks proxy %s to %s successful",
-                    tgenpeer_toString(transport->local), tgenpeer_toString(transport->proxy), tgenpeer_toString(transport->remote));
+        /* Since we sent a CONNECT request, the response name and port are mostly informational and
+         * can just be logged and ignored. */
+        gchar socksBindAddrStr[INET_ADDRSTRLEN + 1] = {0};
+        inet_ntop(AF_INET, &socksBindAddress, socksBindAddrStr, INET_ADDRSTRLEN);
+        tgen_debug("received socks response with addr=%s and port=%u", socksBindAddrStr, (guint)ntohs(socksBindPort));
 
-            transport->time.proxyResponse = g_get_monotonic_time();
-            transport->time.lastProgress = transport->time.proxyResponse;
-            _tgentransport_changeState(transport, TGEN_XPORT_SUCCESSOPEN);
-            return TGEN_EVENT_DONE;
-        } else {
-            tgen_warning("connection from %s through socks proxy %s to %s failed: "
-                    "proxy requested unsupported reconnection to %i:%u",
-                    tgenpeer_toString(transport->local), tgenpeer_toString(transport->proxy), tgenpeer_toString(transport->remote),
-                    (gint)socksBindAddress, (guint)ntohs(socksBindPort));
+        tgen_info("connection from %s through socks proxy %s to %s successful",
+                tgenpeer_toString(transport->local), tgenpeer_toString(transport->proxy), tgenpeer_toString(transport->remote));
 
-            _tgentransport_changeState(transport, TGEN_XPORT_ERROR);
-            _tgentransport_changeError(transport, TGEN_XPORT_ERR_PROXY_RECONN);
-            return TGEN_EVENT_NONE;
-        }
+        transport->time.proxyResponse = g_get_monotonic_time();
+        transport->time.lastProgress = transport->time.proxyResponse;
+        _tgentransport_changeState(transport, TGEN_XPORT_SUCCESSOPEN);
+        return TGEN_EVENT_DONE;
     }
 }
 
