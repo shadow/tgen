@@ -33,8 +33,27 @@ jobs:
           - 'ubuntu:22.04'
           - 'debian:10-slim'
           - 'debian:11-slim'
+          - 'debian:12-slim'
           - 'fedora:37'
     steps:
+      # See https://github.com/shadow/tgen/issues/44#issuecomment-1693982909
+      - name: Install debian:11 backports
+        if: ${{ matrix.container == 'debian:12-slim' }}
+        run: |
+          cat <<EOF > /etc/apt/sources.list.d/bullseye.sources
+          Types: deb
+          URIs: http://deb.debian.org/debian
+          Suites: bullseye bullseye-updates
+          Components: main
+          Signed-By: /usr/share/keyrings/debian-archive-keyring.gpg
+
+          Types: deb
+          URIs: http://deb.debian.org/debian-security
+          Suites: bullseye-security
+          Components: main
+          Signed-By: /usr/share/keyrings/debian-archive-keyring.gpg
+          EOF
+
       - name: Update packages
         run: |
           case ${{ matrix.container }} in
@@ -55,6 +74,14 @@ jobs:
                 cmake \
                 libglib2.0-dev \
                 libigraph-dev
+              ;;
+            debian:12*)
+              # See https://github.com/shadow/tgen/issues/44#issuecomment-1693982909
+              apt-get install -y \
+                ${{ matrix.cc }} \
+                cmake \
+                libglib2.0-dev \
+                libigraph-dev/bullseye
               ;;
             debian*)
               apt-get install -y \
