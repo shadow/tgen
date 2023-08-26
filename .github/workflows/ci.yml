@@ -29,17 +29,31 @@ jobs:
         container:
           # We generally try to support the same set of platforms as shadow does.
           # See https://shadow.github.io/docs/guide/supported_platforms.html
-          - 'ubuntu:18.04'
           - 'ubuntu:20.04'
           - 'ubuntu:22.04'
           - 'debian:10-slim'
           - 'debian:11-slim'
-          - 'fedora:34'
-          - 'fedora:35'
-          - 'fedora:36'
+          - 'debian:12-slim'
           - 'fedora:37'
-          - 'quay.io/centos/centos:stream8'
     steps:
+      # See https://github.com/shadow/tgen/issues/44#issuecomment-1693982909
+      - name: Install debian:11 backports
+        if: ${{ matrix.container == 'debian:12-slim' }}
+        run: |
+          cat <<EOF > /etc/apt/sources.list.d/bullseye.sources
+          Types: deb
+          URIs: http://deb.debian.org/debian
+          Suites: bullseye bullseye-updates
+          Components: main
+          Signed-By: /usr/share/keyrings/debian-archive-keyring.gpg
+
+          Types: deb
+          URIs: http://deb.debian.org/debian-security
+          Suites: bullseye-security
+          Components: main
+          Signed-By: /usr/share/keyrings/debian-archive-keyring.gpg
+          EOF
+
       - name: Update packages
         run: |
           case ${{ matrix.container }} in
@@ -61,6 +75,14 @@ jobs:
                 libglib2.0-dev \
                 libigraph-dev
               ;;
+            debian:12*)
+              # See https://github.com/shadow/tgen/issues/44#issuecomment-1693982909
+              apt-get install -y \
+                ${{ matrix.cc }} \
+                cmake \
+                libglib2.0-dev \
+                libigraph-dev/bullseye
+              ;;
             debian*)
               apt-get install -y \
                 ${{ matrix.cc }} \
@@ -74,14 +96,6 @@ jobs:
                 cmake \
                 glib2-devel \
                 igraph-devel
-              ;;
-            *centos*stream8)
-              dnf install -y \
-                ${{ matrix.cc }} \
-                cmake \
-                glib2-devel
-              dnf install -y https://dl.fedoraproject.org/pub/archive/epel/7.7/x86_64/Packages/i/igraph-0.7.1-12.el7.x86_64.rpm
-              dnf install -y https://dl.fedoraproject.org/pub/archive/epel/7.7/x86_64/Packages/i/igraph-devel-0.7.1-12.el7.x86_64.rpm
               ;;
             *)
               echo "Unhandled container ${{ matrix.container }}"
