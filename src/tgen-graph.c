@@ -393,7 +393,8 @@ static GError* _tgengraph_parseGraphEdges(TGenGraph* g) {
     if(!error) {
         g->edgeCount = igraph_ecount(g->graph);
         if(g->edgeCount != edgeCount) {
-            tgen_warning("igraph_vcount %d does not match iterator count %d", g->edgeCount, edgeCount);
+            tgen_warning("igraph_vcount %ld does not match iterator count %ld", 
+                (long int) g->edgeCount, (long int) edgeCount);
         }
 
         tgen_info("%u graph edges ok", (guint) g->edgeCount);
@@ -416,15 +417,15 @@ static gboolean _tgengraph_hasSelfLoop(TGenGraph* g, igraph_integer_t vertexInde
     TGEN_ASSERT(g);
     gboolean isLoop = FALSE;
 
-    igraph_vector_t* resultNeighborVertices = g_new0(igraph_vector_t, 1);
-    gint result = igraph_vector_init(resultNeighborVertices, 0);
+    igraph_vector_int_t* resultNeighborVertices = g_new0(igraph_vector_int_t, 1);
+    gint result = igraph_vector_int_init(resultNeighborVertices, 0);
 
     if(result == IGRAPH_SUCCESS) {
         result = igraph_neighbors(g->graph, resultNeighborVertices, vertexIndex, IGRAPH_OUT);
         if(result == IGRAPH_SUCCESS) {
-            glong nVertices = igraph_vector_size(resultNeighborVertices);
+            glong nVertices = igraph_vector_int_size(resultNeighborVertices);
             for (gint i = 0; i < nVertices; i++) {
-                igraph_integer_t dstVertexIndex = igraph_vector_e(resultNeighborVertices, i);
+                igraph_integer_t dstVertexIndex = igraph_vector_int_get(resultNeighborVertices, i);
                 if(vertexIndex == dstVertexIndex) {
                     isLoop = TRUE;
                     break;
@@ -433,7 +434,7 @@ static gboolean _tgengraph_hasSelfLoop(TGenGraph* g, igraph_integer_t vertexInde
         }
     }
 
-    igraph_vector_destroy(resultNeighborVertices);
+    igraph_vector_int_destroy(resultNeighborVertices);
     g_free(resultNeighborVertices);
     return isLoop;
 }
@@ -442,10 +443,10 @@ static glong _tgengraph_countIncomingEdges(TGenGraph* g, igraph_integer_t vertex
     /* Count up the total number of incoming edges */
 
     /* initialize a vector to hold the result neighbor vertices for this action */
-    igraph_vector_t* resultNeighborVertices = g_new0(igraph_vector_t, 1);
+    igraph_vector_int_t* resultNeighborVertices = g_new0(igraph_vector_int_t, 1);
 
     /* initialize with 0 entries, since we dont know how many neighbors we have */
-    gint result = igraph_vector_init(resultNeighborVertices, 0);
+    gint result = igraph_vector_int_init(resultNeighborVertices, 0);
     if(result != IGRAPH_SUCCESS) {
         tgen_critical("igraph_vector_init return non-success code %i", result);
         g_free(resultNeighborVertices);
@@ -456,17 +457,17 @@ static glong _tgengraph_countIncomingEdges(TGenGraph* g, igraph_integer_t vertex
     result = igraph_neighbors(g->graph, resultNeighborVertices, vertexIndex, IGRAPH_IN);
     if(result != IGRAPH_SUCCESS) {
         tgen_critical("igraph_neighbors return non-success code %i", result);
-        igraph_vector_destroy(resultNeighborVertices);
+        igraph_vector_int_destroy(resultNeighborVertices);
         g_free(resultNeighborVertices);
         return -1;
     }
 
     /* handle the results */
-    glong totalIncoming = igraph_vector_size(resultNeighborVertices);
+    glong totalIncoming = igraph_vector_int_size(resultNeighborVertices);
     tgen_debug("found %li incoming 1-hop neighbors to vertex %li", totalIncoming, (glong)vertexIndex);
 
     /* cleanup */
-    igraph_vector_destroy(resultNeighborVertices);
+    igraph_vector_int_destroy(resultNeighborVertices);
     g_free(resultNeighborVertices);
 
     return totalIncoming;
@@ -1068,10 +1069,11 @@ static GError* _tgengraph_parseGraphVertices(TGenGraph* g) {
     if(!error) {
         g->vertexCount = igraph_vcount(g->graph);
         if(g->vertexCount != vertexCount) {
-            tgen_warning("igraph_vcount %d does not match iterator count %d", g->vertexCount, vertexCount);
+            tgen_warning("igraph_vcount %ld does not match iterator count %ld",
+                (long int) g->vertexCount, (long int) vertexCount);
         }
 
-        tgen_info("%u graph vertices ok", (guint) g->vertexCount);
+        tgen_info("%ld graph vertices ok", (long int) g->vertexCount);
     }
 
     return error;
@@ -1091,10 +1093,10 @@ static GError* _tgengraph_parseGraphProperties(TGenGraph* g) {
                 "igraph_is_connected return non-success code %i", result);
     }
 
-    result = igraph_clusters(g->graph, NULL, NULL, &(g->clusterCount), IGRAPH_WEAK);
+    result = igraph_connected_components(g->graph, NULL, NULL, &(g->clusterCount), IGRAPH_WEAK);
     if(result != IGRAPH_SUCCESS) {
         return g_error_new(G_MARKUP_ERROR, G_MARKUP_ERROR_PARSE,
-                "igraph_clusters return non-success code %i", result);
+                "igraph_connected_components return non-success code %i", result);
     }
 
     /* it must be connected */
@@ -1109,13 +1111,13 @@ static GError* _tgengraph_parseGraphProperties(TGenGraph* g) {
 
     /* now check list of all attributes */
     igraph_strvector_t gnames, vnames, enames;
-    igraph_vector_t gtypes, vtypes, etypes;
+    igraph_vector_int_t gtypes, vtypes, etypes;
     igraph_strvector_init(&gnames, 25);
-    igraph_vector_init(&gtypes, 25);
+    igraph_vector_int_init(&gtypes, 25);
     igraph_strvector_init(&vnames, 25);
-    igraph_vector_init(&vtypes, 25);
+    igraph_vector_int_init(&vtypes, 25);
     igraph_strvector_init(&enames, 25);
-    igraph_vector_init(&etypes, 25);
+    igraph_vector_int_init(&etypes, 25);
 
     result = igraph_cattribute_list(g->graph, &gnames, &gtypes, &vnames, &vtypes, &enames, &etypes);
     if(result != IGRAPH_SUCCESS) {
@@ -1125,16 +1127,16 @@ static GError* _tgengraph_parseGraphProperties(TGenGraph* g) {
 
     GError* error = NULL;
     gint i = 0;
-    for(i = 0; !error && i < igraph_strvector_size(&gnames); i++) {
-        gchar* name = NULL;
-        igraph_strvector_get(&gnames, (glong) i, &name);
 
+    #ifdef DEBUG
+    for(i = 0; !error && i < igraph_strvector_size(&gnames); i++) {
+        const gchar* name = igraph_strvector_get(&gnames, (igraph_integer_t) i);
         tgen_debug("found graph attribute '%s'", name);
     }
+    #endif
 
     for(i = 0; !error && i < igraph_strvector_size(&vnames); i++) {
-        gchar* name = NULL;
-        igraph_strvector_get(&vnames, (glong) i, &name);
+        const gchar* name = igraph_strvector_get(&vnames, (igraph_integer_t) i);
 
         tgen_debug("found vertex attribute '%s'", name);
 
@@ -1150,8 +1152,7 @@ static GError* _tgengraph_parseGraphProperties(TGenGraph* g) {
     }
 
     for(i = 0; !error && i < igraph_strvector_size(&enames); i++) {
-        gchar* name = NULL;
-        igraph_strvector_get(&enames, (glong) i, &name);
+        const gchar* name = igraph_strvector_get(&enames, (igraph_integer_t) i);
 
         tgen_debug("found edge attribute '%s'", name);
 
@@ -1167,11 +1168,11 @@ static GError* _tgengraph_parseGraphProperties(TGenGraph* g) {
     }
 
     igraph_strvector_destroy(&gnames);
-    igraph_vector_destroy(&gtypes);
+    igraph_vector_int_destroy(&gtypes);
     igraph_strvector_destroy(&vnames);
-    igraph_vector_destroy(&vtypes);
+    igraph_vector_int_destroy(&vtypes);
     igraph_strvector_destroy(&enames);
-    igraph_vector_destroy(&etypes);
+    igraph_vector_int_destroy(&etypes);
 
     if(error) {
         tgen_warning("failed to verify graph properties and attributes");
@@ -1332,10 +1333,10 @@ GQueue* tgengraph_getNextActionIDs(TGenGraph* g, TGenActionID actionID) {
     igraph_integer_t srcVertexIndex = (igraph_integer_t) actionID;
 
     /* initialize a vector to hold the result neighbor vertices for this action */
-    igraph_vector_t* resultNeighborVertices = g_new0(igraph_vector_t, 1);
+    igraph_vector_int_t* resultNeighborVertices = g_new0(igraph_vector_int_t, 1);
 
     /* initialize with 0 entries, since we dont know how many neighbors we have */
-    gint result = igraph_vector_init(resultNeighborVertices, 0);
+    gint result = igraph_vector_int_init(resultNeighborVertices, 0);
     if(result != IGRAPH_SUCCESS) {
         tgen_critical("igraph_vector_init return non-success code %i", result);
         g_free(resultNeighborVertices);
@@ -1346,13 +1347,13 @@ GQueue* tgengraph_getNextActionIDs(TGenGraph* g, TGenActionID actionID) {
     result = igraph_neighbors(g->graph, resultNeighborVertices, srcVertexIndex, IGRAPH_OUT);
     if(result != IGRAPH_SUCCESS) {
         tgen_critical("igraph_neighbors return non-success code %i", result);
-        igraph_vector_destroy(resultNeighborVertices);
+        igraph_vector_int_destroy(resultNeighborVertices);
         g_free(resultNeighborVertices);
         return NULL;
     }
 
     /* handle the results */
-    glong nVertices = igraph_vector_size(resultNeighborVertices);
+    glong nVertices = igraph_vector_int_size(resultNeighborVertices);
     tgen_debug("found %li outgoing neighbors from vertex %li", nVertices, (glong)srcVertexIndex);
 
     /* only follow one edge of all edges with the 'weight' attribute (do a weighted choice)
@@ -1364,7 +1365,7 @@ GQueue* tgengraph_getNextActionIDs(TGenGraph* g, TGenActionID actionID) {
 
     for (gint i = 0; i < nVertices; i++) {
         /* we have source, get destination */
-        igraph_integer_t dstVertexIndex = igraph_vector_e(resultNeighborVertices, i);
+        igraph_integer_t dstVertexIndex = igraph_vector_int_get(resultNeighborVertices, i);
 
         TGenAction* nextAction = _tgengraph_getAction(g, dstVertexIndex);
         if(!nextAction) {
@@ -1378,7 +1379,7 @@ GQueue* tgengraph_getNextActionIDs(TGenGraph* g, TGenActionID actionID) {
         result = igraph_get_eid(g->graph, &edgeIndex, srcVertexIndex, dstVertexIndex, IGRAPH_DIRECTED, TRUE);
         if(result != IGRAPH_SUCCESS) {
             tgen_critical("igraph_get_eid return non-success code %i", result);
-            igraph_vector_destroy(resultNeighborVertices);
+            igraph_vector_int_destroy(resultNeighborVertices);
             g_free(resultNeighborVertices);
             g_queue_free(nextActions);
             g_queue_free(chooseActions);
@@ -1425,7 +1426,7 @@ GQueue* tgengraph_getNextActionIDs(TGenGraph* g, TGenActionID actionID) {
     }
 
     /* cleanup */
-    igraph_vector_destroy(resultNeighborVertices);
+    igraph_vector_int_destroy(resultNeighborVertices);
     g_free(resultNeighborVertices);
     g_queue_free(chooseActions);
     g_queue_free(chooseWeights);
