@@ -286,11 +286,11 @@ def analyze(args):
         analysis = ParallelAnalysis(nickname=args.nickname, ip_address=args.ip_address)
         analysis.analyze(paths, do_complete=args.do_complete, date_filter=args.date_filter,
             num_subprocs=min(args.nprocesses, len(paths)))
+        analysis.save(output_prefix=args.prefix, do_compress=True, xz_nthreads=args.nprocesses)
     else:
         analysis = SerialAnalysis(nickname=args.nickname, ip_address=args.ip_address)
         analysis.analyze(paths, do_complete=args.do_complete, date_filter=args.date_filter)
-
-    analysis.save(output_prefix=args.prefix)
+        analysis.save(output_prefix=args.prefix, do_compress=True, xz_nthreads=1)
 
 def visualize(args):
     from tgentools.visualization import TGenVisualization

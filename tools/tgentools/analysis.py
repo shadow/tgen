@@ -87,7 +87,7 @@ class Analysis(object):
             else:
                 self.json_db['data'][nickname] = analysis.json_db['data'][nickname]
 
-    def save(self, filename=None, output_prefix=os.getcwd(), do_compress=True):
+    def save(self, filename=None, output_prefix=os.getcwd(), do_compress=True, xz_nthreads=cpu_count()):
         if filename is None:
             if self.date_filter is None:
                 filename = "tgen.analysis.json.xz"
@@ -100,7 +100,7 @@ class Analysis(object):
 
         logging.info("saving analysis results to {}".format(filepath))
 
-        outf = util.FileWritable(filepath, do_compress=do_compress)
+        outf = util.FileWritable(filepath, do_compress=do_compress, xz_nthreads=xz_nthreads)
         json.dump(self.json_db, outf, sort_keys=True, separators=(',', ': '), indent=2)
         outf.close()
 
