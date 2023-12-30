@@ -1272,9 +1272,6 @@ TGenGraph* tgengraph_new(gchar* path) {
          * from multiple threads at the same time. this is not a problem when shadow
          * uses dlmopen to get a private namespace for each plugin. */
 
-        /* use the built-in C attribute handler */
-        igraph_attribute_table_t* oldHandler = igraph_set_attribute_table(&igraph_cattribute_table);
-
         g->graph = _tgengraph_loadNewGraph(g->graphPath);
         if(!g->graph) {
             error = g_error_new(G_MARKUP_ERROR, G_MARKUP_ERROR_PARSE,
@@ -1291,9 +1288,6 @@ TGenGraph* tgengraph_new(gchar* path) {
         if(!error) {
             error = _tgengraph_parseGraphVertices(g);
         }
-
-        /* replace the old handler */
-        igraph_set_attribute_table(oldHandler);
     }
 
     if(error) {

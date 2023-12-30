@@ -2,7 +2,9 @@
 #include <stdint.h>
 
 #include <glib.h>
+#include <igraph.h>
 
+#include "tgen-igraph-compat.h"
 #include "tgen-log.h"
 #include "tgen-markovmodel.h"
 
@@ -86,6 +88,9 @@ gint main(gint argc, gchar *argv[]) {
         tgen_info("USAGE: <seed> <path/to/markovmodel.graphml.xml>; e.g., 123456 traffic.packet.model.graphml.xml");
         return EXIT_FAILURE;
     }
+
+    /* use the built-in C attribute handler. this is set once and then left alone. */
+    igraph_set_attribute_table(&igraph_cattribute_table);
 
     guint32 seed = (guint32)atoi(argv[1]);
     gchar* path = g_strdup(argv[2]);
