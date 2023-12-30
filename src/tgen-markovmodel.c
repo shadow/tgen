@@ -109,7 +109,7 @@ static gboolean tgenmarkovmodel_attributeTypeMismatch(const igraph_t *graph, igr
         tgen_warning("Internal error: igraph_cattribute_table.gettype missing; unable to validate attribute types");
         return FALSE;
     }
-    igraph_attribute_type_t type = IGRAPH_ATTRIBUTE_DEFAULT;
+    igraph_attribute_type_t type = IGRAPH_ATTRIBUTE_UNSPECIFIED;
     if (igraph_cattribute_table.gettype(graph, &type, elemtype, name) != IGRAPH_SUCCESS) {
         // The igraph documentation says it'll abort on any error, but in case
         // it doesn't, error out here.
@@ -880,10 +880,6 @@ static igraph_t* _tgenmarkovmodel_loadGraph(FILE* graphFileStream, const gchar* 
     rewind(graphFileStream);
 
     igraph_t* graph = g_new0(igraph_t, 1);
-
-    /* make sure we use the correct attribute handler */
-    igraph_set_attribute_table(&igraph_cattribute_table);
-
     result = igraph_read_graph_graphml(graph, graphFileStream, 0);
 
     if (result != IGRAPH_SUCCESS) {

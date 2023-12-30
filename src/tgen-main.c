@@ -10,6 +10,7 @@
 #include <igraph.h>
 
 #include "tgen.h"
+#include "tgen-igraph-compat.h"
 
 static void _tgenmain_cleanup(gint status, gpointer arg) {
     if(arg) {
@@ -81,6 +82,9 @@ static gint _tgenmain_run(gint argc, gchar *argv[]) {
     } else {
         tgen_message("Set SIG_IGN for signal SIGPIPE");
     }
+
+    /* use the built-in C attribute handler. this is set once and then left alone. */
+    igraph_set_attribute_table(&igraph_cattribute_table);
 
     /* parse the config file */
     TGenGraph* graph = tgengraph_new(argv[1]);

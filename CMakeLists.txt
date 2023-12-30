@@ -16,12 +16,7 @@ include(FindPkgConfig)
 find_package(RT REQUIRED)
 find_package(M REQUIRED)
 
-# We don't yet support igraph 0.10.0+, which has some API changes.
-# See https://github.com/shadow/tgen/issues/44
-#
-# Older versions of cmake don't support the `<` operator here; only `<=`.
-pkg_check_modules(IGRAPH REQUIRED igraph<=0.9.9999)
-
+pkg_check_modules(IGRAPH REQUIRED igraph)
 pkg_check_modules(GLIB REQUIRED glib-2.0)
 
 ## Parse out igraph version. Needed to work around breaking API changes in igraph.
