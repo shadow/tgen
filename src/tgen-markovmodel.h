@@ -8,7 +8,7 @@
 #include <glib.h>
 
 /* this is how many bytes we send for each packet type observation */
-#define TGEN_MMODEL_PACKET_DATA_SIZE 1434
+#define TGEN_MMODEL_PACKET_DATA_SIZE 1460
 /* and packets sent within this many microseconds will be sent
  * at the same time for efficiency reasons */
 #define TGEN_MMODEL_MICROS_AT_ONCE 10000
